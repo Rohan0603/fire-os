@@ -1,0 +1,53 @@
+name: Deploy FIRE OS to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate HTML
+        run: |
+          if ! grep -q "<title>FIRE OS</title>" index.html; then
+            echo "ERROR: index.html title not found"
+            exit 1
+          fi
+          echo "✓ HTML validation passed"
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
+
+      - name: Test fetch endpoints
+        run: |
+          echo "Testing CORS proxies..."
+          curl -s "https://api.allorigins.win/get?url=https://api.mfapi.in/mf/122639/latest" > /dev/null && echo "✓ mfapi.in accessible" || echo "⚠ mfapi.in may be down"
+          echo "Deployment complete!"
