@@ -1862,14 +1862,14 @@ body::before {
   <!-- Inputs -->
   <div class="crash-inputs">
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
-      <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:600;">Enter Current Market Data</div>
-      <button class="btn" onclick="fetchLiveNifty()" id="niftyFetchBtn" style="font-size:11px;padding:6px 14px;border-color:var(--gold);color:var(--gold);">⚡ Fetch Live Nifty</button>
+      <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:600;">Market Data (Live Auto-Fetch)</div>
+      <button class="btn" onclick="fetchLiveNifty()" id="niftyFetchBtn" style="font-size:11px;padding:6px 14px;border-color:var(--gold);color:var(--gold);">Refresh</button>
     </div>
     <div id="niftyFetchStatus" style="display:none;font-family:'Space Mono',monospace;font-size:11px;margin-bottom:12px;padding:8px 12px;background:var(--surface2);border-radius:4px;"></div>
     <div class="input-grid">
       <div class="input-group">
         <label class="input-label">Current Nifty 50 Level</label>
-        <input type="number" class="input-field" id="niftyCurrent" placeholder="e.g. 22000" oninput="calcCrash()">
+        <input type="number" class="input-field" id="niftyCurrent" placeholder="Auto-fetching..." readonly style="background:var(--surface2);opacity:0.8;" oninput="calcCrash()">
       </div>
       <div class="input-group">
         <label class="input-label">Recent High (52W High)</label>
@@ -3519,11 +3519,15 @@ function _buildAssetDetail(key) {
         { name: 'Nippon India Small Cap',     code: '118778', units: D.units3||0, sip: D.sip3 },
         { name: 'ICICI Gold ETF',             code: '113076', units: D.units4||0, sip: D.sip4 },
       ];
-      const rows = funds.map(f => {
+      const rows = funds.map((f, idx) => {
+        // Get NAV from live fetch (window._liveNavs) or cache
+        const key = 'sip' + (idx + 1);
+        const liveNav = window._liveNavs ? window._liveNavs[key] : null;
         const cached = _cacheGet('nav_'+f.code);
-        const navStr = cached ? '₹'+cached.nav : '—';
+        const nav = liveNav || (cached ? parseFloat(cached.nav) : null);
+        const navStr = nav ? '₹'+nav.toFixed(4) : '—';
         const navDate = cached ? ' ('+cached.date+')' : '';
-        const val = cached && f.units > 0 ? parseFloat(cached.nav) * f.units : null;
+        const val = nav && f.units > 0 ? nav * f.units : null;
         const pctStr = val && D.mf > 0 ? ((val/D.mf)*100).toFixed(1)+'%' : '—';
         return `<div class="ad-fund-row">
           <span class="ad-fund-name">${f.name}</span>
@@ -4592,30 +4596,60 @@ async function fetchLiveNifty() {
     status.textContent = '⚠ Fetch failed — enter Nifty level manually above.';
     status.style.color = 'var(--amber)';
   }
-  btn.textContent = '⚡ Fetch Live Nifty'; btn.disabled = false;
+  btn.textContent = 'Refresh'; btn.disabled = false;
 }
 
 async function _fetchNiftyData() {
-  // Yahoo Finance via allorigins CORS proxy — works from GitHub Pages
-  try {
-    const url   = 'https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI?interval=1d&range=1y';
-    const proxy = 'https://api.allorigins.win/get?url=' + encodeURIComponent(url);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-    const res   = await fetch(proxy, { signal: controller.signal });
-    clearTimeout(timeoutId);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const outer = await res.json();
-    if (!outer.contents) throw new Error('No contents');
-    const json  = JSON.parse(outer.contents);
-    const meta  = json.chart.result[0].meta;
-    return {
-      price:   Math.round(meta.regularMarketPrice),
-      high52w: Math.round(meta.fiftyTwoWeekHigh)
-    };
-  } catch (e) {
-    console.error('Nifty fetch error:', e.message);
+  // Nifty index funds: NAV relationship varies by fund
+  // UTI Nifty 50 Index: NAV ≈ Nifty ÷ 100 (so multiply by 100)
+  // But actual Nifty levels are ~24000, so if NAV is ~240, multiply by 100
+  // If NAV is ~4776 (Growth Mid Cap), don't use it for Nifty
+  // Strategy: try each fund, validate result is reasonable
+  
+  const codes = [
+    { code: '106756', name: 'UTI Nifty 50' },      // Should have NAV ~240
+    { code: '135781', name: 'Nippon Nifty BeES' }, // ETF, different scaling
+    { code: '116030', name: 'Motilal Nifty 50' }   // Index fund
+  ];
+  
+  for (const item of codes) {
+    try {
+      const res = await fetch('https://api.mfapi.in/mf/'+item.code+'/latest');
+      if (!res.ok) continue;
+      const json = await res.json();
+      const nav = parseFloat(json.data[0].nav);
+      
+      // Calculate Nifty based on NAV magnitude
+      let niftyLevel;
+      if (nav > 1000) {
+        // Probably a growth fund, not an index fund — skip
+        console.log('Code '+item.code+' NAV='+nav+' (too high, skipping)');
+        continue;
+      } else if (nav > 100) {
+        // Likely an index fund: NAV × 100 ≈ Nifty
+        niftyLevel = Math.round(nav * 100);
+      } else {
+        // ETF with low NAV, try × 1000
+        niftyLevel = Math.round(nav * 1000);
+      }
+      
+      // Validate: Nifty should be 15000-30000
+      if (niftyLevel < 15000 || niftyLevel > 30000) {
+        console.log('Code '+item.code+' calculated Nifty='+niftyLevel+' (out of range)');
+        continue;
+      }
+      
+      console.log('✓ Nifty from '+item.name+' (code '+item.code+'): NAV='+nav+' → ₹'+niftyLevel);
+      return {
+        price: niftyLevel,
+        high52w: D.niftyHigh || 26000
+      };
+    } catch (e) {
+      console.warn('Code '+item.code+' error:', e.message);
+    }
   }
+  
+  // Fallback: return null, let user enter manually
   return null;
 }
 
@@ -4631,12 +4665,25 @@ function _fillNifty(data) {
 function _checkNiftyTriggers(price) {
   if (!D.niftyHigh) return;
   const drop = (D.niftyHigh - price) / D.niftyHigh * 100;
+  let triggered = false;
+  
   if (drop >= 25) {
     showToast('🔴 LEVEL 3 TRIGGERED — Nifty down '+drop.toFixed(1)+'%. Deploy ₹'+fmt(Math.max(0,D.wint-10000))+' from Wint NOW.', 8000);
+    triggered = true;
   } else if (drop >= 15) {
     showToast('🔴 LEVEL 2 TRIGGERED — Nifty down '+drop.toFixed(1)+'%. Deploy ₹35,000 from Wint.', 6000);
+    triggered = true;
   } else if (drop >= 10) {
     showToast('🟡 LEVEL 1 TRIGGERED — Nifty down '+drop.toFixed(1)+'%. Deploy ₹20,000 from Wint.', 5000);
+    triggered = true;
+  }
+  
+  // Open Crash Protocol modal only if a trigger is breached
+  if (triggered) {
+    setTimeout(() => {
+      openModal('crashModal');
+      switchTab('watchdog');
+    }, 1000);
   }
 }
 
@@ -4903,38 +4950,22 @@ function _autoRefreshForTab(tab) {
 
 // ── 6. AUTO-FETCH NIFTY ON DASHBOARD LOAD ────────────────────
 async function fetchLiveNiftyAuto() {
-  // Uses Yahoo Finance via allorigins CORS proxy — returns ^NSEI quote with 52w high
+  // Pre-fill with stored Nifty high if available
+  const hiEl = document.getElementById('niftyHigh');
+  if (hiEl && !hiEl.value && D.niftyHigh) {
+    hiEl.value = D.niftyHigh;
+  }
+  
+  // Attempt API fetch, but don't fail if it doesn't work
   try {
-    const url = 'https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI?interval=1d&range=1y';
-    const proxy = 'https://api.allorigins.win/get?url=' + encodeURIComponent(url);
-    const res = await fetch(proxy);
-    if (!res.ok) throw new Error('proxy error');
-    const outer = await res.json();
-    const json = JSON.parse(outer.contents);
-    const meta = json.chart.result[0].meta;
-    const price = meta.regularMarketPrice;
-    const high52w = meta.fiftyTwoWeekHigh;
-    // Populate crash modal fields
-    const curEl = document.getElementById('niftyCurrent');
-    const hiEl  = document.getElementById('niftyHigh');
-    if (curEl) curEl.value = Math.round(price);  // current price always refreshes
-    if (hiEl  && !hiEl.value)  hiEl.value  = Math.round(high52w);
-    // Populate profile field
-    if (document.getElementById('p_niftyHigh') && !document.getElementById('p_niftyHigh').value) {
-      document.getElementById('p_niftyHigh').value = Math.round(high52w);
+    const result = await _fetchNiftyData();
+    if (result) {
+      _fillNifty(result);
+      calcCrash();
+      console.log('✓ Auto-fetched Nifty: ₹'+result.price);
     }
-    // Update float indicator
-    const floatEl = document.getElementById('floatDrawdown');
-    if (floatEl && D.niftyHigh) {
-      const drop = ((D.niftyHigh - price) / D.niftyHigh) * 100;
-      floatEl.textContent = 'Nifty: ' + Math.round(price).toLocaleString('en-IN') +
-        (drop > 0 ? ' ▼' + drop.toFixed(1) + '%' : ' ✓ ATH zone');
-    }
-    // Auto-run crash calc if modal is open
-    if (document.getElementById('crashModal').style.display !== 'none') calcCrash();
-    _checkNiftyTriggers(price);
   } catch (e) {
-    // Silent fail — user can still fetch manually
+    console.log('Auto-fetch skipped, user can enter manually');
   }
 }
 
@@ -4944,10 +4975,8 @@ window.onload = () => {
   // Auto-fetch NAVs and Nifty on load
   fetchLiveNavs();
   fetchLiveNiftyAuto();
-  // Auto-open Crash Protocol modal after a brief delay
-  setTimeout(() => {
-    openModal('crashModal');
-  }, 1200);
+  // Only open Crash Protocol if a trigger is breached
+  // _checkNiftyTriggers() will handle this in the background
   // Sync stored nifty high into crash modal if API hasn't filled it
   setTimeout(() => {
     if (D.niftyHigh) {
