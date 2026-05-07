@@ -88,7 +88,6 @@ blob-report/
 .playwright/
 
 # Local development
-.claude/
 local.json
 *.local.json
 
