@@ -2974,11 +2974,11 @@ function renderDashboard() {
 
   // FI Arc
   const FI_TARGET = 330000000;
-  const fiPct = Math.min(100, (D.mf / FI_TARGET) * 100);
+  const fiPct = Math.min(100, (mfVal / FI_TARGET) * 100);
   document.getElementById('fiPct').textContent = fiPct.toFixed(2) + '%';
   document.getElementById('fiTarget').textContent = '₹33,00,00,000';
-  document.getElementById('fiCurrent').textContent = fmtFull(D.mf);
-  document.getElementById('fiRemaining').textContent = fmt(FI_TARGET - D.mf);
+  document.getElementById('fiCurrent').textContent = fmtFull(mfVal);
+  document.getElementById('fiRemaining').textContent = fmt(FI_TARGET - mfVal);
 
   if (fiChart) fiChart.destroy();
   fiChart = new Chart(document.getElementById('fiArc'), {
@@ -3527,16 +3527,25 @@ function _buildAssetDetail(key) {
         { name: 'Nippon India Small Cap',     code: '118778', units: D.units3||0, sip: D.sip3 },
         { name: 'ICICI Gold ETF',             code: '113076', units: D.units4||0, sip: D.sip4 },
       ];
-      const rows = funds.map((f, idx) => {
-        // Get NAV from live fetch (window._liveNavs) or cache
-        const key = 'sip' + (idx + 1);
-        const liveNav = window._liveNavs ? window._liveNavs[key] : null;
+      // Compute live total from NAV × units so % always sums to 100%
+      const fundNavs = funds.map((f, idx) => {
+        const k = 'sip' + (idx + 1);
+        const liveNav = window._liveNavs ? window._liveNavs[k] : null;
         const cached = _cacheGet('nav_'+f.code);
-        const nav = liveNav || (cached ? parseFloat(cached.nav) : null);
+        return liveNav || (cached ? parseFloat(cached.nav) : null);
+      });
+      const liveTotal = fundNavs.reduce((sum, nav, idx) => {
+        return sum + (nav && funds[idx].units > 0 ? nav * funds[idx].units : 0);
+      }, 0);
+      const totalForPct = liveTotal > 0 ? liveTotal : D.mf;
+
+      const rows = funds.map((f, idx) => {
+        const nav = fundNavs[idx];
+        const cached = _cacheGet('nav_'+f.code);
         const navStr = nav ? '₹'+nav.toFixed(4) : '—';
         const navDate = cached ? ' ('+cached.date+')' : '';
         const val = nav && f.units > 0 ? nav * f.units : null;
-        const pctStr = val && D.mf > 0 ? ((val/D.mf)*100).toFixed(1)+'%' : '—';
+        const pctStr = val && totalForPct > 0 ? ((val/totalForPct)*100).toFixed(1)+'%' : '—';
         return `<div class="ad-fund-row">
           <span class="ad-fund-name">${f.name}</span>
           <span class="ad-fund-nav">${navStr}<span class="ad-dim">${navDate}</span></span>
@@ -3546,6 +3555,9 @@ function _buildAssetDetail(key) {
           <span class="ad-fund-sip">${fmt(f.sip)}/mo</span>
         </div>`;
       }).join('');
+      const totalDisplay = liveTotal > 0
+        ? `<strong>${fmtFull(Math.round(liveTotal))}</strong> <span class="ad-dim">(live)</span>`
+        : `<strong>${fmtFull(D.mf)}</strong> <span class="ad-dim">(stored · update in Profile)</span>`;
       return `
         <div class="ad-header"><span class="ad-title">MUTUAL FUNDS</span><span class="asset-badge badge-blue">CORE</span></div>
         <div class="ad-sub">30Y engine · 4 diversified equity funds</div>
@@ -3553,7 +3565,7 @@ function _buildAssetDetail(key) {
           <div class="ad-fund-head"><span>Fund</span><span>NAV</span><span>Units</span><span>Value</span><span>% MF</span><span>SIP</span></div>
           ${rows}
         </div>
-        <div class="ad-total">Total MF Value: <strong>${fmtFull(D.mf)}</strong> <span class="ad-dim">(update in Profile)</span></div>`;
+        <div class="ad-total">Total MF Value: ${totalDisplay}</div>`;
     },
     esop: () => {
       const cached = _cacheGet('eurinr');
@@ -4971,18 +4983,33 @@ async function fetchLiveNiftyAuto() {
   if (hiEl && !hiEl.value && D.niftyHigh) {
     hiEl.value = D.niftyHigh;
   }
-  
-  // Attempt API fetch, but don't fail if it doesn't work
+
+  const status = document.getElementById('niftyFetchStatus');
+  const btn    = document.getElementById('niftyFetchBtn');
+  if (status) { status.style.display = 'block'; status.style.color = 'var(--text-dim)'; status.textContent = 'Auto-fetching Nifty 50…'; }
+  if (btn)    { btn.textContent = '⏳'; btn.disabled = true; }
+
   try {
     const result = await _fetchNiftyData();
     if (result) {
       _fillNifty(result);
-      calcCrash();
-      console.log('✓ Auto-fetched Nifty: ₹'+result.price);
+      _checkNiftyTriggers(result.price);
+      if (status) {
+        status.textContent = `✓ Nifty 50: ₹${result.price.toLocaleString('en-IN')} · 52W High: ₹${result.high52w.toLocaleString('en-IN')} · ${_tsNow()}`;
+        status.style.color = 'var(--green)';
+      }
+      const fi = document.getElementById('floatDrawdown');
+      if (fi) {
+        const drop = ((result.high52w - result.price) / result.high52w * 100);
+        fi.textContent = 'Nifty: ₹' + result.price.toLocaleString('en-IN') + (drop > 0 ? ' ▼' + drop.toFixed(1) + '%' : ' ✓ ATH zone');
+      }
+    } else {
+      if (status) { status.textContent = '⚠ Auto-fetch failed — enter Nifty level manually above.'; status.style.color = 'var(--amber)'; }
     }
   } catch (e) {
-    console.log('Auto-fetch skipped, user can enter manually');
+    if (status) { status.textContent = '⚠ Auto-fetch failed — enter Nifty level manually above.'; status.style.color = 'var(--amber)'; }
   }
+  if (btn) { btn.textContent = 'Refresh'; btn.disabled = false; }
 }
 
 window.onload = () => {
