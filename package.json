@@ -20,5 +20,8 @@
   "homepage": "https://github.com/Rohan0603/fire-os#readme",
   "devDependencies": {
     "@playwright/test": "^1.59.1"
+  },
+  "dependencies": {
+    "playwright": "^1.59.1"
   }
 }
