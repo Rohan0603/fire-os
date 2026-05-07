@@ -1555,6 +1555,7 @@ body::before {
     <div class="section-line"></div>
     <button class="btn" onclick="fetchLiveNavs(true)" style="font-size:10px;padding:4px 10px;white-space:nowrap;flex-shrink:0;">⟳ NAV</button>
   </div>
+  <div id="portfolioSummaryCard" class="kpi-card" style="margin-bottom:12px;"></div>
   <div class="sip-grid" id="sipGrid">
     <!-- populated by JS -->
   </div>
@@ -3107,6 +3108,22 @@ function renderDashboard() {
     }
   });
 
+  // Portfolio P&L Summary
+  const portfolioPL = calcPortfolioPL();
+  const portfolioCardEl = document.getElementById('portfolioSummaryCard');
+  if (portfolioCardEl && portfolioPL) {
+    const pSign = portfolioPL.pl >= 0 ? '+' : '';
+    const pColor = portfolioPL.pl >= 0 ? 'var(--green)' : 'var(--red)';
+    const pPct = Math.abs(portfolioPL.plPct).toFixed(1);
+    const pAmt = Math.abs(portfolioPL.pl).toFixed(0);
+    portfolioCardEl.innerHTML = `
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--text-dim);text-transform:uppercase;margin-bottom:8px;">SIP Portfolio</div>
+      <div style="font-size:12px;color:var(--text-mid);margin-bottom:2px;">Invested: <span style="color:var(--text)">${fmt(portfolioPL.totalInvested)}</span></div>
+      ${portfolioPL.hasData ? `<div style="font-size:12px;color:var(--text-mid);margin-bottom:2px;">Current: <span style="color:var(--text)">${fmt(portfolioPL.totalCurrent)}</span></div>
+      <div style="font-size:14px;font-weight:700;color:${pColor};margin-top:4px;">${pSign}${fmt(parseInt(pAmt))} (${pSign}${pPct}%)</div>` : `<div style="font-size:12px;color:var(--text-dim);">Current: — (fetch NAV)</div>`}
+    `;
+  }
+
   // SIP Grid
   const sips = [
     { key: 'sip1', fund: 'Parag Parikh\nFlexi Cap Direct',     amt: D.sip1, units: D.units1||0, navCode: '122639', label: 'LIVE', cls: 'live' },
@@ -3138,23 +3155,30 @@ function renderDashboard() {
       }
     }
 
-    // Calculate P&L
+    // P&L data
     const pl = calculateSIPPL(s.key);
-    const plColor = pl.plPercent >= 0 ? '#2ecc71' : '#e74c3c';
-    const plSignedAmount = pl.plAmount >= 0 ? '+₹' : '−₹';
-    const plSignedPercent = pl.plPercent >= 0 ? '+' : '';
-    const plDisplayAmount = Math.abs(pl.plAmount).toFixed(0);
-    const plDisplayPercent = Math.abs(pl.plPercent).toFixed(1);
+    const hasInvested = pl && pl.totalInvested > 0;
+    const hasCurrent  = pl && pl.currentValue !== null;
 
-    // Calculate XIRR for actual SIP performance
-    const sipNum = s.key.match(/\d/)[0];
-    const startDateStr = D['sipStart' + sipNum];
-    let xirrStr = 'XIRR ≈ —';
-    if (startDateStr && pl.totalInvested > 0 && pl.currentValue > 0) {
+    let investedRow = '—';
+    if (hasInvested) {
+      const src = pl.usingCostBasis ? ' (stmt)' : ` (${pl.months}mo)`;
+      investedRow = fmt(pl.totalInvested) + `<span style="font-size:10px;color:var(--text-dim);">${src}</span>`;
+    }
+
+    let currentRow = '—';
+    let plRow = '—';
+    if (hasCurrent) {
+      currentRow = fmt(pl.currentValue);
+      const plColor = pl.plAmount >= 0 ? 'var(--green)' : 'var(--red)';
+      const plSign  = pl.plAmount >= 0 ? '+' : '−';
+      plRow = `<span style="color:${plColor};">${plSign}${fmt(Math.abs(pl.plAmount))} (${pl.plAmount >= 0 ? '+' : ''}${pl.plPercent.toFixed(1)}%)</span>`;
+    }
+
+    let xirrRow = '—';
+    if (hasCurrent) {
       const xirrVal = calculateSIPXIRR(s.key);
-      if (xirrVal !== null) {
-        xirrStr = 'XIRR ≈ ' + xirrVal.toFixed(1) + '%';
-      }
+      if (xirrVal !== null) xirrRow = xirrVal.toFixed(1) + '% p.a.';
     }
 
     return `
@@ -3170,11 +3194,11 @@ function renderDashboard() {
         ${s.units > 0 ? `<span class="sip-nav-units">${s.units.toFixed(3)} units</span>` : ''}
         <span class="sip-nav-value" id="navval_${s.key}">${valStr}</span>
       </div>
-      <div style="margin-top: 8px; font-family: 'Space Mono', monospace; font-size: 12px; color: ${plColor};">
-        ${plSignedAmount}${plDisplayAmount} (${plSignedPercent}${plDisplayPercent}%)
-      </div>
-      <div style="margin-top: 4px; font-family: 'Space Mono', monospace; font-size: 11px; color: var(--accent);">
-        ${xirrStr}
+      <div style="margin-top:8px;font-family:'Space Mono',monospace;font-size:11px;line-height:1.8;">
+        <div><span style="color:var(--text-dim);">Invested: </span>${investedRow}</div>
+        <div><span style="color:var(--text-dim);">Current:  </span>${currentRow}</div>
+        <div><span style="color:var(--text-dim);">P&amp;L:     </span>${plRow}</div>
+        <div style="color:var(--accent);"><span style="color:var(--text-dim);">XIRR:     </span>${xirrRow}</div>
       </div>
     </div>
   `}).join('');
@@ -3797,6 +3821,24 @@ function calculateSIPPL(sipKey) {
   const plPercent = totalInvested > 0 ? (plAmount / totalInvested) * 100 : 0;
 
   return { plAmount, plPercent, totalInvested, currentValue, months, usingCostBasis };
+}
+
+function calcPortfolioPL() {
+  let totalInvested = 0, totalCurrent = 0, hasData = false;
+  [1, 2, 3, 4].forEach(i => {
+    const pl = calculateSIPPL('sip' + i);
+    if (pl && pl.totalInvested > 0) {
+      totalInvested += pl.totalInvested;
+      if (pl.currentValue !== null) {
+        totalCurrent += pl.currentValue;
+        hasData = true;
+      }
+    }
+  });
+  if (totalInvested === 0) return null;
+  const pl = totalCurrent - totalInvested;
+  const plPct = totalInvested ? (pl / totalInvested) * 100 : 0;
+  return { totalInvested, totalCurrent, pl, plPct, hasData };
 }
 
 // ============ CALCULATE SIP XIRR ============
