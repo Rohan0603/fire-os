@@ -2747,6 +2747,26 @@ body::before {
 
 let D = {};
 
+function normalizeSipStart(val) {
+  if (!val || typeof val !== 'string') return val;
+  // Correct format: YYYY-MM (year >= 2000, month 01-12)
+  if (/^\d{4}-\d{2}$/.test(val)) {
+    const yr = parseInt(val.slice(0, 4));
+    if (yr >= 2000) return val;
+  }
+  // Detect swapped MM-YYYY format (legacy)
+  const mmYYYY = val.match(/^(\d{2})-(\d{4})$/);
+  if (mmYYYY) {
+    const m = parseInt(mmYYYY[1]);
+    const y = parseInt(mmYYYY[2]);
+    if (m >= 1 && m <= 12 && y >= 2000) return `${y}-${String(m).padStart(2, '0')}`;
+  }
+  // Any year < 2000 is invalid (corruption like "0001-05")
+  const yr = parseInt(val.slice(0, 4));
+  if (yr < 2000) return null;
+  return val;
+}
+
 function loadData() {
   // Try loading latest schema version
   let saved = localStorage.getItem('fireOS_v2');
@@ -2762,13 +2782,38 @@ function loadData() {
   }
   
   D = saved ? JSON.parse(saved) : { ...CONFIG.defaults };
-  
+
   // Validate schema — if broken, reset to defaults
   if (!D.income || !D.expenses) {
     console.warn('Corrupted profile data, resetting to defaults');
     D = { ...CONFIG.defaults };
   }
-  
+
+  // Normalize sipStart fields in case of historical corruption (e.g., "0001-05")
+  let needsSave = false;
+  ['sipStart1', 'sipStart2', 'sipStart3', 'sipStart4'].forEach(k => {
+    if (D[k]) {
+      const fixed = normalizeSipStart(D[k]);
+      if (fixed === null) {
+        delete D[k];
+        console.log(`Cleared corrupted sipStart field: ${k}`);
+        needsSave = true;
+      } else if (fixed !== D[k]) {
+        D[k] = fixed;
+        console.log(`Fixed sipStart field ${k}: ${D[k]}`);
+        needsSave = true;
+      }
+    }
+  });
+
+  // Persist normalized data back to localStorage
+  if (needsSave) {
+    D._schemaVersion = CONFIG.schemaVersion;
+    D._savedAt = new Date().toISOString();
+    localStorage.setItem('fireOS_v2', JSON.stringify(D));
+    console.log('Normalization saved to localStorage');
+  }
+
   populateProfileFields();
 }
 
@@ -4330,6 +4375,19 @@ function importData() {
           // Legacy: bare D object (v1 backup)
           D = parsed;
         }
+
+        // Normalize sipStart fields in case of historical corruption
+        ['sipStart1', 'sipStart2', 'sipStart3', 'sipStart4'].forEach(k => {
+          if (D[k]) {
+            const fixed = normalizeSipStart(D[k]);
+            if (fixed === null) {
+              delete D[k];
+            } else if (fixed !== D[k]) {
+              D[k] = fixed;
+            }
+          }
+        });
+
         localStorage.setItem('fireOS_v2', JSON.stringify(D));
         populateProfileFields();
         renderDashboard();
