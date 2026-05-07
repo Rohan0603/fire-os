@@ -86,6 +86,8 @@ test-results/
 playwright-report/
 blob-report/
 .playwright/
+.playwright-mcp/
+test-screenshots/
 
 # Local development
 local.json
