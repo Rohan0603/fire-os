@@ -2347,6 +2347,10 @@ body::before {
       <div class="pc-title">ESOP Tools <span class="pc-badge">Societe Generale · EUR</span></div>
       <div class="pc-sub">EUR/INR sensitivity analysis + windfall allocation on unlock. Treat as ₹0 in planning. Anything received is bonus.</div>
 
+      <div id="eurInrStatus" style="margin-top:8px;font-family:'Space Mono',monospace;font-size:13px;color:var(--text);padding:8px 12px;background:var(--surface2);border-radius:4px;">
+        Loading EUR/INR...
+      </div>
+
       <div class="opt-info-bar">
         ⚠ Foreign asset — must declare in Schedule FA of ITR · Gains taxed as foreign capital gains · Consult CA before any sale · NOT standard Indian equity LTCG
       </div>
@@ -4270,6 +4274,11 @@ function switchPTab3(tab) {
   document.getElementById('ptab3-' + tab).classList.add('active');
   const idx = { ltcg: 0, tax: 1, fd: 2, esop: 3 };
   document.querySelectorAll('#optimiser-tabs .ptab')[idx[tab]].classList.add('active');
+
+  // Fetch EUR/INR when ESOP tab opens
+  if (tab === 'esop') {
+    fetchEURINR();
+  }
 }
 
 // ============ OPTIMISER INIT ============
@@ -4964,6 +4973,78 @@ async function fetchSocGenPrice() {
     } else {
       lbl.textContent = 'Enter SocGen price in EUR manually (check Google Finance: GLE.PA)';
       lbl.style.color = 'var(--text-dim)';
+    }
+  }
+}
+
+// ── EUR/INR AUTO-FETCH (ESOP Tools Tab) ───────────────────────
+async function fetchEURINR() {
+  const statusEl = document.getElementById('eurInrStatus');
+  if (!statusEl) return;
+
+  try {
+    // Try cached rate first
+    const cached = _cacheGet('eurinr_auto');
+    if (cached) {
+      const age = Math.floor((Date.now() - cached.timestamp) / 60000); // minutes
+      const ageStr = age < 1 ? 'just now' : age === 1 ? '1m ago' : age + 'm ago';
+      statusEl.textContent = `₹${cached.rate} (${ageStr})`;
+      statusEl.style.color = 'var(--text)';
+      return;
+    }
+
+    // Fetch from Yahoo Finance via CORS proxy
+    const yahooUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/EURINR=X?interval=1d&range=1d';
+    const proxyUrl = 'https://api.allorigins.win/get?url=' + encodeURIComponent(yahooUrl);
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    const res = await fetch(proxyUrl, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+    const data = await res.json();
+    // allorigins wraps the response in { contents: ... }
+    const yahoo = JSON.parse(data.contents);
+    const quote = yahoo.chart?.result?.[0]?.meta;
+    if (!quote) throw new Error('Invalid response structure');
+
+    const rate = quote.regularMarketPrice;
+    if (typeof rate !== 'number' || rate < 80 || rate > 150) {
+      throw new Error(`Invalid rate: ${rate}`);
+    }
+
+    // Store in D object
+    D.eurInr = {
+      rate: parseFloat(rate.toFixed(2)),
+      timestamp: Date.now()
+    };
+    saveData();
+
+    // Cache for 30 days
+    _cacheSet('eurinr_auto', D.eurInr);
+
+    // Display with timestamp
+    const now = _tsNow();
+    statusEl.textContent = `₹${rate.toFixed(2)} @ ${now}`;
+    statusEl.style.color = 'var(--text)';
+
+    console.log('✓ EUR/INR fetched: ₹' + rate.toFixed(2));
+
+  } catch (e) {
+    console.error('EUR/INR fetch error:', e.message);
+
+    // Try to show cached rate with age
+    if (D.eurInr && D.eurInr.rate) {
+      const age = Math.floor((Date.now() - D.eurInr.timestamp) / 60000);
+      const ageStr = age < 60 ? age + 'm ago' : Math.floor(age / 60) + 'h ago';
+      statusEl.textContent = `₹${D.eurInr.rate} (${ageStr})`;
+      statusEl.style.color = 'var(--amber)';
+    } else {
+      statusEl.textContent = '⚠ Fetch failed. Enter manually below.';
+      statusEl.style.color = 'var(--red)';
     }
   }
 }
