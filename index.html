@@ -3823,6 +3823,11 @@ function calculateSIPXIRR(sipKey) {
   const currentValue = currentUnits * currentNAV;
   if (currentValue <= 0) return null;
 
+  // If current value is more than 5× SIP-only invested, units likely include
+  // pre-SIP lump sum holdings — XIRR would be misleading against SIP cashflows only
+  const totalInvestedSIP = monthlyAmount * months;
+  if (currentValue > totalInvestedSIP * 5) return null;
+
   // Build cashflow array: monthly outflows + terminal inflow today
   const t0 = new Date(startYear, startMonth - 1, 1).getTime();
   const cashflows = [];
