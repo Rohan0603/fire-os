@@ -96,3 +96,13 @@ local.json
 # Project specific
 BUGFIX_SUMMARY.md
 .history/
+
+# AI session artifacts
+docs/superpowers/
+TEST_REPORT.md
+
+# Claude Code local files
+.claude/
+
+# User data backups
+uploads/

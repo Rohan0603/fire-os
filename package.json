@@ -2,7 +2,6 @@
   "name": "fire-os",
   "version": "1.0.0",
   "description": "A comprehensive personal finance dashboard for FIRE (Financial Independence, Retire Early) planning. Track investments, simulate market crashes, calculate retirement timelines, and manage tax-efficient strategies.",
-  "main": "test-fixes.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
