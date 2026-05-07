@@ -3685,6 +3685,67 @@ function initPlanner() {
   calcHome();
 }
 
+// ============ SIP P&L CALCULATOR ============
+function calculateSIPPL(sipKey) {
+  // Validate input
+  if (!sipKey || !sipKey.match(/^sip[1-4]$/)) {
+    return { plAmount: 0, plPercent: 0, totalInvested: 0, currentValue: 0 };
+  }
+
+  // Extract SIP number from sipKey (e.g., 'sip1' → 1)
+  const sipNum = sipKey.match(/\d/)[0];
+
+  // Get monthly SIP amount
+  const monthlyAmount = D[sipKey] || 0;
+  if (monthlyAmount <= 0) {
+    return { plAmount: 0, plPercent: 0, totalInvested: 0, currentValue: 0 };
+  }
+
+  // Get SIP start date
+  const startDateStr = D['sipStart' + sipNum];
+  if (!startDateStr) {
+    return { plAmount: 0, plPercent: 0, totalInvested: 0, currentValue: 0 };
+  }
+
+  // Parse start date (format: 'YYYY-MM')
+  const [startYear, startMonth] = startDateStr.split('-').map(Number);
+  if (isNaN(startYear) || isNaN(startMonth)) {
+    return { plAmount: 0, plPercent: 0, totalInvested: 0, currentValue: 0 };
+  }
+
+  // Calculate months invested
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const months = (currentYear - startYear) * 12 + (currentMonth - startMonth) + 1;
+
+  if (months <= 0) {
+    return { plAmount: 0, plPercent: 0, totalInvested: 0, currentValue: 0 };
+  }
+
+  // Calculate total invested
+  const totalInvested = monthlyAmount * months;
+
+  // Get current NAV from window._liveNavs
+  const currentNAV = window._liveNavs ? window._liveNavs[sipKey] : 0;
+  if (currentNAV <= 0) {
+    // Return with totalInvested but zero current value
+    return { plAmount: 0, plPercent: 0, totalInvested, currentValue: 0 };
+  }
+
+  // Get current units
+  const currentUnits = D['units' + sipNum] || 0;
+
+  // Calculate current value
+  const currentValue = currentUnits * currentNAV;
+
+  // Calculate P&L
+  const plAmount = currentValue - totalInvested;
+  const plPercent = totalInvested > 0 ? (plAmount / totalInvested) * 100 : 0;
+
+  return { plAmount, plPercent, totalInvested, currentValue };
+}
+
 // ============ XIRR PROJECTOR ============
 function sipCorpus(monthly, stepupPct, years, cagr, existing) {
   // Monthly step-up SIP compounding
