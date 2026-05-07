@@ -3765,63 +3765,46 @@ function initPlanner() {
 
 // ============ SIP P&L CALCULATOR ============
 function calculateSIPPL(sipKey) {
-  // Validate input
-  if (!sipKey || !sipKey.match(/^sip[1-4]$/)) {
-    return { plAmount: 0, plPercent: 0, totalInvested: 0, currentValue: 0 };
-  }
+  if (!sipKey || !sipKey.match(/^sip[1-4]$/)) return null;
 
-  // Extract SIP number from sipKey (e.g., 'sip1' → 1)
   const sipNum = sipKey.match(/\d/)[0];
-
-  // Get monthly SIP amount
   const monthlyAmount = D[sipKey] || 0;
-  if (monthlyAmount <= 0) {
-    return { plAmount: 0, plPercent: 0, totalInvested: 0, currentValue: 0 };
-  }
+  if (monthlyAmount <= 0) return null;
 
-  // Get SIP start date
   const startDateStr = D['sipStart' + sipNum];
-  if (!startDateStr) {
-    return { plAmount: 0, plPercent: 0, totalInvested: 0, currentValue: 0 };
-  }
+  if (!startDateStr) return null;
 
-  // Parse start date (format: 'YYYY-MM')
   const [startYear, startMonth] = startDateStr.split('-').map(Number);
-  if (isNaN(startYear) || isNaN(startMonth)) {
-    return { plAmount: 0, plPercent: 0, totalInvested: 0, currentValue: 0 };
-  }
+  if (isNaN(startYear) || isNaN(startMonth)) return null;
 
-  // Calculate months invested
   const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
-  const months = (currentYear - startYear) * 12 + (currentMonth - startMonth) + 1;
+  const months = (now.getFullYear() - startYear) * 12 + (now.getMonth() + 1 - startMonth) + 1;
+  if (months <= 0) return null;
 
-  if (months <= 0) {
-    return { plAmount: 0, plPercent: 0, totalInvested: 0, currentValue: 0 };
-  }
+  // Use costBasis override if provided, otherwise auto-calc
+  const costBasisOverride = D['costBasis' + sipNum];
+  const totalInvested = (costBasisOverride && costBasisOverride > 0)
+    ? costBasisOverride
+    : monthlyAmount * months;
 
-  // Calculate total invested
-  const totalInvested = monthlyAmount * months;
-
-  // Get current NAV from window._liveNavs
   const currentNAV = window._liveNavs ? window._liveNavs[sipKey] : 0;
-  if (currentNAV <= 0) {
-    // Return with totalInvested but zero current value
-    return { plAmount: 0, plPercent: 0, totalInvested, currentValue: 0 };
+  if (!currentNAV || currentNAV <= 0) {
+    return { plAmount: null, plPercent: null, totalInvested, currentValue: null, months, usingCostBasis: !!(costBasisOverride && costBasisOverride > 0) };
   }
 
-  // Get current units
   const currentUnits = D['units' + sipNum] || 0;
-
-  // Calculate current value
   const currentValue = currentUnits * currentNAV;
-
-  // Calculate P&L
   const plAmount = currentValue - totalInvested;
   const plPercent = totalInvested > 0 ? (plAmount / totalInvested) * 100 : 0;
 
-  return { plAmount, plPercent, totalInvested, currentValue };
+  return {
+    plAmount,
+    plPercent,
+    totalInvested,
+    currentValue,
+    months,
+    usingCostBasis: !!(costBasisOverride && costBasisOverride > 0),
+  };
 }
 
 // ============ CALCULATE SIP XIRR ============
