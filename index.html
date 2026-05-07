@@ -4972,7 +4972,7 @@ function deleteLogEntry(id) {
 // PHASE 6 — LIVE DATA ENGINE
 // ============================================================
 
-const _CACHE_TTL = 30 * 24 * 60 * 60 * 1000; // 30 days
+const _CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours
 function _cacheGet(k) {
   try { const e=JSON.parse(localStorage.getItem('nav_cache_'+k)||'null'); return e&&Date.now()-e.ts<_CACHE_TTL?e.v:null; } catch{return null;}
 }
