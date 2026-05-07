@@ -2376,6 +2376,27 @@ body::before {
 
       <div id="esopSensitivity" style="margin-top:16px;"></div>
 
+      <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border);">
+        <div class="input-label" style="margin-bottom:12px;">📊 Benchmark Reference Levels (April 2026)</div>
+        <div class="input-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));gap:12px;">
+          <div class="input-group">
+            <label class="input-label">Nifty 500 TRI (April 2026)</label>
+            <input type="number" class="input-field" id="benchRef_nifty500" placeholder="e.g. 18500" oninput="saveBenchmarkRef()">
+          </div>
+          <div class="input-group">
+            <label class="input-label">Nifty MC150 TRI (April 2026)</label>
+            <input type="number" class="input-field" id="benchRef_niftyMc150" placeholder="e.g. 15200" oninput="saveBenchmarkRef()">
+          </div>
+          <div class="input-group">
+            <label class="input-label">Nifty SC250 TRI (April 2026)</label>
+            <input type="number" class="input-field" id="benchRef_niftySc250" placeholder="e.g. 8900" oninput="saveBenchmarkRef()">
+          </div>
+        </div>
+        <div style="margin-top:8px;font-size:10px;font-family:'Space Mono',monospace;color:var(--text-dim);">
+          📌 Enter April 2026 levels once. Used to calculate rolling benchmark returns vs fund returns.
+        </div>
+      </div>
+
       <div style="font-family:'Fraunces',serif;font-size:16px;font-weight:600;margin:24px 0 12px;color:var(--accent)">Windfall Allocator — On Unlock</div>
       <div class="input-grid">
         <div class="input-group">
@@ -2816,6 +2837,18 @@ function populateProfileFields() {
     const el = document.getElementById('p_' + f);
     if (el) el.value = D[f] || '';
   });
+
+  // Populate benchmark reference levels (ESOP Tools)
+  if (D.benchmarkIndexApril2026) {
+    const benchRef = D.benchmarkIndexApril2026;
+    const n500El = document.getElementById('benchRef_nifty500');
+    const mc150El = document.getElementById('benchRef_niftyMc150');
+    const sc250El = document.getElementById('benchRef_niftySc250');
+
+    if (n500El && benchRef.nifty500) n500El.value = benchRef.nifty500;
+    if (mc150El && benchRef.niftyMc150) mc150El.value = benchRef.niftyMc150;
+    if (sc250El && benchRef.niftySc250) sc250El.value = benchRef.niftySc250;
+  }
 }
 
 function showLoadingSpinner(elementId, show = true) {
@@ -4797,6 +4830,25 @@ function saveAlpha(id) {
   saved[id] = data;
   localStorage.setItem('fireOS_alpha', JSON.stringify(saved));
   renderAlpha(id, data);
+}
+
+function saveBenchmarkRef() {
+  const nifty500 = parseFloat(document.getElementById('benchRef_nifty500').value);
+  const niftyMc150 = parseFloat(document.getElementById('benchRef_niftyMc150').value);
+  const niftySc250 = parseFloat(document.getElementById('benchRef_niftySc250').value);
+
+  if (!D.benchmarkIndexApril2026) {
+    D.benchmarkIndexApril2026 = {};
+  }
+
+  D.benchmarkIndexApril2026 = {
+    nifty500: isNaN(nifty500) || nifty500 <= 0 ? null : nifty500,
+    niftyMc150: isNaN(niftyMc150) || niftyMc150 <= 0 ? null : niftyMc150,
+    niftySc250: isNaN(niftySc250) || niftySc250 <= 0 ? null : niftySc250
+  };
+
+  saveData();
+  console.log('Benchmark reference levels saved', D.benchmarkIndexApril2026);
 }
 
 function renderAlpha(id, d) {
