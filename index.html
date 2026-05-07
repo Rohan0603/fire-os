@@ -2656,6 +2656,29 @@ body::before {
     </div>
   </div>
 
+  <!-- Cost Basis (optional override) -->
+  <div class="profile-section">
+    <div class="profile-section-title">Actual Invested — Cost Basis (₹) <span style="font-size:11px;color:var(--text-dim);font-weight:400;">Optional — from broker statement. Overrides auto-calc.</span></div>
+    <div class="form-grid">
+      <div class="input-group">
+        <label class="input-label">PPFCF Invested</label>
+        <input type="number" class="input-field" id="p_costBasis1" placeholder="auto">
+      </div>
+      <div class="input-group">
+        <label class="input-label">Nippon Growth Invested</label>
+        <input type="number" class="input-field" id="p_costBasis2" placeholder="auto">
+      </div>
+      <div class="input-group">
+        <label class="input-label">Small Cap Invested</label>
+        <input type="number" class="input-field" id="p_costBasis3" placeholder="auto">
+      </div>
+      <div class="input-group">
+        <label class="input-label">Gold ETF Invested</label>
+        <input type="number" class="input-field" id="p_costBasis4" placeholder="auto">
+      </div>
+    </div>
+  </div>
+
   <!-- Triggers -->
   <div class="profile-section">
     <div class="profile-section-title">Live Trigger Values</div>
@@ -2791,7 +2814,8 @@ function saveProfile() {
                   'buffer','esop','home','sip1','sip2','sip3','sip4',
                   'sipStart1','sipStart2','sipStart3','sipStart4',
                   'ppfAum','ngEr','scEr','ngLiq',
-                  'units1','units2','units3','units4'];
+                  'units1','units2','units3','units4',
+                  'costBasis1','costBasis2','costBasis3','costBasis4'];
   fields.forEach(f => {
     const el = document.getElementById('p_' + f);
     if (el && el.value !== '') {
@@ -2823,7 +2847,8 @@ function populateProfileFields() {
                'buffer','esop','home','sip1','sip2','sip3','sip4',
                'sipStart1','sipStart2','sipStart3','sipStart4',
                'ppfAum','ngEr','scEr','ngLiq',
-               'units1','units2','units3','units4'];
+               'units1','units2','units3','units4',
+               'costBasis1','costBasis2','costBasis3','costBasis4'];
   map.forEach(f => {
     const el = document.getElementById('p_' + f);
     if (el) el.value = D[f] || '';
