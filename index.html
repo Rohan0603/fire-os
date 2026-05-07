@@ -2952,7 +2952,7 @@ function renderDashboard() {
   // Hero
   document.getElementById('totalNW').textContent = fmt(total);
   document.getElementById('nwSub').textContent = 'Age ' + D.age + ' · Updated today';
-  document.getElementById('mfTotal').textContent = fmt(D.mf);
+  document.getElementById('mfTotal').textContent = fmt(mfVal);
   document.getElementById('safetyTotal').textContent = fmt(safety);
   document.getElementById('monthlyTotal').textContent = fmt(sip);
 
@@ -3045,7 +3045,30 @@ function renderDashboard() {
     { key: 'sip4', fund: 'ICICI Prudential\nGold ETF',          amt: D.sip4, units: D.units4||0, navCode: '113076', label: 'LIVE', cls: 'gold-sip' },
   ];
 
-  document.getElementById('sipGrid').innerHTML = sips.map(s => `
+  document.getElementById('sipGrid').innerHTML = sips.map(s => {
+    let navStr = 'NAV: —';
+    let valStr = '';
+    let navColor = 'var(--text-dim)';
+
+    const codesMap = { sip1: '122639', sip2: '118668', sip3: '118778', sip4: '113076' };
+    const cached = _cacheGet('nav_'+codesMap[s.key]);
+
+    if (window._liveNavs && window._liveNavs[s.key]) {
+      const dateStr = window._liveNavsDate && window._liveNavsDate[s.key] ? ` (${window._liveNavsDate[s.key]})` : '';
+      navStr = '₹' + window._liveNavs[s.key].toFixed(4) + dateStr;
+      navColor = 'var(--green)';
+      if (s.units > 0) {
+        valStr = '≈ ' + fmt(window._liveNavs[s.key] * s.units);
+      }
+    } else if (cached) {
+      navStr = '₹' + parseFloat(cached.nav).toFixed(4) + ` (${cached.date})`;
+      navColor = 'var(--text-mid)';
+      if (s.units > 0) {
+        valStr = '≈ ' + fmt(parseFloat(cached.nav) * s.units);
+      }
+    }
+
+    return `
     <div class="sip-card ${s.cls}">
       <div class="sip-fund">${s.fund}</div>
       <div class="sip-amount">${fmt(s.amt)}<span style="font-size:12px;color:var(--text-dim);font-family:'DM Sans',sans-serif;">/mo</span></div>
@@ -3054,12 +3077,12 @@ function renderDashboard() {
         <span style="color:${s.cls === 'live' ? 'var(--green)' : s.cls === 'gold-sip' ? 'var(--gold)' : 'var(--red)'}">${s.label}</span>
       </div>
       <div class="sip-nav-info">
-        <span class="sip-nav-price" id="navprice_${s.key}">NAV: —</span>
+        <span class="sip-nav-price" id="navprice_${s.key}" style="color: ${navColor}">${navStr}</span>
         ${s.units > 0 ? `<span class="sip-nav-units">${s.units.toFixed(3)} units</span>` : ''}
-        <span class="sip-nav-value" id="navval_${s.key}"></span>
+        <span class="sip-nav-value" id="navval_${s.key}">${valStr}</span>
       </div>
     </div>
-  `).join('');
+  `}).join('');
 
   // Triggers
   const triggers = [
@@ -4600,16 +4623,12 @@ async function fetchLiveNifty() {
 }
 
 async function _fetchNiftyData() {
-  // Nifty index funds: NAV relationship varies by fund
-  // UTI Nifty 50 Index: NAV ≈ Nifty ÷ 100 (so multiply by 100)
-  // But actual Nifty levels are ~24000, so if NAV is ~240, multiply by 100
-  // If NAV is ~4776 (Growth Mid Cap), don't use it for Nifty
-  // Strategy: try each fund, validate result is reasonable
+  // Nifty index ETFs: NAV ≈ Nifty ÷ 100 (so multiply by 100)
   
   const codes = [
-    { code: '106756', name: 'UTI Nifty 50' },      // Should have NAV ~240
-    { code: '135781', name: 'Nippon Nifty BeES' }, // ETF, different scaling
-    { code: '116030', name: 'Motilal Nifty 50' }   // Index fund
+    { code: '135106', name: 'SBI Nifty 50 ETF' },       // ~260 NAV
+    { code: '112351', name: 'Kotak Nifty 50 ETF' },     // ~268 NAV
+    { code: '135320', name: 'UTI Nifty 50 ETF' }        // ~267 NAV
   ];
   
   for (const item of codes) {
@@ -4621,20 +4640,14 @@ async function _fetchNiftyData() {
       
       // Calculate Nifty based on NAV magnitude
       let niftyLevel;
-      if (nav > 1000) {
-        // Probably a growth fund, not an index fund — skip
-        console.log('Code '+item.code+' NAV='+nav+' (too high, skipping)');
-        continue;
-      } else if (nav > 100) {
-        // Likely an index fund: NAV × 100 ≈ Nifty
+      if (nav > 100 && nav < 400) {
         niftyLevel = Math.round(nav * 100);
       } else {
-        // ETF with low NAV, try × 1000
-        niftyLevel = Math.round(nav * 1000);
+        continue;
       }
       
-      // Validate: Nifty should be 15000-30000
-      if (niftyLevel < 15000 || niftyLevel > 30000) {
+      // Validate: Nifty should be 15000-40000
+      if (niftyLevel < 15000 || niftyLevel > 40000) {
         console.log('Code '+item.code+' calculated Nifty='+niftyLevel+' (out of range)');
         continue;
       }
@@ -4864,10 +4877,13 @@ async function fetchLiveNavs(force=false) {
       if (!json.data || json.data.length === 0) throw new Error('No data returned');
       const d    = json.data[0];
       const nav  = parseFloat(d.nav).toFixed(4);
-      priceEl.textContent = '₹'+nav+' ('+d.date+')';
-      priceEl.style.color = 'var(--green)';
+      // priceEl.textContent = '₹'+nav+' ('+d.date+')';
+      // priceEl.style.color = 'var(--green)';
       window._liveNavs[key] = parseFloat(nav);
-      _updateNavVal(valEl, key, nav);
+      if (!window._liveNavsDate) window._liveNavsDate = {};
+      window._liveNavsDate[key] = d.date;
+      _cacheSet('nav_'+code, { nav: d.nav, date: d.date });
+      // _updateNavVal(valEl, key, nav); // commented out since renderDashboard takes care of it
       return { success: true, key, nav };
     } catch (e) {
       console.error(`NAV fetch failed for ${short}:`, e.message);
@@ -4903,15 +4919,25 @@ function _updateLiveMfTotal() {
   ind.style.display = 'flex';
   ind.innerHTML = `Live MF: <strong style="color:var(--green);margin:0 4px;">${fmt(live)}</strong>` +
     (Math.abs(diff) >= 100 ? ` <span style="color:${diff>=0?'var(--green)':'var(--amber)'};font-size:11px;">(${diff>=0?'+':''}${fmt(diff)} · ${diffPct.toFixed(1)}%)</span>` : '');
+
+  // Trigger a dashboard re-render so "Total Net Worth", "Active Wealth Engine" and "Asset Breakdown" update
+  renderDashboard();
 }
 
 function _calcLiveMfValue() {
   const map = { sip1: 'units1', sip2: 'units2', sip3: 'units3', sip4: 'units4' };
+  const codes = { sip1: '122639', sip2: '118668', sip3: '118778', sip4: '113076' };
   let total = 0, hasAny = false;
   for (const [key, uKey] of Object.entries(map)) {
-    const nav = window._liveNavs[key];
+    const liveNav = window._liveNavs[key];
+    const cached = _cacheGet('nav_'+codes[key]);
+    // Fallback: Live NAV -> Cached NAV -> null
+    const nav = liveNav || (cached ? parseFloat(cached.nav) : null);
     const units = D[uKey] || 0;
-    if (nav && units > 0) { total += nav * units; hasAny = true; }
+    if (nav && units > 0) {
+      total += nav * units;
+      hasAny = true;
+    }
   }
   return hasAny ? total : null;
 }
