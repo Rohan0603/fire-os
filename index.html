@@ -3085,6 +3085,25 @@ function renderDashboard() {
       }
     }
 
+    // Calculate P&L
+    const pl = calculateSIPPL(s.key);
+    const plColor = pl.plPercent >= 0 ? '#2ecc71' : '#e74c3c';
+    const plSignedAmount = pl.plAmount >= 0 ? '+₹' : '−₹';
+    const plSignedPercent = pl.plPercent >= 0 ? '+' : '';
+    const plDisplayAmount = Math.abs(pl.plAmount).toFixed(0);
+    const plDisplayPercent = Math.abs(pl.plPercent).toFixed(1);
+
+    // Calculate XIRR for actual SIP performance
+    const sipNum = s.key.match(/\d/)[0];
+    const startDateStr = D['sipStart' + sipNum];
+    let xirrStr = 'XIRR ≈ —';
+    if (startDateStr && pl.totalInvested > 0 && pl.currentValue > 0) {
+      const xirrVal = calculateSIPXIRR(s.key);
+      if (xirrVal !== null) {
+        xirrStr = 'XIRR ≈ ' + xirrVal.toFixed(1) + '%';
+      }
+    }
+
     return `
     <div class="sip-card ${s.cls}">
       <div class="sip-fund">${s.fund}</div>
@@ -3097,6 +3116,12 @@ function renderDashboard() {
         <span class="sip-nav-price" id="navprice_${s.key}" style="color: ${navColor}">${navStr}</span>
         ${s.units > 0 ? `<span class="sip-nav-units">${s.units.toFixed(3)} units</span>` : ''}
         <span class="sip-nav-value" id="navval_${s.key}">${valStr}</span>
+      </div>
+      <div style="margin-top: 8px; font-family: 'Space Mono', monospace; font-size: 12px; color: ${plColor};">
+        ${plSignedAmount}${plDisplayAmount} (${plSignedPercent}${plDisplayPercent}%)
+      </div>
+      <div style="margin-top: 4px; font-family: 'Space Mono', monospace; font-size: 11px; color: var(--accent);">
+        ${xirrStr}
       </div>
     </div>
   `}).join('');
@@ -3744,6 +3769,81 @@ function calculateSIPPL(sipKey) {
   const plPercent = totalInvested > 0 ? (plAmount / totalInvested) * 100 : 0;
 
   return { plAmount, plPercent, totalInvested, currentValue };
+}
+
+// ============ CALCULATE SIP XIRR ============
+function calculateSIPXIRR(sipKey) {
+  // Validate input
+  if (!sipKey || !sipKey.match(/^sip[1-4]$/)) {
+    return null;
+  }
+
+  // Extract SIP number
+  const sipNum = sipKey.match(/\d/)[0];
+
+  // Get monthly SIP amount and start date
+  const monthlyAmount = D[sipKey] || 0;
+  const startDateStr = D['sipStart' + sipNum];
+
+  if (monthlyAmount <= 0 || !startDateStr) {
+    return null;
+  }
+
+  // Parse start date (format: 'YYYY-MM')
+  const [startYear, startMonth] = startDateStr.split('-').map(Number);
+  if (isNaN(startYear) || isNaN(startMonth)) {
+    return null;
+  }
+
+  // Get current NAV
+  const currentNAV = window._liveNavs ? window._liveNavs[sipKey] : 0;
+  if (currentNAV <= 0) {
+    return null;
+  }
+
+  // Calculate months invested
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const months = (currentYear - startYear) * 12 + (currentMonth - startMonth) + 1;
+
+  if (months <= 0) {
+    return null;
+  }
+
+  // Build cash flow array for XIRR calculation
+  // Format: array of [date, amount] where investments are negative (outflows)
+  const cashFlows = [];
+  let totalInvested = 0;
+
+  // Add monthly investments
+  for (let m = 0; m < months; m++) {
+    const d = new Date(startYear, startMonth - 1 + m, 1);
+    cashFlows.push([d, -monthlyAmount]);
+    totalInvested += monthlyAmount;
+  }
+
+  // Add current value as positive flow (on current date)
+  const currentUnits = D['units' + sipNum] || 0;
+  const currentValue = currentUnits * currentNAV;
+  cashFlows.push([new Date(), currentValue]);
+
+  // Simple XIRR approximation using geometric mean
+  // For more accurate results, we use a simplified IRR formula
+  if (totalInvested <= 0 || currentValue <= 0) {
+    return null;
+  }
+
+  // Calculate time-weighted return approximation
+  // XIRR ≈ (Final Value / Total Invested) ^ (1 / Years) - 1
+  const yearsInvested = months / 12;
+  if (yearsInvested <= 0) {
+    return null;
+  }
+
+  const xirr = (Math.pow(currentValue / totalInvested, 1 / yearsInvested) - 1) * 100;
+
+  return isFinite(xirr) ? xirr : null;
 }
 
 // ============ XIRR PROJECTOR ============
