@@ -2585,6 +2585,29 @@ body::before {
     </div>
   </div>
 
+  <!-- SIP Start Dates -->
+  <div class="profile-section">
+    <div class="profile-section-title">SIP Start Dates (YYYY-MM)</div>
+    <div class="form-grid">
+      <div class="input-group">
+        <label class="input-label">PPFCF Start</label>
+        <input type="month" class="input-field" id="p_sipStart1" placeholder="2022-01">
+      </div>
+      <div class="input-group">
+        <label class="input-label">Nippon Growth Start</label>
+        <input type="month" class="input-field" id="p_sipStart2" placeholder="2021-06">
+      </div>
+      <div class="input-group">
+        <label class="input-label">Small Cap Start</label>
+        <input type="month" class="input-field" id="p_sipStart3" placeholder="2023-03">
+      </div>
+      <div class="input-group">
+        <label class="input-label">Gold ETF Start</label>
+        <input type="month" class="input-field" id="p_sipStart4" placeholder="2023-09">
+      </div>
+    </div>
+  </div>
+
   <!-- Fund Units -->
   <div class="profile-section">
     <div class="profile-section-title">Units Held (per Fund)</div>
@@ -2750,11 +2773,19 @@ function saveProfile() {
   // Save validated data
   const fields = ['income','expenses','age','niftyHigh','mf','fd','epf','wint',
                   'buffer','esop','home','sip1','sip2','sip3','sip4',
+                  'sipStart1','sipStart2','sipStart3','sipStart4',
                   'ppfAum','ngEr','scEr','ngLiq',
                   'units1','units2','units3','units4'];
   fields.forEach(f => {
     const el = document.getElementById('p_' + f);
-    if (el && el.value !== '') D[f] = parseFloat(el.value);
+    if (el && el.value !== '') {
+      // Handle date fields (sipStart*) as strings, others as floats
+      if (f.startsWith('sipStart')) {
+        D[f] = el.value;
+      } else {
+        D[f] = parseFloat(el.value);
+      }
+    }
   });
   
   saveData();
@@ -2774,6 +2805,7 @@ function resetProfile() {
 function populateProfileFields() {
   const map = ['income','expenses','age','niftyHigh','mf','fd','epf','wint',
                'buffer','esop','home','sip1','sip2','sip3','sip4',
+               'sipStart1','sipStart2','sipStart3','sipStart4',
                'ppfAum','ngEr','scEr','ngLiq',
                'units1','units2','units3','units4'];
   map.forEach(f => {
@@ -4819,6 +4851,7 @@ const CONFIG = {
     mf: 28499, fd: 540000, epf: 137471, wint: 70900, buffer: 20000,
     esop: 695500, home: 0,
     sip1: 12000, sip2: 9000, sip3: 3000, sip4: 3000,
+    sipStart1: '2022-01', sipStart2: '2021-06', sipStart3: '2023-03', sipStart4: '2023-09',
     ppfAum: 128966, ngEr: 0.78, scEr: 0.67, ngLiq: 7,
     esop_shares: 95, esop_price: 65.72,
     units1: 131.49, units2: 1.882, units3: 30.965488, units4: 18.987,
