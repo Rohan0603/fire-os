@@ -4286,9 +4286,9 @@ function importData() {
         // Handle v2 envelope format
         if (parsed.version === 2 && parsed.data) {
           D = parsed.data;
-          if (parsed.alpha !== null) localStorage.setItem('fireOS_alpha', JSON.stringify(parsed.alpha));
-          if (parsed.review !== null) localStorage.setItem('fireOS_review', JSON.stringify(parsed.review));
-          if (parsed.log !== null) localStorage.setItem('fireOS_log', JSON.stringify(parsed.log));
+          if (parsed.alpha != null) localStorage.setItem('fireOS_alpha', JSON.stringify(parsed.alpha));
+          if (parsed.review != null) localStorage.setItem('fireOS_review', JSON.stringify(parsed.review));
+          if (parsed.log != null) localStorage.setItem('fireOS_log', JSON.stringify(parsed.log));
         } else {
           // Legacy: bare D object (v1 backup)
           D = parsed;
