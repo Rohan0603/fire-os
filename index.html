@@ -4253,7 +4253,14 @@ function calcHome() {
 
 // ============ IMPORT / EXPORT ============
 function exportData() {
-  const json = JSON.stringify(D, null, 2);
+  const envelope = {
+    version: 2,
+    data: D,
+    alpha: JSON.parse(localStorage.getItem('fireOS_alpha') || 'null'),
+    review: JSON.parse(localStorage.getItem('fireOS_review') || 'null'),
+    log: JSON.parse(localStorage.getItem('fireOS_log') || 'null'),
+  };
+  const json = JSON.stringify(envelope, null, 2);
   const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(json);
   const a = document.createElement('a');
   a.href = dataUri;
@@ -4275,8 +4282,18 @@ function importData() {
     const reader = new FileReader();
     reader.onload = ev => {
       try {
-        D = JSON.parse(ev.target.result);
-        localStorage.setItem('fireOS_v1', JSON.stringify(D));
+        const parsed = JSON.parse(ev.target.result);
+        // Handle v2 envelope format
+        if (parsed.version === 2 && parsed.data) {
+          D = parsed.data;
+          if (parsed.alpha !== null) localStorage.setItem('fireOS_alpha', JSON.stringify(parsed.alpha));
+          if (parsed.review !== null) localStorage.setItem('fireOS_review', JSON.stringify(parsed.review));
+          if (parsed.log !== null) localStorage.setItem('fireOS_log', JSON.stringify(parsed.log));
+        } else {
+          // Legacy: bare D object (v1 backup)
+          D = parsed;
+        }
+        localStorage.setItem('fireOS_v2', JSON.stringify(D));
         populateProfileFields();
         renderDashboard();
         plannerInited = false;
@@ -5415,7 +5432,7 @@ function syncMfFromLive() {
   const live = _calcLiveMfValue();
   if (live === null) { alert('Enter units in Profile tab first to enable live sync.'); return; }
   D.mf = Math.round(live);
-  localStorage.setItem('fireOS_v1', JSON.stringify(D));
+  localStorage.setItem('fireOS_v2', JSON.stringify(D));
   renderDashboard();
 }
 
