@@ -2908,21 +2908,6 @@ const CalcValidators = {
   price: (v) => Validators.positive(v, 'price', 1),
 };
 
-function validateCalcField(elementId, validator) {
-  const el = document.getElementById(elementId);
-  if (!el || !el.value) return true;
-  
-  const result = validator(el.value);
-  if (!result.valid) {
-    el.style.borderColor = 'var(--red)';
-    el.title = result.msg;
-    return false;
-  } else {
-    el.style.borderColor = '';
-    el.title = '';
-    return true;
-  }
-}
 function fmt(n) {
   if (n >= 10000000) return '₹' + (n/10000000).toFixed(2) + 'Cr';
   if (n >= 100000)   return '₹' + (n/100000).toFixed(2) + 'L';
