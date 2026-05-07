@@ -1,0 +1,24 @@
+{
+  "name": "fire-os",
+  "version": "1.0.0",
+  "description": "A comprehensive personal finance dashboard for FIRE (Financial Independence, Retire Early) planning. Track investments, simulate market crashes, calculate retirement timelines, and manage tax-efficient strategies.",
+  "main": "test-fixes.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Rohan0603/fire-os.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Rohan0603/fire-os/issues"
+  },
+  "homepage": "https://github.com/Rohan0603/fire-os#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.59.1"
+  }
+}
