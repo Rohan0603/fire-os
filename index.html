@@ -3799,11 +3799,16 @@ function calcStepUp() {
 function sipCorpusMissYear(sip, rate, years, cagr, missYears) {
   let corpus = 0;
   let currentSip = sip;
+  const R = 1 + cagr/100;
+  let innerSumFactor;
+  if (Math.abs(cagr) < 1e-9) {
+    innerSumFactor = 12;
+  } else {
+    const r_inv = Math.pow(R, -1/12);
+    innerSumFactor = (1 - Math.pow(r_inv, 12)) / (1 - r_inv);
+  }
   for (let y = 0; y < years; y++) {
-    for (let m = 0; m < 12; m++) {
-      const t = years - y - m/12;
-      corpus += currentSip * Math.pow(1 + cagr/100, t);
-    }
+    corpus += currentSip * Math.pow(R, years - y) * innerSumFactor;
     if (!missYears.includes(y + 1)) {
       currentSip *= (1 + rate/100);
     }
