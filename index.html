@@ -1555,7 +1555,7 @@ body::before {
     <div class="section-line"></div>
     <button class="btn" onclick="fetchLiveNavs(true)" style="font-size:10px;padding:4px 10px;white-space:nowrap;flex-shrink:0;">⟳ NAV</button>
   </div>
-  <div id="portfolioSummaryCard" class="kpi-card" style="margin-bottom:12px;"></div>
+  <div id="portfolioSummaryCard" class="sip-card" style="margin-bottom:12px;display:none;"></div>
   <div class="sip-grid" id="sipGrid">
     <!-- populated by JS -->
   </div>
@@ -3111,17 +3111,21 @@ function renderDashboard() {
   // Portfolio P&L Summary
   const portfolioPL = calcPortfolioPL();
   const portfolioCardEl = document.getElementById('portfolioSummaryCard');
-  if (portfolioCardEl && portfolioPL) {
-    const pSign = portfolioPL.pl >= 0 ? '+' : '';
-    const pColor = portfolioPL.pl >= 0 ? 'var(--green)' : 'var(--red)';
-    const pPct = Math.abs(portfolioPL.plPct).toFixed(1);
-    const pAmt = Math.abs(portfolioPL.pl).toFixed(0);
-    portfolioCardEl.innerHTML = `
-      <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--text-dim);text-transform:uppercase;margin-bottom:8px;">SIP Portfolio</div>
-      <div style="font-size:12px;color:var(--text-mid);margin-bottom:2px;">Invested: <span style="color:var(--text)">${fmt(portfolioPL.totalInvested)}</span></div>
-      ${portfolioPL.hasData ? `<div style="font-size:12px;color:var(--text-mid);margin-bottom:2px;">Current: <span style="color:var(--text)">${fmt(portfolioPL.totalCurrent)}</span></div>
-      <div style="font-size:14px;font-weight:700;color:${pColor};margin-top:4px;">${pSign}${fmt(parseInt(pAmt))} (${pSign}${pPct}%)</div>` : `<div style="font-size:12px;color:var(--text-dim);">Current: — (fetch NAV)</div>`}
-    `;
+  if (portfolioCardEl) {
+    if (portfolioPL) {
+      portfolioCardEl.style.display = '';
+      const pSign = portfolioPL.pl >= 0 ? '+' : '−';
+      const pColor = portfolioPL.pl >= 0 ? 'var(--green)' : 'var(--red)';
+      const pPct = Math.abs(portfolioPL.plPct).toFixed(1);
+      portfolioCardEl.innerHTML = `
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;color:var(--text-dim);text-transform:uppercase;margin-bottom:8px;">SIP Portfolio</div>
+        <div style="font-size:12px;color:var(--text-mid);margin-bottom:2px;">Invested: <span style="color:var(--text)">${fmt(portfolioPL.totalInvested)}</span></div>
+        ${portfolioPL.hasData ? `<div style="font-size:12px;color:var(--text-mid);margin-bottom:2px;">Current: <span style="color:var(--text)">${fmt(portfolioPL.totalCurrent)}</span></div>
+        <div style="font-size:14px;font-weight:700;color:${pColor};margin-top:4px;">${pSign}${fmt(Math.abs(portfolioPL.pl))} (${pSign}${pPct}%)</div>` : `<div style="font-size:12px;color:var(--text-dim);">Current: — (fetch NAV)</div>`}
+      `;
+    } else {
+      portfolioCardEl.style.display = 'none';
+    }
   }
 
   // SIP Grid
