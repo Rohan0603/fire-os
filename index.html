@@ -3783,13 +3783,12 @@ function calculateSIPPL(sipKey) {
 
   // Use costBasis override if provided, otherwise auto-calc
   const costBasisOverride = D['costBasis' + sipNum];
-  const totalInvested = (costBasisOverride && costBasisOverride > 0)
-    ? costBasisOverride
-    : monthlyAmount * months;
+  const usingCostBasis = !!(costBasisOverride && costBasisOverride > 0);
+  const totalInvested = usingCostBasis ? costBasisOverride : monthlyAmount * months;
 
   const currentNAV = window._liveNavs ? window._liveNavs[sipKey] : 0;
   if (!currentNAV || currentNAV <= 0) {
-    return { plAmount: null, plPercent: null, totalInvested, currentValue: null, months, usingCostBasis: !!(costBasisOverride && costBasisOverride > 0) };
+    return { plAmount: null, plPercent: null, totalInvested, currentValue: null, months, usingCostBasis };
   }
 
   const currentUnits = D['units' + sipNum] || 0;
@@ -3797,14 +3796,7 @@ function calculateSIPPL(sipKey) {
   const plAmount = currentValue - totalInvested;
   const plPercent = totalInvested > 0 ? (plAmount / totalInvested) * 100 : 0;
 
-  return {
-    plAmount,
-    plPercent,
-    totalInvested,
-    currentValue,
-    months,
-    usingCostBasis: !!(costBasisOverride && costBasisOverride > 0),
-  };
+  return { plAmount, plPercent, totalInvested, currentValue, months, usingCostBasis };
 }
 
 // ============ CALCULATE SIP XIRR ============
