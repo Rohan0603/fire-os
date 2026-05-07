@@ -3801,77 +3801,57 @@ function calculateSIPPL(sipKey) {
 
 // ============ CALCULATE SIP XIRR ============
 function calculateSIPXIRR(sipKey) {
-  // Validate input
-  if (!sipKey || !sipKey.match(/^sip[1-4]$/)) {
-    return null;
-  }
+  if (!sipKey || !sipKey.match(/^sip[1-4]$/)) return null;
 
-  // Extract SIP number
   const sipNum = sipKey.match(/\d/)[0];
-
-  // Get monthly SIP amount and start date
   const monthlyAmount = D[sipKey] || 0;
   const startDateStr = D['sipStart' + sipNum];
 
-  if (monthlyAmount <= 0 || !startDateStr) {
-    return null;
-  }
+  if (monthlyAmount <= 0 || !startDateStr) return null;
 
-  // Parse start date (format: 'YYYY-MM')
   const [startYear, startMonth] = startDateStr.split('-').map(Number);
-  if (isNaN(startYear) || isNaN(startMonth)) {
-    return null;
-  }
+  if (isNaN(startYear) || isNaN(startMonth)) return null;
 
-  // Get current NAV
   const currentNAV = window._liveNavs ? window._liveNavs[sipKey] : 0;
-  if (currentNAV <= 0) {
-    return null;
-  }
+  if (!currentNAV || currentNAV <= 0) return null;
 
-  // Calculate months invested
   const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
-  const months = (currentYear - startYear) * 12 + (currentMonth - startMonth) + 1;
+  const months = (now.getFullYear() - startYear) * 12 + (now.getMonth() + 1 - startMonth) + 1;
+  if (months < 1) return null;
 
-  if (months <= 0) {
-    return null;
-  }
-
-  // Build cash flow array for XIRR calculation
-  // Format: array of [date, amount] where investments are negative (outflows)
-  const cashFlows = [];
-  let totalInvested = 0;
-
-  // Add monthly investments
-  for (let m = 0; m < months; m++) {
-    const d = new Date(startYear, startMonth - 1 + m, 1);
-    cashFlows.push([d, -monthlyAmount]);
-    totalInvested += monthlyAmount;
-  }
-
-  // Add current value as positive flow (on current date)
   const currentUnits = D['units' + sipNum] || 0;
   const currentValue = currentUnits * currentNAV;
-  cashFlows.push([new Date(), currentValue]);
+  if (currentValue <= 0) return null;
 
-  // Simple XIRR approximation using geometric mean
-  // For more accurate results, we use a simplified IRR formula
-  if (totalInvested <= 0 || currentValue <= 0) {
+  // Build cashflow array: monthly outflows + terminal inflow today
+  const t0 = new Date(startYear, startMonth - 1, 1).getTime();
+  const cashflows = [];
+  for (let m = 0; m < months; m++) {
+    const d = new Date(startYear, startMonth - 1 + m, 1).getTime();
+    cashflows.push({ t: (d - t0) / (365.25 * 86400000), amount: -monthlyAmount });
+  }
+  cashflows.push({ t: (now.getTime() - t0) / (365.25 * 86400000), amount: currentValue });
+
+  function npv(rate) {
+    return cashflows.reduce((s, cf) => s + cf.amount / Math.pow(1 + rate, cf.t), 0);
+  }
+  function dnpv(rate) {
+    return cashflows.reduce((s, cf) => s - cf.t * cf.amount / Math.pow(1 + rate, cf.t + 1), 0);
+  }
+
+  function solve(seed) {
+    let rate = seed;
+    for (let i = 0; i < 100; i++) {
+      const n = npv(rate), dn = dnpv(rate);
+      if (!isFinite(n) || !isFinite(dn) || dn === 0) return null;
+      const next = rate - n / dn;
+      if (Math.abs(next - rate) < 1e-7) return next * 100;
+      rate = next;
+    }
     return null;
   }
 
-  // Calculate time-weighted return approximation
-  // XIRR ≈ (Final Value / Total Invested) ^ (1 / Years) - 1
-  const yearsInvested = months / 12;
-  if (yearsInvested <= 0) {
-    return null;
-  }
-
-  const xirr = (Math.pow(currentValue / totalInvested, 1 / yearsInvested) - 1) * 100;
-
-  return isFinite(xirr) ? xirr : null;
+  return solve(0.1) ?? solve(-0.05);
 }
 
 // ============ XIRR PROJECTOR ============
