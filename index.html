@@ -2828,7 +2828,13 @@ function saveProfile() {
       }
     }
   });
-  
+
+  // costBasis fields: blank input means "revert to auto-calc" — delete the override
+  ['costBasis1','costBasis2','costBasis3','costBasis4'].forEach(f => {
+    const el = document.getElementById('p_' + f);
+    if (el && el.value === '') delete D[f];
+  });
+
   saveData();
   showToast('✓ Profile saved', 2000);
   renderDashboard();
@@ -3112,7 +3118,7 @@ function renderDashboard() {
   const portfolioPL = calcPortfolioPL();
   const portfolioCardEl = document.getElementById('portfolioSummaryCard');
   if (portfolioCardEl) {
-    if (portfolioPL) {
+    if (portfolioPL && portfolioPL.hasData) {
       portfolioCardEl.style.display = '';
       const pSign = portfolioPL.pl >= 0 ? '+' : '−';
       const pColor = portfolioPL.pl >= 0 ? 'var(--green)' : 'var(--red)';
