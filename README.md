@@ -65,7 +65,7 @@ Site will be live at: `https://yourusername.github.io/fire-os`
 
 ### Dashboard
 - **Net Worth KPI** — Total assets with breakdown (MF, FD, EPF, Wint, Buffer, ESOP)
-- **SIP Status** — Live NAVs for 4 funds + portfolio value
+- **SIP Status** — Live NAVs for 4 funds + portfolio value + **P&L tracking (cost basis) + XIRR**
 - **Crash Protocol** — Market drawdown triggers with deployment plan
 - **Float Indicator** — Current Nifty level vs 52W high
 
@@ -81,7 +81,7 @@ Site will be live at: `https://yourusername.github.io/fire-os`
 - **Home Corpus** — Years to save for home down payment
 - **Tax Estimator** — Income tax + LTCG harvest planning
 - **FD Interest** — Track maturing FDs by rate & tenor
-- **ESOP Tools** — Stock option value projections
+- **ESOP Tools** — Stock option value projections + **live EUR/INR exchange rate**
 
 ### Optimiser
 - **LTCG Harvest** — Tax-loss harvesting opportunities
@@ -92,6 +92,7 @@ Site will be live at: `https://yourusername.github.io/fire-os`
 - **30-Day Cooling Log** — Impulse purchase tracker (required cool-off before buy)
 - **Annual Review** — Checklist for yearly portfolio rebalance
 - **Fund Health Metrics** — Expense ratio, liquidity, category exposure
+- **Alpha vs Benchmark Tracker** — **Auto-populated rolling 3-year performance data (fund vs benchmark)**
 
 ---
 
@@ -256,6 +257,9 @@ FIRE OS is open-source and provided as-is for personal finance planning. Use at 
 - ✅ Input validation
 - ✅ Better error messages
 - ✅ GitHub Pages ready
+- ✅ **SIP P&L tracking with cost basis + XIRR**
+- ✅ **Live EUR/INR auto-fetch for ESOP Tools**
+- ✅ **Alpha vs Benchmark Tracker auto-population (rolling 3-year returns)**
 
 ### v2.2 (Next)
 - ⏳ CONFIG object extraction
@@ -282,4 +286,4 @@ FIRE OS is open-source and provided as-is for personal finance planning. Use at 
 
 **Happy FIRE planning! 🔥💰**
 
-*Last updated: May 7, 2026*
+*Last updated: May 8, 2026*

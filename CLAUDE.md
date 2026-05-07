@@ -9,6 +9,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 The app features:
 - Portfolio tracking (MF, FD, EPF, SIP, ESOP)
 - Live NAV fetching from public APIs
+- **SIP P&L tracking with cost basis + XIRR**
+- **Live EUR/INR auto-fetch for ESOP Tools**
+- **Alpha vs Benchmark Tracker (auto-populated rolling 3-year returns)**
 - Market crash simulations
 - Tax optimization tools
 - Financial calculators (XIRR, SIP Pause impact, emergency runway, etc.)
@@ -132,8 +135,29 @@ See `FIRE_OS_AUDIT_REPORT.md` for:
 - **Reason for proxy**: GitHub Pages cannot make direct cross-origin requests
 - **Fallback**: Manually enter Nifty level in Crash Protocol modal
 
-### EUR/INR & SocGen Stock
-- **EUR/INR**: Proxied via allorigins (Yahoo Finance)
+### EUR/INR Exchange Rate Fetching
+- **Endpoint**: Yahoo Finance (`EURINR=X`) via `api.allorigins.win` CORS proxy
+- **Auto-fetch**: Triggered when ESOP Tools tab opens
+- **Caching**: Stores rate with timestamp in D.eurInr, persists to localStorage
+- **Fallback**: Shows cached rate if fetch fails; displays timestamp of last fetch
+- **Validation**: Validates rate is between 80-150 (sanity check)
+
+### SIP P&L Tracking
+- **Calculation**: `calculateSIPPL(sipKey)` computes cost basis P&L
+- **Cost Basis**: Total invested = monthly SIP × months since start date
+- **P&L Display**: Shows in Dashboard SIP Status cards (green for positive, red for negative)
+- **XIRR**: Time-weighted annualized return calculated from start date to current NAV
+- **Data**: Requires SIP start date (sipStart1-4) stored in D object (YYYY-MM format)
+
+### Alpha vs Benchmark Tracker
+- **Auto-Population**: Triggered when ESOP Tools tab opens, populates Watchdog tab
+- **Historical Data**: Pre-loaded rolling 3-year returns (2024-2026) from Value Research/Morningstar
+- **Current Year**: Auto-calculated from live NAVs vs April 2026 baseline
+- **Benchmark Pairs**: PPFCF vs Nifty 500 TRI, Nippon Growth vs Nifty MC150 TRI, Nippon Small Cap vs Nifty SC250 TRI
+- **Data Source**: D.alphaTrackerData stores historical returns and benchmark NAV baselines
+- **Manual Input**: Benchmark index levels for April 2026 can be manually entered in ESOP Tools
+
+### SocGen Stock
 - **SocGen**: Manual entry only (no API)
 
 ## Testing
@@ -162,7 +186,16 @@ Tests verify:
 
 ## Git Workflow & Commits
 
-Recent changes (as of May 2026):
+Recent changes (as of May 8, 2026) - ESOP Tools Enhancements:
+- **66a3749**: test: verify all ESOP Tools enhancements work end-to-end
+- **a518e2b**: feat: add manual entry fields for benchmark reference levels in ESOP Tools
+- **69932c9**: feat: auto-populate Alpha vs Benchmark Tracker with rolling 3-year data
+- **f5164c2**: feat: auto-fetch and display live EUR/INR rate when ESOP Tools tab opens
+- **93003b3**: feat: display SIP P&L (cost basis) and XIRR on Dashboard SIP cards
+- **dd89a7e**: feat: add calculateSIPPL function to compute cost basis P&L for each SIP
+- **ac7a2a7**: feat: add SIP start date fields to track cost basis for P&L calculation
+
+Earlier changes:
 - **8df63dc**: Fixed 3 critical bugs (live data, asset breakdown, portfolio calculations)
 - **15e1f0d**: Added Playwright e2e test suite
 - **cf83493**: Added Playwright to devDependencies
@@ -230,7 +263,7 @@ python -m http.server 3000
 
 ### Dashboard KPIs
 - **Total Net Worth**: Sum of all holdings (MF, FD, EPF, Wint, Buffer, ESOP)
-- **SIP Status**: Live NAVs × units for 4 tracked funds
+- **SIP Status**: Live NAVs × units for 4 tracked funds + **P&L (cost basis) + XIRR** 
 - **FI Goal Progress**: Current corpus vs. target (target = 25× annual expenses)
 - **Float Indicator**: Nifty level vs. 52-week high (shows market drawdown %)
 
@@ -239,6 +272,7 @@ python -m http.server 3000
 - **Bear Market Simulator**: 10-year portfolio growth under adverse returns
 - **Emergency Runway**: Months of survival on liquid assets (MF + FD + Buffer)
 - **SIP Pause Impact**: Cost of missing contributions for N months during downturn
+- **ESOP Tools**: Stock option valuation + **EUR/INR auto-fetch** + **Benchmark reference levels**
 
 ## Redux of Codebase for New Contributors
 
