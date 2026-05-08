@@ -4508,66 +4508,78 @@ function matchFundSlot(name) {
 }
 
 function parsePDFText(text) {
-  // Paytm Money portfolio statement layout (per page extraction):
-  // Fund rows appear as:
-  //   <Fund Name line>
-  //   <Units> <₹NAV> <₹Invested> <₹CurrentValue> <returns...>
-  // Some PDFs encode text with doubled ASCII letters: "MMuuttuuaall FFuunndd" → "Mutual Fund"
-  // Only normalize doubled lowercase letters (common encoding quirk, not legitimate doubles like "pp")
+  // Paytm Money PDF may not preserve line breaks well - parse from continuous text
+  // Look for pattern: "Fund Name (Equity - Type) Units NAV Investment Current"
 
-  // Normalize: remove doubled lowercase letters (a-z)
-  const normalized = text.replace(/([a-z])\1/g, '$1');
-
-  const lines = normalized.split('\n').map(l => l.trim()).filter(Boolean);
   const results = [];
   const unmatched = [];
 
-  // Identify "Portfolio Details" section start
-  let inTable = false;
-  let currentFundName = null;
+  // Find the Portfolio Details section
+  const portfolioIdx = text.indexOf('Portfolio Details');
+  if (portfolioIdx === -1) {
+    console.log('DEBUG: Portfolio Details not found');
+    return { matched: results, unmatched };
+  }
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+  // Extract text from Portfolio Details to Unsold Portfolio
+  const unsoldIdx = text.indexOf('Unsold Portfolio');
+  let portfolioText = text.substring(portfolioIdx, unsoldIdx !== -1 ? unsoldIdx : text.length);
 
-    if (line.includes('Portfolio Details') || line.includes('Portfolio')) { inTable = true; continue; }
-    if (!inTable) continue;
-    // Stop at tax/disclaimer section
-    if (line.includes('Unsold Portfolio') || line.includes('Taxation') || line.includes('Gain')) break;
+  // Look for fund names in the portfolio section
+  // Fund names follow this pattern: word containing "Fund" or specific fund names
+  const fundNamePatterns = [
+    /Parag Parikh[^(]*(?:\s*\([^)]*\))?/g,
+    /Nippon India Growth[^(]*(?:\s*\([^)]*\))?/g,
+    /Nippon India Small Cap[^(]*(?:\s*\([^)]*\))?/g,
+    /Axis Small Cap[^(]*(?:\s*\([^)]*\))?/g
+  ];
 
-    // A fund name line contains common MF keywords and no raw numbers
-    const looksLikeFundName = (
-      (line.includes('Fund') || line.includes('Growth') || line.includes('Cap') || line.includes('ETF')) &&
-      !/^[?₹\d]/.test(line)
-    );
+  // More robust approach: find all fund names first
+  const parag = portfolioText.match(/Parag Parikh[^(]*Flexi Cap[^(]*Fund[^(]*(?:Direct-Growth|Direct-growth)?/i);
+  const nippon_growth = portfolioText.match(/Nippon India Growth[^(]*Fund[^(]*Direct-[^(]*Growth/i);
+  const nippon_small = portfolioText.match(/Nippon India Small Cap[^(]*Fund[^(]*Direct-[^(]*Growth/i);
+  const axis_small = portfolioText.match(/Axis Small Cap[^(]*Fund[^(]*Direct-Growth/i);
 
-    if (looksLikeFundName) {
-      currentFundName = line.replace(/\(.*?\)/g, '').trim(); // strip "(Equity - ...)" suffixes
-      continue;
+  const fundMatches = [
+    { match: parag, slot: 1, shortName: 'Parag Parikh' },
+    { match: nippon_growth, slot: 2, shortName: 'Nippon Growth' },
+    { match: nippon_small, slot: 3, shortName: 'Nippon Small' },
+    { match: axis_small, slot: null, shortName: 'Axis Small' }
+  ];
+
+  // For each fund match, extract the numbers that follow it
+  fundMatches.forEach(fm => {
+    if (!fm.match) return;
+
+    const fundName = fm.match[0].replace(/\s*\([^)]*\)\s*/g, '').trim();
+    const fundIdx = portfolioText.indexOf(fm.match[0]);
+    const afterFund = portfolioText.substring(fundIdx + fm.match[0].length, fundIdx + fm.match[0].length + 300);
+
+    // Extract numbers from the text after fund name
+    // Pattern: units (decimal), nav (currency), investment, current value
+    const numbers = [];
+    const numPattern = /[\d,]+\.?\d+/g;
+    let match;
+    while ((match = numPattern.exec(afterFund)) !== null) {
+      const numStr = match[0].replace(/,/g, '');
+      const num = parseFloat(numStr);
+      if (!isNaN(num)) {
+        numbers.push(num);
+      }
+      if (numbers.length >= 4) break;
     }
 
-    if (!currentFundName) continue;
+    if (numbers.length >= 4) {
+      const [units, nav, invested, currentValue] = numbers;
+      const entry = { name: fundName, units, nav, invested, currentValue, slot: fm.slot };
 
-    // Try to parse a data row: 4+ numeric tokens on one line (units, nav, invested, currentVal, ...)
-    // Paytm formats: "131.490 ₹91.8067 ₹11,999.40 ₹12,071.66 ₹72.27 (0.60%)"
-    const tokens = line.split(/\s+/);
-    const nums = tokens.map(t => {
-      const clean = t.replace(/[?₹,()%]/g, ''); // also remove () and %
-      const n = parseFloat(clean);
-      return isNaN(n) ? null : n;
-    }).filter(n => n !== null);
-
-    if (nums.length >= 4) {
-      const [units, nav, invested, currentValue] = nums;
-      const slot = matchFundSlot(currentFundName);
-      const entry = { name: currentFundName, units, nav, invested, currentValue, slot };
-      if (slot) {
+      if (fm.slot) {
         results.push(entry);
       } else {
         unmatched.push(entry);
       }
-      currentFundName = null; // consumed
     }
-  }
+  });
 
   return { matched: results, unmatched };
 }
