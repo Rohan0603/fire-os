@@ -4512,10 +4512,12 @@ function parsePDFText(text) {
   // Fund rows appear as:
   //   <Fund Name line>
   //   <Units> <₹NAV> <₹Invested> <₹CurrentValue> <returns...>
-  // Numbers may use ₹ or ? (encoding artifact) prefix and commas.
+  // Some PDFs encode text with doubled characters: "MMuuttuuaall" → normalize to "Mutual"
 
-  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
-  const numRe = /^[?₹]?([\d,]+\.?\d*)$/;
+  // Normalize: remove double characters (keep 1st, skip 2nd in each pair)
+  const normalized = text.replace(/(.)\1/g, '$1');
+
+  const lines = normalized.split('\n').map(l => l.trim()).filter(Boolean);
   const results = [];
   const unmatched = [];
 
@@ -4526,10 +4528,10 @@ function parsePDFText(text) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
 
-    if (line.includes('Portfolio Details')) { inTable = true; continue; }
+    if (line.includes('Portfolio Details') || line.includes('Portfolio')) { inTable = true; continue; }
     if (!inTable) continue;
     // Stop at tax/disclaimer section
-    if (line.includes('Unsold Portfolio') || line.includes('Taxation')) break;
+    if (line.includes('Unsold Portfolio') || line.includes('Taxation') || line.includes('Gain')) break;
 
     // A fund name line contains common MF keywords and no raw numbers
     const looksLikeFundName = (
@@ -4545,10 +4547,10 @@ function parsePDFText(text) {
     if (!currentFundName) continue;
 
     // Try to parse a data row: 4+ numeric tokens on one line (units, nav, invested, currentVal, ...)
-    // Paytm formats: "131.490 ?91.8067 ?11,999.40 ?12,071.66 ?72.27 (0.60%)"
+    // Paytm formats: "131.490 ₹91.8067 ₹11,999.40 ₹12,071.66 ₹72.27 (0.60%)"
     const tokens = line.split(/\s+/);
     const nums = tokens.map(t => {
-      const clean = t.replace(/[?₹,]/g, '');
+      const clean = t.replace(/[?₹,()%]/g, ''); // also remove () and %
       const n = parseFloat(clean);
       return isNaN(n) ? null : n;
     }).filter(n => n !== null);
