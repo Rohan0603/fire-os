@@ -136,6 +136,9 @@ fire-os/
 - **Storage:** browser localStorage
 - **Hosting:** GitHub Pages (static)
 
+### API Integrations
+- **Paytm Money API:** The app integrates with Paytm Money API to fetch equity portfolio details (specifically ICICI Prudential Gold ETF). As this is a client-side application, you must provide your `jwt-token` generated from the Paytm Money Developer Portal. If CORS restrictions block the request, you can use the Paytm Money Statement PDF import feature as a fallback.
+
 ### Known Issues & Improvements
 See `FIRE_OS_AUDIT_REPORT.md` for:
 - 5 critical issues (monolithic file, validation, error handling, etc.)
