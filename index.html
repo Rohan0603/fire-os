@@ -3916,6 +3916,9 @@ function calculateSIPXIRR(sipKey) {
   const months = (now.getFullYear() - startYear) * 12 + (now.getMonth() + 1 - startMonth) + 1;
   if (months < 1) return null;
 
+  // XIRR requires at least 3 months to avoid numerical instability in Newton-Raphson solver
+  if (months < 3) return null;
+
   const currentUnits = D['units' + sipNum] || 0;
   const currentValue = currentUnits * currentNAV;
   if (currentValue <= 0) return null;
@@ -3947,7 +3950,12 @@ function calculateSIPXIRR(sipKey) {
       const n = npv(rate), dn = dnpv(rate);
       if (!isFinite(n) || !isFinite(dn) || dn === 0) return null;
       const next = rate - n / dn;
-      if (Math.abs(next - rate) < 1e-7) return next * 100;
+      if (Math.abs(next - rate) < 1e-7) {
+        const result = next * 100;
+        // Reject unrealistic XIRR values (outside -99% to +500% range)
+        if (result < -99 || result > 500) return null;
+        return result;
+      }
       rate = next;
     }
     return null;
@@ -5113,7 +5121,9 @@ async function fetchLiveNifty() {
   status.textContent = 'Fetching live Nifty 50 + 52W high…';
 
   const result = await _fetchNiftyData();
+  const high52wLive = await _fetch52WHigh();
   if (result) {
+    if (high52wLive) result.high52w = high52wLive;
     _fillNifty(result);
     _checkNiftyTriggers(result.price);
     status.textContent = `✓ Nifty 50: ₹${result.price.toLocaleString('en-IN')} · 52W High: ₹${result.high52w.toLocaleString('en-IN')} · ${_tsNow()}`;
@@ -5171,6 +5181,32 @@ async function _fetchNiftyData() {
   }
   
   // Fallback: return null, let user enter manually
+  return null;
+}
+
+async function _fetch52WHigh() {
+  try {
+    const corsProxy = 'https://api.allorigins.win/get?url=';
+    const yahooUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI?interval=1d&range=1y';
+    const encodedUrl = encodeURIComponent(yahooUrl);
+    const res = await fetch(corsProxy + encodedUrl);
+    if (!res.ok) {
+      console.warn('Yahoo Finance 52W fetch failed (status ' + res.status + ')');
+      return null;
+    }
+    const json = await res.json();
+    const content = json.contents;
+    const data = JSON.parse(content);
+    const high52w = data.chart.result[0].meta.fiftyTwoWeekHigh;
+    if (high52w && typeof high52w === 'number' && high52w > 15000 && high52w < 40000) {
+      D.niftyHigh = Math.round(high52w);
+      saveData();
+      console.log('✓ Nifty 52W High from Yahoo Finance: ₹' + D.niftyHigh);
+      return D.niftyHigh;
+    }
+  } catch (e) {
+    console.warn('_fetch52WHigh error:', e.message);
+  }
   return null;
 }
 
@@ -5570,7 +5606,9 @@ async function fetchLiveNiftyAuto() {
 
   try {
     const result = await _fetchNiftyData();
+    const high52wLive = await _fetch52WHigh();
     if (result) {
+      if (high52wLive) result.high52w = high52wLive;
       _fillNifty(result);
       _checkNiftyTriggers(result.price);
       if (status) {
