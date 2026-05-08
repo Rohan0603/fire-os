@@ -4512,10 +4512,11 @@ function parsePDFText(text) {
   // Fund rows appear as:
   //   <Fund Name line>
   //   <Units> <₹NAV> <₹Invested> <₹CurrentValue> <returns...>
-  // Some PDFs encode text with doubled characters: "MMuuttuuaall" → normalize to "Mutual"
+  // Some PDFs encode text with doubled ASCII letters: "MMuuttuuaall FFuunndd" → "Mutual Fund"
+  // Only normalize doubled lowercase letters (common encoding quirk, not legitimate doubles like "pp")
 
-  // Normalize: remove double characters (keep 1st, skip 2nd in each pair)
-  const normalized = text.replace(/(.)\1/g, '$1');
+  // Normalize: remove doubled lowercase letters (a-z)
+  const normalized = text.replace(/([a-z])\1/g, '$1');
 
   const lines = normalized.split('\n').map(l => l.trim()).filter(Boolean);
   const results = [];
