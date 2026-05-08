@@ -3916,9 +3916,6 @@ function calculateSIPXIRR(sipKey) {
   const months = (now.getFullYear() - startYear) * 12 + (now.getMonth() + 1 - startMonth) + 1;
   if (months < 1) return null;
 
-  // XIRR requires at least 3 months to avoid numerical instability in Newton-Raphson solver
-  if (months < 3) return null;
-
   const currentUnits = D['units' + sipNum] || 0;
   const currentValue = currentUnits * currentNAV;
   if (currentValue <= 0) return null;
@@ -5186,23 +5183,27 @@ async function _fetchNiftyData() {
 
 async function _fetch52WHigh() {
   try {
-    const corsProxy = 'https://api.allorigins.win/get?url=';
-    const yahooUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI?interval=1d&range=1y';
-    const encodedUrl = encodeURIComponent(yahooUrl);
-    const res = await fetch(corsProxy + encodedUrl);
-    if (!res.ok) {
-      console.warn('Yahoo Finance 52W fetch failed (status ' + res.status + ')');
-      return null;
-    }
+    const res = await fetch('https://api.mfapi.in/mf/135106');
+    if (!res.ok) return null;
     const json = await res.json();
-    const content = json.contents;
-    const data = JSON.parse(content);
-    const high52w = data.chart.result[0].meta.fiftyTwoWeekHigh;
-    if (high52w && typeof high52w === 'number' && high52w > 15000 && high52w < 40000) {
-      D.niftyHigh = Math.round(high52w);
+    const data = json.data;
+
+    const oneYearAgo = Date.now() - 365 * 24 * 60 * 60 * 1000;
+    let maxNav = 0;
+    for (const entry of data) {
+      const [dd, mm, yyyy] = entry.date.split('-').map(Number);
+      const ts = new Date(yyyy, mm - 1, dd).getTime();
+      if (ts < oneYearAgo) break;
+      const nav = parseFloat(entry.nav);
+      if (nav > maxNav) maxNav = nav;
+    }
+
+    const high52w = Math.round(maxNav * 100);
+    if (high52w > 15000 && high52w < 40000) {
+      D.niftyHigh = high52w;
       saveData();
-      console.log('✓ Nifty 52W High from Yahoo Finance: ₹' + D.niftyHigh);
-      return D.niftyHigh;
+      console.log('✓ Nifty 52W High from mfapi.in: ₹' + high52w);
+      return high52w;
     }
   } catch (e) {
     console.warn('_fetch52WHigh error:', e.message);
