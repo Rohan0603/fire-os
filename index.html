@@ -2757,6 +2757,29 @@ body::before {
     </div>
   </div>
 
+  <!-- Demat Holdings (Stocks, ETFs, etc.) -->
+  <div class="profile-section">
+    <div class="profile-section-title">Demat Holdings <span style="font-size:11px;color:var(--text-dim);font-weight:400;">Optional — from CAS report</span></div>
+    <div class="form-grid">
+      <div class="input-group">
+        <label class="input-label">Asset Name (e.g. Gold ETF, SocGen Stock)</label>
+        <input type="text" class="input-field" id="p_dematName" placeholder="e.g. ICICI Gold ETF">
+      </div>
+      <div class="input-group">
+        <label class="input-label">Units Held</label>
+        <input type="number" class="input-field" id="p_dematUnits" placeholder="0" step="0.001">
+      </div>
+      <div class="input-group">
+        <label class="input-label">Current Value (₹)</label>
+        <input type="number" class="input-field" id="p_dematValue" placeholder="0" step="0.01">
+      </div>
+      <div class="input-group">
+        <label class="input-label">Cost Basis (₹)</label>
+        <input type="number" class="input-field" id="p_dematCost" placeholder="auto">
+      </div>
+    </div>
+  </div>
+
   <!-- Triggers -->
   <div class="profile-section">
     <div class="profile-section-title">Live Trigger Values</div>
@@ -2938,16 +2961,21 @@ function saveProfile() {
                   'sipStart1','sipStart2','sipStart3','sipStart4',
                   'ppfAum','ngEr','scEr','ngLiq',
                   'units1','units2','units3','units4',
-                  'costBasis1','costBasis2','costBasis3','costBasis4'];
+                  'costBasis1','costBasis2','costBasis3','costBasis4',
+                  'dematName','dematUnits','dematValue','dematCost'];
   fields.forEach(f => {
     const el = document.getElementById('p_' + f);
     if (el && el.value !== '') {
       // Handle date fields (sipStart*) as strings, others as floats
       if (f.startsWith('sipStart')) {
         D[f] = el.value;
+      } else if (f === 'dematName') {
+        D[f] = el.value.trim();
       } else {
         D[f] = parseFloat(el.value);
       }
+    } else if (f === 'dematName' && el) {
+      D[f] = '';
     }
   });
 
@@ -2977,7 +3005,8 @@ function populateProfileFields() {
                'sipStart1','sipStart2','sipStart3','sipStart4',
                'ppfAum','ngEr','scEr','ngLiq',
                'units1','units2','units3','units4',
-               'costBasis1','costBasis2','costBasis3','costBasis4'];
+               'costBasis1','costBasis2','costBasis3','costBasis4',
+               'dematName','dematUnits','dematValue','dematCost'];
   map.forEach(f => {
     const el = document.getElementById('p_' + f);
     if (el) el.value = D[f] || '';
@@ -3144,7 +3173,8 @@ function renderDashboard() {
   // Auto-calculate MF value from live NAVs or fallback to stored value
   const mfLive = _calcLiveMfValue();
   const mfVal = mfLive !== null ? mfLive : D.mf;
-  const total = mfVal + D.fd + D.epf + D.wint + D.buffer + D.esop;
+  const dematVal = D.dematValue || 0;
+  const total = mfVal + D.fd + D.epf + D.wint + D.buffer + D.esop + dematVal;
   const safety = D.fd + D.epf + D.buffer;
   const sip = D.sip1 + D.sip2 + D.sip3 + D.sip4;
 
@@ -4487,13 +4517,15 @@ function importData() {
 
 // ============ MF CENTRAL CAS PARSER ============
 
-// Fund name → dashboard slot mapping
+// Fund name → dashboard slot mapping (SoA holdings only)
 const PDF_FUND_MAP = [
   { slot: 1, keywords: ['parag parikh'] },
   { slot: 2, keywords: ['nippon india growth', 'nippon growth'] },
   { slot: 3, keywords: ['nippon india small cap', 'nippon small cap'] },
-  { slot: 4, keywords: ['icici', 'gold exchange', 'gold etf'] },
 ];
+
+// Demat holdings (ETFs, stocks, etc. in demat account)
+const DEMAT_KEYWORDS = ['gold', 'etf', 'stock', 'exchange traded'];
 
 function matchFundSlot(name) {
   const lower = name.toLowerCase();
@@ -4503,16 +4535,23 @@ function matchFundSlot(name) {
   return null;
 }
 
+function isDematHolding(name) {
+  const lower = name.toLowerCase();
+  return DEMAT_KEYWORDS.some(kw => lower.includes(kw));
+}
+
 function parseMFCentralCASText(text) {
   // MF Central CAS PDF: columns are Folio No. | Scheme Details | Invested Value (INR) |
   // Balance Units | NAV Date | NAV | Market Value (INR) | Gain/Loss
   // Invested Value always has exactly 2 decimal places; Balance Units always has 3+.
-  // This distinction drives robust extraction regardless of PDF text column order.
+  // Separates SoA holdings (mutual funds) from Demat holdings (ETFs, stocks).
 
-  const results = [];
+  const matched = [];
+  const demat = [];
   const unmatched = [];
   const lower = text.toLowerCase();
 
+  // Parse SoA holdings (mapped funds)
   for (const entry of PDF_FUND_MAP) {
     let matchIdx = -1, matchedKw = '';
     for (const kw of entry.keywords) {
@@ -4522,14 +4561,11 @@ function parseMFCentralCASText(text) {
     if (matchIdx === -1) continue;
 
     const nameSample = text.slice(matchIdx, matchIdx + 80).split(/\n/)[0].trim();
-    // Strip date strings (e.g. "07-May-2026") from the window to avoid their digits
     const cleanWindow = text.slice(matchIdx + matchedKw.length, matchIdx + matchedKw.length + 400)
       .replace(/\d{2}-[A-Za-z]{3}-\d{4}/g, '');
 
-    // Invested Value: exactly 2 decimal places (e.g. 12,000.00 or 0.00)
     const twoDP = [...cleanWindow.matchAll(/(\d[\d,]*\.\d{2})(?!\d)/g)]
       .map(m => parseFloat(m[1].replace(/,/g, '')));
-    // Balance Units: 3+ decimal places (e.g. 131.490, 1.882, 4,897.8121)
     const multiDP = [...cleanWindow.matchAll(/(\d[\d,]*\.\d{3,})(?!\d)/g)]
       .map(m => parseFloat(m[1].replace(/,/g, '')));
 
@@ -4540,14 +4576,45 @@ function parseMFCentralCASText(text) {
     const nav = multiDP[1] ?? 0;
     const currentValue = twoDP[1] ?? 0;
 
-    results.push({ slot: entry.slot, name: nameSample, units, invested, nav, currentValue });
+    matched.push({ slot: entry.slot, name: nameSample, units, invested, nav, currentValue });
   }
 
-  return { matched: results, unmatched };
+  // Parse Demat holdings by finding keywords, but avoid duplicate text ranges
+  const processedRanges = []; // Track [startIdx, endIdx] of processed ranges
+  for (const keyword of DEMAT_KEYWORDS) {
+    let idx = lower.indexOf(keyword);
+    while (idx !== -1) {
+      // Check if this position overlaps with already processed range
+      const isOverlap = processedRanges.some(([s, e]) => idx >= s - 100 && idx <= e + 100);
+      if (!isOverlap) {
+        const nameSample = text.slice(idx, idx + 100).split(/\n/)[0].trim();
+        if (!matched.some(m => m.name.toLowerCase().includes(keyword))) {
+          const cleanWindow = text.slice(idx + keyword.length, idx + keyword.length + 400)
+            .replace(/\d{2}-[A-Za-z]{3}-\d{4}/g, '');
+
+          const twoDP = [...cleanWindow.matchAll(/(\d[\d,]*\.\d{2})(?!\d)/g)]
+            .map(m => parseFloat(m[1].replace(/,/g, '')));
+          const multiDP = [...cleanWindow.matchAll(/(\d[\d,]*\.\d{3,})(?!\d)/g)]
+            .map(m => parseFloat(m[1].replace(/,/g, '')));
+
+          const units = multiDP[0] ?? null;
+          if (units !== null) {
+            const invested = twoDP[0] ?? 0;
+            const currentValue = twoDP[1] ?? 0;
+            demat.push({ name: nameSample, units, invested, currentValue });
+            processedRanges.push([idx, idx + 100]);
+          }
+        }
+      }
+      idx = lower.indexOf(keyword, idx + 1);
+    }
+  }
+
+  return { matched, demat, unmatched };
 }
 
 // State for in-progress PDF import
-let _pdfParsedData = null; // { matched, unmatched } from parseMFCentralCASText
+let _pdfParsedData = null; // { matched, demat, unmatched } from parseMFCentralCASText
 let _pdfFileBytes = null;  // ArrayBuffer of selected PDF
 
 function closePdfModal() {
@@ -4561,39 +4628,63 @@ function _showPdfFundTable(parsed, statementDate) {
   const tbody = document.getElementById('pdfFundTableBody');
   tbody.innerHTML = '';
 
-  parsed.matched.forEach(f => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${f.name}</td>
-      <td style="text-align:right">${f.units}</td>
-      <td style="text-align:right">₹${f.nav.toLocaleString('en-IN', {maximumFractionDigits:4})}</td>
-      <td style="text-align:right">₹${f.invested.toLocaleString('en-IN', {maximumFractionDigits:2})}</td>
-      <td style="text-align:right">₹${f.currentValue.toLocaleString('en-IN', {maximumFractionDigits:2})}</td>
-    `;
-    tbody.appendChild(tr);
-  });
+  // SoA Holdings (Mutual Funds)
+  if (parsed.matched.length > 0) {
+    const headerRow = document.createElement('tr');
+    headerRow.style.cssText = 'background:rgba(124,111,255,0.1);font-weight:600;font-size:11px;';
+    headerRow.innerHTML = '<td colspan="5" style="padding:8px;color:var(--accent);">SoA Holdings (Mutual Funds)</td>';
+    tbody.appendChild(headerRow);
 
-  // Unmatched funds in greyed-out rows
-  parsed.unmatched.forEach(f => {
-    const tr = document.createElement('tr');
-    tr.className = 'pdf-unmatched';
-    tr.innerHTML = `
-      <td>${f.name} <span style="color:var(--gold);font-size:10px">(not tracked)</span></td>
-      <td style="text-align:right">${f.units}</td>
-      <td style="text-align:right">₹${f.nav.toLocaleString('en-IN', {maximumFractionDigits:4})}</td>
-      <td style="text-align:right">₹${f.invested.toLocaleString('en-IN', {maximumFractionDigits:2})}</td>
-      <td style="text-align:right">₹${f.currentValue.toLocaleString('en-IN', {maximumFractionDigits:2})}</td>
-    `;
-    tbody.appendChild(tr);
-  });
+    parsed.matched.forEach(f => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${f.name}</td>
+        <td style="text-align:right">${f.units}</td>
+        <td style="text-align:right">₹${f.nav.toLocaleString('en-IN', {maximumFractionDigits:4})}</td>
+        <td style="text-align:right">₹${f.invested.toLocaleString('en-IN', {maximumFractionDigits:2})}</td>
+        <td style="text-align:right">₹${f.currentValue.toLocaleString('en-IN', {maximumFractionDigits:2})}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
 
+  // Demat Holdings (ETFs, Stocks)
+  if (parsed.demat.length > 0) {
+    const headerRow = document.createElement('tr');
+    headerRow.style.cssText = 'background:rgba(212,168,67,0.1);font-weight:600;font-size:11px;';
+    headerRow.innerHTML = '<td colspan="5" style="padding:8px;color:var(--gold);">Demat Holdings (ETFs / Stocks)</td>';
+    tbody.appendChild(headerRow);
+
+    parsed.demat.forEach(f => {
+      const tr = document.createElement('tr');
+      tr.style.opacity = '0.8';
+      tr.innerHTML = `
+        <td>${f.name}</td>
+        <td style="text-align:right">${f.units.toLocaleString('en-IN', {maximumFractionDigits:3})}</td>
+        <td style="text-align:right">—</td>
+        <td style="text-align:right">₹${f.invested.toLocaleString('en-IN', {maximumFractionDigits:2})}</td>
+        <td style="text-align:right">₹${f.currentValue.toLocaleString('en-IN', {maximumFractionDigits:2})}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // Warning about unmatched funds
+  let warningText = '';
   if (parsed.unmatched.length > 0) {
     const names = parsed.unmatched.map(f => f.name).join(', ');
-    const warn = document.getElementById('pdfWarnings');
-    warn.textContent = `⚠ ${parsed.unmatched.length} fund(s) not tracked in dashboard: ${names}`;
+    warningText = `⚠ ${parsed.unmatched.length} fund(s) not recognized: ${names}`;
+  }
+  if (parsed.demat.length === 0 && parsed.matched.length === 0) {
+    warningText = '⚠ No holdings could be parsed from CAS. Check PDF format.';
+  }
+
+  const warn = document.getElementById('pdfWarnings');
+  if (warningText) {
+    warn.textContent = warningText;
     warn.style.display = 'block';
   } else {
-    document.getElementById('pdfWarnings').style.display = 'none';
+    warn.style.display = 'none';
   }
 
   document.getElementById('pdfFundSection').style.display = 'block';
@@ -4657,7 +4748,7 @@ async function importMFCentralCAS() {
     }
 
     const parsed = parseMFCentralCASText(text);
-    if (parsed.matched.length === 0 && parsed.unmatched.length === 0) {
+    if (parsed.matched.length === 0 && parsed.demat.length === 0) {
       showToast('✗ Could not parse portfolio. Is this an MF Central CAS PDF?', 4000);
       closePdfModal();
       return;
@@ -4689,7 +4780,7 @@ async function retryPdfWithPassword() {
   }
 
   const parsed = parseMFCentralCASText(text);
-  if (parsed.matched.length === 0 && parsed.unmatched.length === 0) {
+  if (parsed.matched.length === 0 && parsed.demat.length === 0) {
     showToast('✗ Could not parse portfolio. Is this an MF Central CAS PDF?', 4000);
     closePdfModal();
     return;
@@ -4705,16 +4796,30 @@ async function retryPdfWithPassword() {
 function applyPdfImport() {
   if (!_pdfParsedData) return;
 
+  let importedCount = 0;
+
+  // Apply SoA holdings to fund slots
   _pdfParsedData.matched.forEach(f => {
     D['units' + f.slot] = f.units;
     D['costBasis' + f.slot] = f.invested;
+    importedCount++;
   });
+
+  // Apply Demat holdings (take first demat if multiple)
+  if (_pdfParsedData.demat.length > 0) {
+    const firstDemat = _pdfParsedData.demat[0];
+    D.dematName = firstDemat.name;
+    D.dematUnits = firstDemat.units;
+    D.dematValue = firstDemat.currentValue;
+    D.dematCost = firstDemat.invested;
+    importedCount++;
+  }
 
   saveData();
   populateProfileFields();
   renderDashboard();
   closePdfModal();
-  showToast('✓ Portfolio updated from PDF — ' + _pdfParsedData.matched.length + ' funds imported', 3000);
+  showToast(`✓ Portfolio updated from PDF — ${importedCount} holdings imported`, 3000);
 }
 
 // ============ OPTIMISER SUB-TABS ============
@@ -5747,6 +5852,7 @@ const CONFIG = {
     ppfAum: 128966, ngEr: 0.78, scEr: 0.67, ngLiq: 7,
     esop_shares: 95, esop_price: 65.72,
     units1: 131.49, units2: 1.882, units3: 30.965488, units4: 18.987,
+    dematName: '', dematUnits: 0, dematValue: 0, dematCost: 0,
   },
 
   crashTriggers: {
