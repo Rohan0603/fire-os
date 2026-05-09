@@ -1468,7 +1468,10 @@ body::before {
       <span style="font-size:20px">📄</span>
       <div>
         <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:600">MF Central CAS Import</div>
-        <div style="font-size:11px;color:var(--text-dim)" id="pdfImportDate"></div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div style="font-size:11px;color:var(--text-dim)" id="pdfImportDate"></div>
+          <div id="pdfProviderBadge" style="display:none;font-size:10px;padding:2px 7px;border-radius:4px;background:rgba(124,111,255,0.12);color:#9d90ff;font-family:'Space Mono',monospace"></div>
+        </div>
       </div>
       <button class="btn" onclick="closePdfModal()" style="margin-left:auto">✕ Close</button>
     </div>
@@ -1498,6 +1501,7 @@ body::before {
         </thead>
         <tbody id="pdfFundTableBody"></tbody>
       </table>
+      <div id="pdfTotalsRow" style="display:none;margin-top:10px;padding:8px 12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:6px;font-size:11px;color:var(--text-dim);line-height:1.9"></div>
       <div id="pdfWarnings" style="display:none;margin-top:12px;padding:10px 12px;background:rgba(255,190,0,0.07);border:1px solid rgba(255,190,0,0.25);border-radius:6px;font-size:11px;color:var(--gold);"></div>
       <div style="display:flex;gap:10px;margin-top:16px;">
         <button class="btn btn-primary" onclick="applyPdfImport()">✓ Apply to Dashboard</button>
@@ -3144,7 +3148,8 @@ function renderDashboard() {
   // Auto-calculate MF value from live NAVs or fallback to stored value
   const mfLive = _calcLiveMfValue();
   const mfVal = mfLive !== null ? mfLive : D.mf;
-  const total = mfVal + D.fd + D.epf + D.wint + D.buffer + D.esop;
+  const casOther = D.casOtherAssetsValue || 0;
+  const total = mfVal + D.fd + D.epf + D.wint + D.buffer + D.esop + casOther;
   const safety = D.fd + D.epf + D.buffer;
   const sip = D.sip1 + D.sip2 + D.sip3 + D.sip4;
 
@@ -3168,6 +3173,7 @@ function renderDashboard() {
     { key: 'wint',   name: 'Wint Wealth',     sub: 'Crash weapon · 10.75%',    val: D.wint,   badge: 'CRASH GUN', badgeClass: 'badge-red',   color: '#e74c3c' },
     { key: 'mf',     name: 'Mutual Funds',    sub: '30Y engine · 4 funds',     val: mfVal,    badge: 'CORE',      badgeClass: 'badge-blue',  color: '#7c6fff' },
     { key: 'buffer', name: 'SBI Buffer',      sub: 'Liquid reserve',           val: D.buffer, badge: 'LIQUID',    badgeClass: 'badge-dim',   color: '#a09cb0' },
+    ...(casOther > 0 ? [{ key: 'casother', name: 'Other CAS Assets', sub: 'Equity · Bonds · NPS · via CAS', val: casOther, badge: 'CAS', badgeClass: 'badge-amber', color: '#e67e22' }] : []),
   ];
 
   const grid = document.getElementById('assetGrid');
@@ -3885,6 +3891,15 @@ function _buildAssetDetail(key) {
         <div class="ad-info-row"><span>Purpose</span><span>Operational float · Quick access</span></div>
         <div class="ad-info-row"><span>Liquidity</span><span>Instant withdrawal</span></div>
       </div>`,
+    casother: () => `
+      <div class="ad-header"><span class="ad-title">OTHER CAS ASSETS</span><span class="asset-badge badge-amber">CAS</span></div>
+      <div class="ad-sub">Equity · Bonds · NPS · via MF Central CAS</div>
+      <div class="ad-info-grid">
+        <div class="ad-info-row"><span>Market value</span><span>${fmtFull(D.casOtherAssetsValue || 0)}</span></div>
+        <div class="ad-info-row"><span>Source</span><span>MF Central CAS PDF (last import)</span></div>
+        <div class="ad-info-row"><span>Asset classes</span><span>Direct equity · Bonds · NPS · ETF</span></div>
+        <div class="ad-info-row"><span>Update</span><span>Re-import CAS PDF to refresh</span></div>
+      </div>`,
   };
   return defs[key] ? defs[key]() : '<p style="color:var(--text-dim)">No detail available.</p>';
 }
@@ -4487,6 +4502,16 @@ function importData() {
 
 // ============ MF CENTRAL CAS PARSER ============
 
+function _detectCASProvider(text) {
+  const t = text.toUpperCase();
+  if (t.includes('MFCENTRAL')) return 'MF Central · CAMS + KFintech';
+  if (t.includes('KFINTECH') || t.includes('KFIN')) return 'KFintech';
+  if (t.includes('CAMSONLINE') || (t.includes('CAMS') && !t.includes('KFIN'))) return 'CAMS';
+  if (t.includes('NSDL')) return 'NSDL eCAS';
+  if (t.includes('CDSL')) return 'CDSL eCAS';
+  return null;
+}
+
 // Fund name → dashboard slot mapping
 const PDF_FUND_MAP = [
   { slot: 1, keywords: ['parag parikh'] },
@@ -4509,6 +4534,7 @@ function parseMFCentralCASText(text) {
   // Invested Value always has exactly 2 decimal places; Balance Units always has 3+.
   // This distinction drives robust extraction regardless of PDF text column order.
 
+  const provider = _detectCASProvider(text);
   const results = [];
   const unmatched = [];
   const lower = text.toLowerCase();
@@ -4543,7 +4569,17 @@ function parseMFCentralCASText(text) {
     results.push({ slot: entry.slot, name: nameSample, units, invested, nav, currentValue });
   }
 
-  return { matched: results, unmatched };
+  // Extract CAS section totals from "Total 27,280.22" patterns
+  const totalMatches = [...text.matchAll(/\bTotal\s+([\d,]+\.\d{2})\b/g)]
+    .map(m => parseFloat(m[1].replace(/,/g, '')));
+  const soaTotal = totalMatches[0] ?? null;
+  const dematTotal = totalMatches.length > 1 ? totalMatches[1] : null;
+  const casTotal = (soaTotal ?? 0) + (dematTotal ?? 0);
+  // Untracked = CAS total minus sum of matched fund current values (other equities, bonds, NPS, etc.)
+  const matchedTotal = results.reduce((s, f) => s + f.currentValue, 0);
+  const untrackedValue = casTotal > 0 ? Math.max(0, Math.round((casTotal - matchedTotal) * 100) / 100) : 0;
+
+  return { matched: results, unmatched, provider, soaTotal, dematTotal, casTotal, untrackedValue };
 }
 
 // State for in-progress PDF import
@@ -4558,6 +4594,32 @@ function closePdfModal() {
 
 function _showPdfFundTable(parsed, statementDate) {
   document.getElementById('pdfImportDate').textContent = statementDate ? 'Statement date: ' + statementDate : '';
+
+  // Provider badge
+  const providerEl = document.getElementById('pdfProviderBadge');
+  if (parsed.provider) {
+    providerEl.textContent = parsed.provider;
+    providerEl.style.display = 'inline';
+  } else {
+    providerEl.style.display = 'none';
+  }
+
+  // CAS totals row
+  const totalsEl = document.getElementById('pdfTotalsRow');
+  if (parsed.casTotal > 0) {
+    const parts = [];
+    if (parsed.soaTotal) parts.push(`SoA (MF): <b>₹${parsed.soaTotal.toLocaleString('en-IN',{maximumFractionDigits:2})}</b>`);
+    if (parsed.dematTotal) parts.push(`Demat: <b>₹${parsed.dematTotal.toLocaleString('en-IN',{maximumFractionDigits:2})}</b>`);
+    parts.push(`Total CAS: <b>₹${parsed.casTotal.toLocaleString('en-IN',{maximumFractionDigits:2})}</b>`);
+    if (parsed.untrackedValue > 10) {
+      parts.push(`<span style="color:var(--gold)">⚠ ₹${Math.round(parsed.untrackedValue).toLocaleString('en-IN')} in holdings not tracked in dashboard (equity/bonds/NPS)</span>`);
+    }
+    totalsEl.innerHTML = parts.join(' &nbsp;·&nbsp; ');
+    totalsEl.style.display = 'block';
+  } else {
+    totalsEl.style.display = 'none';
+  }
+
   const tbody = document.getElementById('pdfFundTableBody');
   tbody.innerHTML = '';
 
@@ -4710,11 +4772,18 @@ function applyPdfImport() {
     D['costBasis' + f.slot] = f.invested;
   });
 
+  // Store untracked CAS holdings value (equities, bonds, NPS, etc.) for net worth
+  D.casOtherAssetsValue = _pdfParsedData.untrackedValue || 0;
+
   saveData();
   populateProfileFields();
   renderDashboard();
   closePdfModal();
-  showToast('✓ Portfolio updated from PDF — ' + _pdfParsedData.matched.length + ' funds imported', 3000);
+  let toastMsg = '✓ Portfolio updated — ' + _pdfParsedData.matched.length + ' funds imported';
+  if (_pdfParsedData.untrackedValue > 10) {
+    toastMsg += ` · ₹${Math.round(_pdfParsedData.untrackedValue).toLocaleString('en-IN')} other assets added to net worth`;
+  }
+  showToast(toastMsg, 3500);
 }
 
 // ============ OPTIMISER SUB-TABS ============
