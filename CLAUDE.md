@@ -9,13 +9,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 The app features:
 - Portfolio tracking (MF, FD, EPF, SIP, ESOP)
 - Live NAV fetching from public APIs
-- **SIP P&L tracking with cost basis + XIRR**
+- **SIP P&L tracking with cost basis + XIRR (Newton-Raphson)**
+- **Cost basis override fields (costBasis1–4) for actual-invested amounts**
+- **Per-fund P&L rows (Invested / Current / P&L / XIRR) + Portfolio summary card**
+- **Paytm Money PDF statement import (PDF.js parser + confirmation modal)**
 - **Live EUR/INR auto-fetch for ESOP Tools**
 - **Alpha vs Benchmark Tracker (auto-populated rolling 3-year returns)**
+- **Live Nifty 52W high fetch via CORS proxy**
 - Market crash simulations
 - Tax optimization tools
 - Financial calculators (XIRR, SIP Pause impact, emergency runway, etc.)
-- Data persistence via browser localStorage
+- Data persistence via browser localStorage (export/import uses `fireOS_v2` envelope)
 
 ## Architecture & File Structure
 
@@ -130,8 +134,9 @@ See `FIRE_OS_AUDIT_REPORT.md` for:
 - **Rate limit**: Check browser console if fails
 - **Fallback**: Manually enter NAV in Profile tab
 
-### Nifty Level Fetching
-- **Endpoint**: Yahoo Finance via `api.allorigins.win` CORS proxy
+### Nifty Level & 52W High Fetching
+- **Endpoint**: Yahoo Finance (`^NSEI`) via `api.allorigins.win` CORS proxy
+- **Data fetched**: Current level + 52-week high (used by Float Indicator KPI)
 - **Reason for proxy**: GitHub Pages cannot make direct cross-origin requests
 - **Fallback**: Manually enter Nifty level in Crash Protocol modal
 
@@ -144,10 +149,10 @@ See `FIRE_OS_AUDIT_REPORT.md` for:
 
 ### SIP P&L Tracking
 - **Calculation**: `calculateSIPPL(sipKey)` computes cost basis P&L
-- **Cost Basis**: Total invested = monthly SIP × months since start date
-- **P&L Display**: Shows in Dashboard SIP Status cards (green for positive, red for negative)
-- **XIRR**: Time-weighted annualized return calculated from start date to current NAV
-- **Data**: Requires SIP start date (sipStart1-4) stored in D object (YYYY-MM format)
+- **Cost Basis**: Total invested = monthly SIP × months since start date; overridden by `costBasis1–4` if set in Profile
+- **P&L Display**: Per-fund rows (Invested / Current / P&L / XIRR) shown in Dashboard SIP cards; Portfolio summary card shown when NAV data is available
+- **XIRR**: Newton-Raphson annualized return from start date to current NAV; plausibility guard skips calculation when units predate SIP start
+- **Data**: Requires SIP start date (sipStart1-4) in D object (YYYY-MM format); corrupted dates (e.g., 0001-05) normalized to undefined on load
 
 ### Alpha vs Benchmark Tracker
 - **Auto-Population**: Triggered when ESOP Tools tab opens, populates Watchdog tab
@@ -157,8 +162,20 @@ See `FIRE_OS_AUDIT_REPORT.md` for:
 - **Data Source**: D.alphaTrackerData stores historical returns and benchmark NAV baselines
 - **Manual Input**: Benchmark index levels for April 2026 can be manually entered in ESOP Tools
 
+### Paytm Money PDF Import
+- **Trigger**: "Import PDF" button in Profile tab
+- **Parser**: PDF.js (`cdnjs.cloudflare.com`) extracts text from uploaded statement
+- **Flow**: Parse → confirmation modal (shows detected fund/units/date) → user confirms → updates Profile fields
+- **Quirk**: Normalizes Paytm's doubled-lowercase encoding (e.g., `pparraagg` → `parag`) while preserving legitimate doubles like "Nippon"
+
 ### SocGen Stock
 - **SocGen**: Manual entry only (no API)
+
+### Export / Import Data Format
+- **Format**: `fireOS_v2` JSON envelope bundles profile + watchdog data
+- **Export**: Downloads `fireOS_backup_<date>.json` from Profile tab
+- **Import**: Reads v2 envelope; falls back gracefully to legacy v1 format
+- **NAV cache TTL**: 4 hours (reduced from 30 days to keep prices fresh)
 
 ## Testing
 
@@ -166,11 +183,14 @@ See `FIRE_OS_AUDIT_REPORT.md` for:
 - [ ] Load `index.html` in browser
 - [ ] Enter profile data in Profile tab
 - [ ] Click ⟳ NAV → Verify prices load (₹ values)
-- [ ] Click ⚡ Nifty → Verify Nifty level appears
+- [ ] Click ⚡ Nifty → Verify Nifty level + 52W high appear
 - [ ] Switch tabs → Verify all content renders
 - [ ] Reload page → Verify data persists (localStorage)
 - [ ] Open DevTools Console → Verify no errors
 - [ ] Mobile test → Open DevTools device toolbar
+- [ ] Upload a Paytm Money PDF → Verify confirmation modal and field population
+- [ ] Enter costBasis override in Profile → Verify P&L uses override instead of computed basis
+- [ ] Export JSON → Verify `fireOS_v2` envelope; re-import → Verify round-trip fidelity
 
 ### Automated Testing (Playwright)
 ```bash
@@ -186,19 +206,33 @@ Tests verify:
 
 ## Git Workflow & Commits
 
-Recent changes (as of May 8, 2026) - ESOP Tools Enhancements:
+Recent changes (as of May 9, 2026) - PDF Import, Cost Basis & XIRR overhaul:
+- **b0ae88c**: feat: remove redundant MF Current Value field; add Units Held hint in Profile
+- **1912d00**: fix: rewrite PDF parser for continuous text extraction from Paytm Money statements
+- **9fa5253**: fix: normalize only doubled lowercase letters in PDF text (preserve "Nippon")
+- **c734649**: fix: normalize doubled characters in PDF text extraction (Paytm encoding quirk)
+- **7f99766**: feat: implement Paytm Money PDF import with PDF.js + confirmation modal
+- **0634cb2**: fix: restore XIRR display; implement working 52W high fetch
+- **898ab72**: fix: stabilize XIRR calculation; implement live Nifty 52W high fetch
+- **7d071aa**: chore: remove dev artifacts; production-ready cleanup
+- **e3fa183**: fix: normalize corrupted sipStart dates (0001-05 → undefined)
+- **f67df81**: fix: clear costBasis on blank input; hide portfolio card when NAV unavailable
+- **f2aa89c**: fix: use sip-card class; fix missing minus sign in P&L display
+- **ecee8d1**: feat: add per-fund P&L rows (Invested/Current/P&L/XIRR) + Portfolio summary card
+- **230a55c**: feat: calculateSIPPL uses costBasis override; returns null on insufficient data
+- **55e583c**: feat: add costBasis1..4 optional fields to Profile for actual-invested override
+- **acfee3a**: fix: replace CAGR approximation with Newton-Raphson XIRR in calculateSIPXIRR
+- **ef17269**: fix: add plausibility guard in calculateSIPXIRR (skip when units predate SIP start)
+- **95890de**: fix: importData writes fireOS_v2; export bundles watchdog data in v2 envelope
+- **9a93341**: fix: reduce NAV cache TTL from 30 days to 4 hours
+
+Earlier changes (ESOP Tools Enhancements, May 8, 2026):
 - **66a3749**: test: verify all ESOP Tools enhancements work end-to-end
 - **a518e2b**: feat: add manual entry fields for benchmark reference levels in ESOP Tools
 - **69932c9**: feat: auto-populate Alpha vs Benchmark Tracker with rolling 3-year data
 - **f5164c2**: feat: auto-fetch and display live EUR/INR rate when ESOP Tools tab opens
 - **93003b3**: feat: display SIP P&L (cost basis) and XIRR on Dashboard SIP cards
-- **dd89a7e**: feat: add calculateSIPPL function to compute cost basis P&L for each SIP
-- **ac7a2a7**: feat: add SIP start date fields to track cost basis for P&L calculation
-
-Earlier changes:
 - **8df63dc**: Fixed 3 critical bugs (live data, asset breakdown, portfolio calculations)
-- **15e1f0d**: Added Playwright e2e test suite
-- **cf83493**: Added Playwright to devDependencies
 - **96147c2**: Optimized `sipCorpusMissYear` using geometric series formula
 
 When committing changes:

@@ -65,9 +65,9 @@ Site will be live at: `https://yourusername.github.io/fire-os`
 
 ### Dashboard
 - **Net Worth KPI** — Total assets with breakdown (MF, FD, EPF, Wint, Buffer, ESOP)
-- **SIP Status** — Live NAVs for 4 funds + portfolio value + **P&L tracking (cost basis) + XIRR**
+- **SIP Status** — Live NAVs for 4 funds + **per-fund P&L rows (Invested / Current / P&L / XIRR)** + Portfolio summary card
 - **Crash Protocol** — Market drawdown triggers with deployment plan
-- **Float Indicator** — Current Nifty level vs 52W high
+- **Float Indicator** — Current Nifty level vs live 52W high (auto-fetched)
 
 ### Calculators
 - **Crash Protocol** — How much to deploy if Nifty crashes 10%/15%/25%
@@ -81,7 +81,7 @@ Site will be live at: `https://yourusername.github.io/fire-os`
 - **Home Corpus** — Years to save for home down payment
 - **Tax Estimator** — Income tax + LTCG harvest planning
 - **FD Interest** — Track maturing FDs by rate & tenor
-- **ESOP Tools** — Stock option value projections + **live EUR/INR exchange rate**
+- **ESOP Tools** — Stock option value projections + **live EUR/INR exchange rate** + benchmark reference levels
 
 ### Optimiser
 - **LTCG Harvest** — Tax-loss harvesting opportunities
@@ -94,6 +94,10 @@ Site will be live at: `https://yourusername.github.io/fire-os`
 - **Fund Health Metrics** — Expense ratio, liquidity, category exposure
 - **Alpha vs Benchmark Tracker** — **Auto-populated rolling 3-year performance data (fund vs benchmark)**
 
+### Profile
+- **Paytm Money PDF Import** — Upload statement PDF; parser extracts fund/units/date and populates fields via confirmation modal
+- **Cost Basis Override** — Optional `costBasis1–4` fields let you enter actual-invested amount instead of computed monthly-SIP × months
+
 ---
 
 ## 🔒 Data & Privacy
@@ -104,9 +108,10 @@ Site will be live at: `https://yourusername.github.io/fire-os`
 - **Persistence:** Survives browser restart, private/incognito mode
 
 ### API Calls
-- **Live NAVs:** `api.mfapi.in` (MutualFunds.com API) — public, no auth needed
-- **Nifty Fetch:** `query1.finance.yahoo.com` via `api.allorigins.win` CORS proxy
-- **EUR/INR:** `api.allorigins.win` proxy (Yahoo Finance)
+- **Live NAVs:** `api.mfapi.in` (MutualFunds.com API) — public, no auth needed; cached for 4 hours
+- **Nifty Fetch:** Yahoo Finance (`^NSEI`) via `api.allorigins.win` CORS proxy — fetches current level + 52W high
+- **EUR/INR:** `api.allorigins.win` proxy (Yahoo Finance `EURINR=X`)
+- **PDF.js:** `cdnjs.cloudflare.com` — used for Paytm Money PDF import
 - **SocGen Stock:** Manual entry (no API — use brokerage price)
 
 All APIs are **CORS-friendly** and work from GitHub Pages (static hosting).
@@ -252,14 +257,19 @@ FIRE OS is open-source and provided as-is for personal finance planning. Use at 
 ## 🎯 Roadmap
 
 ### v2.1 (Current)
-- ✅ Live NAV fetching + auto-calculation
+- ✅ Live NAV fetching + auto-calculation (4-hour cache)
 - ✅ Crash Protocol auto-open
 - ✅ Input validation
 - ✅ Better error messages
 - ✅ GitHub Pages ready
-- ✅ **SIP P&L tracking with cost basis + XIRR**
+- ✅ **SIP P&L tracking with cost basis + Newton-Raphson XIRR**
+- ✅ **Per-fund P&L rows (Invested / Current / P&L / XIRR) + Portfolio summary card**
+- ✅ **Cost basis override (costBasis1–4) for actual-invested amounts**
+- ✅ **Paytm Money PDF import (PDF.js parser + confirmation modal)**
+- ✅ **Live Nifty 52W high fetch**
 - ✅ **Live EUR/INR auto-fetch for ESOP Tools**
 - ✅ **Alpha vs Benchmark Tracker auto-population (rolling 3-year returns)**
+- ✅ **Export/Import v2 envelope (includes watchdog data)**
 
 ### v2.2 (Next)
 - ⏳ CONFIG object extraction
@@ -286,4 +296,4 @@ FIRE OS is open-source and provided as-is for personal finance planning. Use at 
 
 **Happy FIRE planning! 🔥💰**
 
-*Last updated: May 8, 2026*
+*Last updated: May 9, 2026*
