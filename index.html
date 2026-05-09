@@ -1457,7 +1457,7 @@ body::before {
   <div class="nav-actions">
     <button class="btn" onclick="exportData()">⬇ Export</button>
     <button class="btn" onclick="importData()">⬆ Import</button>
-    <button class="btn" onclick="importPaytmPDF()">⬆ PDF</button>
+    <button class="btn" onclick="importMFCentralCAS()">⬆ CAS</button>
   </div>
 </nav>
 
@@ -1467,15 +1467,15 @@ body::before {
     <div class="ad-header">
       <span style="font-size:20px">📄</span>
       <div>
-        <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:600">Paytm Money Import</div>
+        <div style="font-family:'Fraunces',serif;font-size:18px;font-weight:600">MF Central CAS Import</div>
         <div style="font-size:11px;color:var(--text-dim)" id="pdfImportDate"></div>
       </div>
       <button class="btn" onclick="closePdfModal()" style="margin-left:auto">✕ Close</button>
     </div>
 
-    <!-- Password prompt (shown only if auto-decrypt fails) -->
+    <!-- Password prompt (shown only if PDF is password-protected) -->
     <div id="pdfPasswordSection" style="display:none;margin-bottom:16px;">
-      <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">PDF is password-protected. Enter password (usually your PAN in uppercase):</div>
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">PDF is password-protected. Enter your password to unlock:</div>
       <div style="display:flex;gap:8px;">
         <input id="pdfPasswordInput" type="password" class="form-input" placeholder="e.g. ABCDE1234F" style="flex:1;font-family:'Space Mono',monospace;font-size:13px;">
         <button class="btn btn-primary" onclick="retryPdfWithPassword()">Unlock</button>
@@ -4485,14 +4485,14 @@ function importData() {
   input.click();
 }
 
-// ============ PAYTM MONEY PDF PARSER ============
+// ============ MF CENTRAL CAS PARSER ============
 
 // Fund name → dashboard slot mapping
 const PDF_FUND_MAP = [
   { slot: 1, keywords: ['parag parikh'] },
   { slot: 2, keywords: ['nippon india growth', 'nippon growth'] },
   { slot: 3, keywords: ['nippon india small cap', 'nippon small cap'] },
-  { slot: 4, keywords: ['icici', 'gold etf'] },
+  { slot: 4, keywords: ['icici', 'gold exchange', 'gold etf'] },
 ];
 
 function matchFundSlot(name) {
@@ -4503,85 +4503,51 @@ function matchFundSlot(name) {
   return null;
 }
 
-function parsePDFText(text) {
-  // Paytm Money PDF may not preserve line breaks well - parse from continuous text
-  // Look for pattern: "Fund Name (Equity - Type) Units NAV Investment Current"
+function parseMFCentralCASText(text) {
+  // MF Central CAS PDF: columns are Folio No. | Scheme Details | Invested Value (INR) |
+  // Balance Units | NAV Date | NAV | Market Value (INR) | Gain/Loss
+  // Invested Value always has exactly 2 decimal places; Balance Units always has 3+.
+  // This distinction drives robust extraction regardless of PDF text column order.
 
   const results = [];
   const unmatched = [];
+  const lower = text.toLowerCase();
 
-  // Find the Portfolio Details section
-  const portfolioIdx = text.indexOf('Portfolio Details');
-  if (portfolioIdx === -1) {
-    console.log('DEBUG: Portfolio Details not found');
-    return { matched: results, unmatched };
+  for (const entry of PDF_FUND_MAP) {
+    let matchIdx = -1, matchedKw = '';
+    for (const kw of entry.keywords) {
+      const idx = lower.indexOf(kw);
+      if (idx !== -1) { matchIdx = idx; matchedKw = kw; break; }
+    }
+    if (matchIdx === -1) continue;
+
+    const nameSample = text.slice(matchIdx, matchIdx + 80).split(/\n/)[0].trim();
+    // Strip date strings (e.g. "07-May-2026") from the window to avoid their digits
+    const cleanWindow = text.slice(matchIdx + matchedKw.length, matchIdx + matchedKw.length + 400)
+      .replace(/\d{2}-[A-Za-z]{3}-\d{4}/g, '');
+
+    // Invested Value: exactly 2 decimal places (e.g. 12,000.00 or 0.00)
+    const twoDP = [...cleanWindow.matchAll(/(\d[\d,]*\.\d{2})(?!\d)/g)]
+      .map(m => parseFloat(m[1].replace(/,/g, '')));
+    // Balance Units: 3+ decimal places (e.g. 131.490, 1.882, 4,897.8121)
+    const multiDP = [...cleanWindow.matchAll(/(\d[\d,]*\.\d{3,})(?!\d)/g)]
+      .map(m => parseFloat(m[1].replace(/,/g, '')));
+
+    const units = multiDP[0] ?? null;
+    if (units === null) continue;
+
+    const invested = twoDP[0] ?? 0;
+    const nav = multiDP[1] ?? 0;
+    const currentValue = twoDP[1] ?? 0;
+
+    results.push({ slot: entry.slot, name: nameSample, units, invested, nav, currentValue });
   }
-
-  // Extract text from Portfolio Details to Unsold Portfolio
-  const unsoldIdx = text.indexOf('Unsold Portfolio');
-  let portfolioText = text.substring(portfolioIdx, unsoldIdx !== -1 ? unsoldIdx : text.length);
-
-  // Look for fund names in the portfolio section
-  // Fund names follow this pattern: word containing "Fund" or specific fund names
-  const fundNamePatterns = [
-    /Parag Parikh[^(]*(?:\s*\([^)]*\))?/g,
-    /Nippon India Growth[^(]*(?:\s*\([^)]*\))?/g,
-    /Nippon India Small Cap[^(]*(?:\s*\([^)]*\))?/g,
-    /Axis Small Cap[^(]*(?:\s*\([^)]*\))?/g
-  ];
-
-  // More robust approach: find all fund names first
-  const parag = portfolioText.match(/Parag Parikh[^(]*Flexi Cap[^(]*Fund[^(]*(?:Direct-Growth|Direct-growth)?/i);
-  const nippon_growth = portfolioText.match(/Nippon India Growth[^(]*Fund[^(]*Direct-[^(]*Growth/i);
-  const nippon_small = portfolioText.match(/Nippon India Small Cap[^(]*Fund[^(]*Direct-[^(]*Growth/i);
-  const axis_small = portfolioText.match(/Axis Small Cap[^(]*Fund[^(]*Direct-Growth/i);
-
-  const fundMatches = [
-    { match: parag, slot: 1, shortName: 'Parag Parikh' },
-    { match: nippon_growth, slot: 2, shortName: 'Nippon Growth' },
-    { match: nippon_small, slot: 3, shortName: 'Nippon Small' },
-    { match: axis_small, slot: null, shortName: 'Axis Small' }
-  ];
-
-  // For each fund match, extract the numbers that follow it
-  fundMatches.forEach(fm => {
-    if (!fm.match) return;
-
-    const fundName = fm.match[0].replace(/\s*\([^)]*\)\s*/g, '').trim();
-    const fundIdx = portfolioText.indexOf(fm.match[0]);
-    const afterFund = portfolioText.substring(fundIdx + fm.match[0].length, fundIdx + fm.match[0].length + 300);
-
-    // Extract numbers from the text after fund name
-    // Pattern: units (decimal), nav (currency), investment, current value
-    const numbers = [];
-    const numPattern = /[\d,]+\.?\d+/g;
-    let match;
-    while ((match = numPattern.exec(afterFund)) !== null) {
-      const numStr = match[0].replace(/,/g, '');
-      const num = parseFloat(numStr);
-      if (!isNaN(num)) {
-        numbers.push(num);
-      }
-      if (numbers.length >= 4) break;
-    }
-
-    if (numbers.length >= 4) {
-      const [units, nav, invested, currentValue] = numbers;
-      const entry = { name: fundName, units, nav, invested, currentValue, slot: fm.slot };
-
-      if (fm.slot) {
-        results.push(entry);
-      } else {
-        unmatched.push(entry);
-      }
-    }
-  });
 
   return { matched: results, unmatched };
 }
 
 // State for in-progress PDF import
-let _pdfParsedData = null; // { matched, unmatched } from parsePDFText
+let _pdfParsedData = null; // { matched, unmatched } from parseMFCentralCASText
 let _pdfFileBytes = null;  // ArrayBuffer of selected PDF
 
 function closePdfModal() {
@@ -4649,8 +4615,7 @@ async function _parsePdfBytes(bytes, password) {
   return fullText;
 }
 
-async function importPaytmPDF() {
-  // Check PDF.js loaded
+async function importMFCentralCAS() {
   if (typeof pdfjsLib === 'undefined') {
     showToast('✗ PDF library failed to load. Check your internet connection.', 4000);
     return;
@@ -4675,14 +4640,12 @@ async function importPaytmPDF() {
     const bytes = await file.arrayBuffer();
     _pdfFileBytes = bytes;
 
-    // Try auto-decrypt: use PAN from localStorage or hardcoded fallback
-    const autoPwd = localStorage.getItem('fireOS_pan') || 'IMBPK5236H';
+    // MF Central CAS PDFs are typically not password-protected; try without one first
     let text = null;
     try {
-      text = await _parsePdfBytes(bytes, autoPwd);
+      text = await _parsePdfBytes(bytes, '');
     } catch (err) {
       if (err && (err.name === 'PasswordException' || (err.message && err.message.toLowerCase().includes('password')))) {
-        // Auto-decrypt failed — show password prompt
         document.getElementById('pdfPasswordSection').style.display = 'block';
         document.getElementById('pdfPasswordInput').value = '';
         document.getElementById('pdfPasswordError').style.display = 'none';
@@ -4693,18 +4656,17 @@ async function importPaytmPDF() {
       return;
     }
 
-    // Parse text
-    const parsed = parsePDFText(text);
+    const parsed = parseMFCentralCASText(text);
     if (parsed.matched.length === 0 && parsed.unmatched.length === 0) {
-      showToast('✗ Could not parse portfolio. Is this a Paytm Money statement?', 4000);
+      showToast('✗ Could not parse portfolio. Is this an MF Central CAS PDF?', 4000);
       closePdfModal();
       return;
     }
 
     _pdfParsedData = parsed;
 
-    // Extract statement date if present (e.g. "as of 8th May 2026")
-    const dateMatch = text.match(/as of\s+(\d+\w*\s+\w+\s+\d{4})/i);
+    // Extract statement date from "As on Date: 09-May-2026"
+    const dateMatch = text.match(/As on Date[:\s]+(\d{2}-[A-Za-z]{3}-\d{4})/i);
     const statementDate = dateMatch ? dateMatch[1] : null;
 
     _showPdfFundTable(parsed, statementDate);
@@ -4726,9 +4688,9 @@ async function retryPdfWithPassword() {
     return;
   }
 
-  const parsed = parsePDFText(text);
+  const parsed = parseMFCentralCASText(text);
   if (parsed.matched.length === 0 && parsed.unmatched.length === 0) {
-    showToast('✗ Could not parse portfolio. Is this a Paytm Money statement?', 4000);
+    showToast('✗ Could not parse portfolio. Is this an MF Central CAS PDF?', 4000);
     closePdfModal();
     return;
   }
@@ -4736,7 +4698,7 @@ async function retryPdfWithPassword() {
   _pdfParsedData = parsed;
   document.getElementById('pdfPasswordSection').style.display = 'none';
 
-  const dateMatch = text.match(/as of\s+(\d+\w*\s+\w+\s+\d{4})/i);
+  const dateMatch = text.match(/As on Date[:\s]+(\d{2}-[A-Za-z]{3}-\d{4})/i);
   _showPdfFundTable(parsed, dateMatch ? dateMatch[1] : null);
 }
 
