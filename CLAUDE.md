@@ -7,12 +7,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **FIRE OS** is a personal finance dashboard for FIRE (Financial Independence, Retire Early) planning. It's a **single-file, all-in-one HTML application** with no framework dependencies—just vanilla JavaScript, HTML/CSS, and Chart.js.
 
 The app features:
-- Portfolio tracking (MF, FD, EPF, SIP, ESOP)
+- Portfolio tracking (MF, FD, EPF, SIP, ESOP, Demat stocks)
 - Live NAV fetching from public APIs
 - **SIP P&L tracking with cost basis + XIRR (Newton-Raphson)**
 - **Cost basis override fields (costBasis1–4) for actual-invested amounts**
 - **Per-fund P&L rows (Invested / Current / P&L / XIRR) + Portfolio summary card**
-- **Paytm Money PDF statement import (PDF.js parser + confirmation modal)**
+- **MF Central CAS PDF import (NSDL/CDSL Consolidated Account Statement)**
+- **Demat holdings auto-detection & tracking (stocks + quantities)**
 - **Live EUR/INR auto-fetch for ESOP Tools**
 - **Alpha vs Benchmark Tracker (auto-populated rolling 3-year returns)**
 - **Live Nifty 52W high fetch via CORS proxy**
@@ -162,11 +163,13 @@ See `FIRE_OS_AUDIT_REPORT.md` for:
 - **Data Source**: D.alphaTrackerData stores historical returns and benchmark NAV baselines
 - **Manual Input**: Benchmark index levels for April 2026 can be manually entered in ESOP Tools
 
-### Paytm Money PDF Import
-- **Trigger**: "Import PDF" button in Profile tab
-- **Parser**: PDF.js (`cdnjs.cloudflare.com`) extracts text from uploaded statement
-- **Flow**: Parse → confirmation modal (shows detected fund/units/date) → user confirms → updates Profile fields
-- **Quirk**: Normalizes Paytm's doubled-lowercase encoding (e.g., `pparraagg` → `parag`) while preserving legitimate doubles like "Nippon"
+### MF Central CAS PDF Import
+- **Trigger**: "Import CAS PDF" button in Profile tab
+- **Parser**: PDF.js (`cdnjs.cloudflare.com`) extracts text from NSDL/CDSL Consolidated Account Statement
+- **Flow**: Parse → confirmation modal (shows detected fund/units/date + demat holdings) → user confirms → updates Profile fields
+- **Demat Support**: Automatically detects and includes demat stock holdings (ISIN, quantity, current value)
+- **Scheme Coverage**: Works with all NSDL/CDSL schemes and stock exchanges, not limited to specific funds
+- **Quirk**: Handles various CAS formatting quirks (doubled characters, encoding variations)
 
 ### SocGen Stock
 - **SocGen**: Manual entry only (no API)
@@ -188,9 +191,10 @@ See `FIRE_OS_AUDIT_REPORT.md` for:
 - [ ] Reload page → Verify data persists (localStorage)
 - [ ] Open DevTools Console → Verify no errors
 - [ ] Mobile test → Open DevTools device toolbar
-- [ ] Upload a Paytm Money PDF → Verify confirmation modal and field population
+- [ ] Upload a CAS PDF → Verify confirmation modal shows MF holdings + demat stocks
+- [ ] Confirm CAS import → Verify MF units and demat stocks populate Profile fields
 - [ ] Enter costBasis override in Profile → Verify P&L uses override instead of computed basis
-- [ ] Export JSON → Verify `fireOS_v2` envelope; re-import → Verify round-trip fidelity
+- [ ] Export JSON → Verify `fireOS_v2` envelope; re-import → Verify round-trip fidelity including demat data
 
 ### Automated Testing (Playwright)
 ```bash
@@ -206,7 +210,10 @@ Tests verify:
 
 ## Git Workflow & Commits
 
-Recent changes (as of May 9, 2026) - PDF Import, Cost Basis & XIRR overhaul:
+Recent changes (as of May 15, 2026) - CAS PDF Import & Demat Holdings:
+- **8e00445**: feat: enhance CAS PDF import with Demat holdings support
+- **3d6a476**: feat: replace Paytm Money PDF import with MF Central CAS import
+- **29eb822**: docs: update CLAUDE.md and README for v2.1 features
 - **b0ae88c**: feat: remove redundant MF Current Value field; add Units Held hint in Profile
 - **1912d00**: fix: rewrite PDF parser for continuous text extraction from Paytm Money statements
 - **9fa5253**: fix: normalize only doubled lowercase letters in PDF text (preserve "Nippon")
@@ -214,6 +221,8 @@ Recent changes (as of May 9, 2026) - PDF Import, Cost Basis & XIRR overhaul:
 - **7f99766**: feat: implement Paytm Money PDF import with PDF.js + confirmation modal
 - **0634cb2**: fix: restore XIRR display; implement working 52W high fetch
 - **898ab72**: fix: stabilize XIRR calculation; implement live Nifty 52W high fetch
+
+Earlier changes (Cost Basis & XIRR Overhaul, May 9, 2026):
 - **7d071aa**: chore: remove dev artifacts; production-ready cleanup
 - **e3fa183**: fix: normalize corrupted sipStart dates (0001-05 → undefined)
 - **f67df81**: fix: clear costBasis on blank input; hide portfolio card when NAV unavailable
@@ -221,10 +230,6 @@ Recent changes (as of May 9, 2026) - PDF Import, Cost Basis & XIRR overhaul:
 - **ecee8d1**: feat: add per-fund P&L rows (Invested/Current/P&L/XIRR) + Portfolio summary card
 - **230a55c**: feat: calculateSIPPL uses costBasis override; returns null on insufficient data
 - **55e583c**: feat: add costBasis1..4 optional fields to Profile for actual-invested override
-- **acfee3a**: fix: replace CAGR approximation with Newton-Raphson XIRR in calculateSIPXIRR
-- **ef17269**: fix: add plausibility guard in calculateSIPXIRR (skip when units predate SIP start)
-- **95890de**: fix: importData writes fireOS_v2; export bundles watchdog data in v2 envelope
-- **9a93341**: fix: reduce NAV cache TTL from 30 days to 4 hours
 
 Earlier changes (ESOP Tools Enhancements, May 8, 2026):
 - **66a3749**: test: verify all ESOP Tools enhancements work end-to-end
@@ -232,8 +237,6 @@ Earlier changes (ESOP Tools Enhancements, May 8, 2026):
 - **69932c9**: feat: auto-populate Alpha vs Benchmark Tracker with rolling 3-year data
 - **f5164c2**: feat: auto-fetch and display live EUR/INR rate when ESOP Tools tab opens
 - **93003b3**: feat: display SIP P&L (cost basis) and XIRR on Dashboard SIP cards
-- **8df63dc**: Fixed 3 critical bugs (live data, asset breakdown, portfolio calculations)
-- **96147c2**: Optimized `sipCorpusMissYear` using geometric series formula
 
 When committing changes:
 - Use clear messages: "fix: ...", "feat: ...", "perf: ...", "test: ..."

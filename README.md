@@ -95,7 +95,8 @@ Site will be live at: `https://yourusername.github.io/fire-os`
 - **Alpha vs Benchmark Tracker** — **Auto-populated rolling 3-year performance data (fund vs benchmark)**
 
 ### Profile
-- **Paytm Money PDF Import** — Upload statement PDF; parser extracts fund/units/date and populates fields via confirmation modal
+- **MF Central CAS PDF Import** — Upload NSDL/CDSL Consolidated Account Statement; parser extracts fund/units/date and populates fields via confirmation modal
+- **Demat Holdings Support** — Track stock holdings from Demat account directly in portfolio calculations
 - **Cost Basis Override** — Optional `costBasis1–4` fields let you enter actual-invested amount instead of computed monthly-SIP × months
 
 ---
@@ -140,6 +141,13 @@ fire-os/
 - **Fonts:** Google Fonts (Space Mono, Fraunces, DM Sans)
 - **Storage:** browser localStorage
 - **Hosting:** GitHub Pages (static)
+
+### MF Central CAS Import
+- **Trigger**: "Import CAS PDF" button in Profile tab
+- **Parser**: PDF.js (`cdnjs.cloudflare.com`) extracts text from NSDL/CDSL Consolidated Account Statement
+- **Flow**: Parse → confirmation modal (shows detected fund/units/date + demat holdings) → user confirms → updates Profile fields
+- **Demat Support**: Automatically detects and includes demat stock holdings (quantity + current value)
+- **Scheme Coverage**: Works with all NSDL/CDSL schemes (not limited to specific funds)
 
 ### Known Issues & Improvements
 See `FIRE_OS_AUDIT_REPORT.md` for:
@@ -265,7 +273,8 @@ FIRE OS is open-source and provided as-is for personal finance planning. Use at 
 - ✅ **SIP P&L tracking with cost basis + Newton-Raphson XIRR**
 - ✅ **Per-fund P&L rows (Invested / Current / P&L / XIRR) + Portfolio summary card**
 - ✅ **Cost basis override (costBasis1–4) for actual-invested amounts**
-- ✅ **Paytm Money PDF import (PDF.js parser + confirmation modal)**
+- ✅ **MF Central CAS PDF import (PDF.js parser + confirmation modal)**
+- ✅ **Demat holdings support (automatic detection in CAS import)**
 - ✅ **Live Nifty 52W high fetch**
 - ✅ **Live EUR/INR auto-fetch for ESOP Tools**
 - ✅ **Alpha vs Benchmark Tracker auto-population (rolling 3-year returns)**
@@ -296,4 +305,4 @@ FIRE OS is open-source and provided as-is for personal finance planning. Use at 
 
 **Happy FIRE planning! 🔥💰**
 
-*Last updated: May 9, 2026*
+*Last updated: May 15, 2026*
