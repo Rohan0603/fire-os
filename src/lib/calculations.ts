@@ -58,8 +58,9 @@ export function xirr(
     // Newton-Raphson update
     const newRate = rate - npv / npvDerivative;
 
-    // Safeguard against extreme values
-    if (newRate < -0.99 || newRate > 10) {
+    // Prevent Newton-Raphson divergence on extreme inputs
+    // Bounds: -99% (total loss) to 10000% (extreme outlier case)
+    if (newRate < -0.99 || newRate > 100) {
       return null;
     }
 
@@ -119,7 +120,7 @@ export function sipCostBasis(
  *
  * @param liquidAssets - Liquid assets in rupees (MF, FD, cash, etc.)
  * @param monthlyExpenses - Monthly expenses in rupees
- * @returns Number of months, or Infinity if expenses are 0, or 0 if no assets
+ * @returns Number of months, or 999 if expenses are 0 (represents indefinite), or 0 if no assets
  */
 export function emergencyRunway(
   liquidAssets: number,
@@ -127,7 +128,7 @@ export function emergencyRunway(
 ): number {
   // Edge case: no expenses
   if (monthlyExpenses <= 0) {
-    return liquidAssets > 0 ? Infinity : 0;
+    return liquidAssets > 0 ? 999 : 0;
   }
 
   // Edge case: no assets
@@ -142,11 +143,13 @@ export function emergencyRunway(
  * Crash Protocol: Market Drawdown Scenarios
  * Calculates how much buffer to deploy if market crashes further
  *
+ * @param portfolioValue - User's total portfolio value in rupees
  * @param niftyHigh52w - Nifty 52-week high level
  * @param niftyCurrentLevel - Current Nifty level
  * @returns Object with current drawdown % and deploy amounts for 10%, 15%, 25% additional crashes
  */
 export function crashProtocol(
+  portfolioValue: number,
   niftyHigh52w: number,
   niftyCurrentLevel: number
 ): {
@@ -158,17 +161,15 @@ export function crashProtocol(
   // Calculate current drawdown from 52W high
   const drawdownPercent = ((niftyHigh52w - niftyCurrentLevel) / niftyHigh52w) * 100;
 
-  // Assume buffer is 10% of portfolio based on 52W high
-  // Use 52W high as the reference point for portfolio size
+  // Buffer is 10% of actual portfolio value
   const bufferPercentage = 0.1;
-  const portfolioValue = niftyHigh52w * 100; // Scaled estimate based on 52W high
   const buffer = portfolioValue * bufferPercentage;
 
   // Calculate deploy amounts for additional crashes
-  // Each deploy amount represents 10%, 15%, 25% of the buffer
-  const deployAmount10 = buffer * 0.1; // 10% of buffer for 10% crash
-  const deployAmount15 = buffer * 0.15; // 15% of buffer for 15% crash
-  const deployAmount25 = buffer * 0.25; // 25% of buffer for 25% crash
+  // Each deploy amount represents how much to deploy for 10%, 15%, 25% additional crashes
+  const deployAmount10 = buffer * (10 / 100); // Deploy for 10% more crash
+  const deployAmount15 = buffer * (15 / 100); // Deploy for 15% more crash
+  const deployAmount25 = buffer * (25 / 100); // Deploy for 25% more crash
 
   return {
     drawdownPercent: Math.max(0, drawdownPercent), // Never negative
@@ -184,7 +185,7 @@ export function crashProtocol(
  *
  * @param currentCorpus - Current investment corpus in rupees
  * @param annualExpenses - Annual living expenses in rupees
- * @returns FI target, progress %, and years remaining (0 if already achieved)
+ * @returns FI target, progress %, and years remaining (0 if already achieved, null if not yet achieved)
  */
 export function fiGoalProgress(
   currentCorpus: number,
@@ -192,7 +193,7 @@ export function fiGoalProgress(
 ): {
   fiTarget: number;
   progressPercent: number;
-  yearsRemaining: number;
+  yearsRemaining: number | null;
 } {
   // FI target = 25 × annual expenses (safe withdrawal rule: 4% per year)
   const fiTarget = annualExpenses * 25;
@@ -209,8 +210,11 @@ export function fiGoalProgress(
   // Calculate progress percentage
   const progressPercent = (currentCorpus / fiTarget) * 100;
 
-  // If already achieved FI, years remaining = 0
-  const yearsRemaining = currentCorpus >= fiTarget ? 0 : -1; // -1 indicates not yet achieved
+  // If already achieved FI, years remaining = 0; otherwise null (not yet achieved)
+  let yearsRemaining: number | null = null;
+  if (currentCorpus >= fiTarget) {
+    yearsRemaining = 0;
+  }
 
   return {
     fiTarget,

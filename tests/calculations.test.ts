@@ -112,9 +112,9 @@ test('Emergency Runway: ₹0 liquid = 0 months', () => {
   expect(result).toBe(0);
 });
 
-test('Emergency Runway: ₹1,000,000 liquid, ₹0 expenses = Infinity', () => {
+test('Emergency Runway: ₹1,000,000 liquid, ₹0 expenses = 999 (indefinite)', () => {
   const result = emergencyRunway(1000000, 0);
-  expect(result).toBe(Infinity);
+  expect(result).toBe(999);
 });
 
 test('Emergency Runway: Negative expenses handled gracefully', () => {
@@ -128,8 +128,8 @@ test('Emergency Runway: Partial month calculation', () => {
 });
 
 // Crash Protocol Tests
-test('Crash Protocol: 52W high ₹21,000, current ₹18,900 (10% down already)', () => {
-  const result = crashProtocol(21000, 18900);
+test('Crash Protocol: Portfolio ₹10L, Nifty 52W high ₹21,000, current ₹18,900 (10% down)', () => {
+  const result = crashProtocol(1000000, 21000, 18900);
   expect(result.drawdownPercent).toBeCloseTo(10, 1);
   expect(result.deployAmount10).toBeGreaterThan(0);
   expect(result.deployAmount15).toBeGreaterThan(result.deployAmount10);
@@ -137,37 +137,38 @@ test('Crash Protocol: 52W high ₹21,000, current ₹18,900 (10% down already)',
 });
 
 test('Crash Protocol: No crash (current = high) = 0% drawdown', () => {
-  const result = crashProtocol(20000, 20000);
+  const result = crashProtocol(1000000, 20000, 20000);
   expect(result.drawdownPercent).toBeCloseTo(0, 1);
 });
 
 test('Crash Protocol: Extreme crash (current = 0)', () => {
-  const result = crashProtocol(20000, 0);
+  const result = crashProtocol(1000000, 20000, 0);
   expect(result.drawdownPercent).toBeCloseTo(100, 1);
   expect(result.deployAmount25).toBeGreaterThan(0);
 });
 
 test('Crash Protocol: Negative drawdown handled', () => {
-  const result = crashProtocol(20000, 25000);
+  const result = crashProtocol(1000000, 20000, 25000);
   // If current > high, drawdown should be 0 or negative
   expect(typeof result.drawdownPercent).toBe('number');
   expect(isFinite(result.deployAmount10)).toBe(true);
 });
 
 // FI Goal Progress Tests
-test('FI Goal Progress: Corpus ₹6,000,000, expenses ₹300,000/year = 50% progress', () => {
+test('FI Goal Progress: Corpus ₹6,000,000, expenses ₹300,000/year = 80% progress, not achieved', () => {
   const result = fiGoalProgress(6000000, 300000);
   // FI target = 25 × 300,000 = 7,500,000
   // Progress = (6,000,000 / 7,500,000) × 100 = 80%
   expect(result.fiTarget).toBe(7500000);
   expect(result.progressPercent).toBeCloseTo(80, 1);
+  expect(result.yearsRemaining).toBeNull(); // Not yet achieved
 });
 
 test('FI Goal Progress: Corpus ₹10,000,000, expenses ₹250,000/year → already achieved FI', () => {
   const result = fiGoalProgress(10000000, 250000);
   expect(result.fiTarget).toBe(6250000);
   expect(result.progressPercent).toBeCloseTo(160, 0);
-  expect(result.yearsRemaining).toBe(0);
+  expect(result.yearsRemaining).toBe(0); // Already achieved
 });
 
 test('FI Goal Progress: Corpus ₹0, expenses ₹0 = edge case', () => {
