@@ -12,6 +12,9 @@ import { renderAuthScreen, hideAuthScreen, showAuthScreen, initAuthModule } from
 // Import UI module
 import { initUIModule } from './modules/ui';
 
+// Import dashboard module
+import { initDashboardModule, renderDashboard } from './modules/dashboard';
+
 // Import styles
 import './styles/global.css';
 import './styles/layout.css';
@@ -53,10 +56,12 @@ function loadFromLocalStorage() {
 function initApp() {
   loadFromLocalStorage();
   initUIModule();
+  initDashboardModule('dashboard');
   renderApp();
   setupAuthListener();
   setupTabNavigation();
   setupAutoSave();
+  setupDashboardAutoRefresh();
 }
 
 // Render main app container
@@ -121,6 +126,11 @@ function setupTabNavigation() {
         document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
         const tabEl = document.getElementById(target);
         if (tabEl) tabEl.classList.add('active');
+
+        // Render dashboard when tab is activated
+        if (target === 'dashboard') {
+          renderDashboard();
+        }
       }
     });
   });
@@ -136,6 +146,16 @@ function setupTabNavigation() {
       }
     });
   }
+}
+
+// Auto-refresh dashboard when state changes
+function setupDashboardAutoRefresh() {
+  setInterval(() => {
+    const dashboardTab = document.querySelector('[data-tab="dashboard"]');
+    if (dashboardTab && dashboardTab.classList.contains('active')) {
+      renderDashboard();
+    }
+  }, 5000);
 }
 
 // Auto-save every 5 seconds
