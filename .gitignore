@@ -1,4 +1,37 @@
 # Auto-generated test artifacts
 test-results/
 test-screenshots/
+*.log
+
+# Dependencies
 node_modules/
+package-lock.json
+
+# Firebase/Playwright artifacts
+.firebase/
+.playwright-mcp/
+
+# IDE & Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-*
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# Environment & Config
+.env.local
+.env.*.local
+
+# Backup & Merge files
+*.orig
+*.bak
+
+# Build artifacts
+dist/
+build/
+out/
