@@ -5,10 +5,10 @@
 
 import type { PortfolioProfile, Holdings, DematHoldings, AlphaTrackerDataCollection } from './portfolio';
 import type { NiftyData, EURINRData, NAVCacheMap } from './api';
-import type { SyncMetadata } from './firebase';
+import type { SyncMetadata, FirebaseUser } from './firebase';
 
-// Firebase User type - allows Firebase SDK's User object or null
-export type FirebaseUserType = any | null; // Firebase Auth User object
+// Firebase User type - Firebase authenticated user or null
+export type FirebaseUserType = FirebaseUser | null;
 
 /** Complete global application state */
 export interface FireOSState {
@@ -86,10 +86,10 @@ export function initializeState(): FireOSState {
 /**
  * Type guard to check if a value is a valid FireOSState
  */
-export function isFireOSState(value: any): value is FireOSState {
+export function isFireOSState(value: unknown): value is FireOSState {
   return (
-    value &&
     typeof value === 'object' &&
+    value !== null &&
     'profile' in value &&
     'mf' in value &&
     'fd' in value &&

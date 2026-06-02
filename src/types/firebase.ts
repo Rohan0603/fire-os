@@ -3,11 +3,22 @@
  * Covers user accounts, backups, and synchronization metadata
  */
 
-/** Firebase authenticated user */
+import type {
+  Holdings,
+  SIPFund,
+  Holding,
+  DematHoldings,
+  AlphaTrackerData,
+} from './portfolio';
+import type { NAVCacheMap, NiftyData, EURINRData } from './api';
+import type { FireOSState } from './state';
+
+/** Firebase authenticated user (compatible with Firebase SDK User object) */
 export interface FirebaseUser {
   uid: string;
-  email: string;
-  createdAt: string; // ISO timestamp
+  email: string | null;
+  emailVerified?: boolean;
+  createdAt?: string; // ISO timestamp (optional, not provided by Firebase SDK)
 }
 
 /** Sync metadata for portfolio state */
@@ -15,6 +26,16 @@ export interface SyncMetadata {
   lastSavedAt: string; // ISO timestamp of last save to Firebase
   lastSyncedAt?: string; // ISO timestamp of last sync from Firebase
   isDirty: boolean; // Whether local state differs from server
+}
+
+/** Holdings structure for backup, supporting both SIPFund and Holding types */
+export interface BackupHoldings {
+  mf?: Record<string, SIPFund>;
+  fd?: Holdings;
+  epf?: Holdings;
+  sip?: Record<string, SIPFund>;
+  esop?: Holdings;
+  demat?: DematHoldings;
 }
 
 /** FIRE OS backup file envelope (v2 format) */
@@ -27,32 +48,18 @@ export interface FireOSBackup {
     annualExpenses: number;
     fiTarget: number;
   };
-  holdings?: {
-    mf?: Record<string, any>;
-    fd?: Record<string, any>;
-    epf?: Record<string, any>;
-    sip?: Record<string, any>;
-    esop?: Record<string, any>;
-    demat?: Record<string, any>;
-  };
-  navCache?: Record<string, any>;
-  niftyData?: {
-    level: number;
-    high52w: number;
-    timestamp: string;
-  };
-  eurInr?: {
-    rate: number;
-    timestamp: string;
-  };
-  alphaTrackerData?: Record<string, any>;
-  watchdogData?: Record<string, any>;
+  holdings?: BackupHoldings;
+  navCache?: NAVCacheMap;
+  niftyData?: NiftyData;
+  eurInr?: EURINRData;
+  alphaTrackerData?: Record<string, AlphaTrackerData>;
+  watchdogData?: Record<string, AlphaTrackerData>;
 }
 
 /** Firebase Realtime Database user portfolio entry */
 export interface FirebasePortfolioEntry {
   uid: string;
-  portfolio: any; // Complete state object (D)
+  portfolio: FireOSState; // Complete state object (D)
   lastModified: string; // ISO timestamp
   syncVersion: number; // Version number for conflict resolution
 }
