@@ -17,10 +17,12 @@ The app features:
 - **Live EUR/INR auto-fetch for ESOP Tools**
 - **Alpha vs Benchmark Tracker (auto-populated rolling 3-year returns)**
 - **Live Nifty 52W high fetch via CORS proxy**
+- **Firebase Authentication (email/password signup + login)**
+- **Cross-device data sync via Firebase Realtime Database**
 - Market crash simulations
 - Tax optimization tools
 - Financial calculators (XIRR, SIP Pause impact, emergency runway, etc.)
-- Data persistence via browser localStorage (export/import uses `fireOS_v2` envelope)
+- Data persistence via Firebase (with localStorage fallback)
 
 ## Architecture & File Structure
 
@@ -56,8 +58,9 @@ The JavaScript is organized by feature area (not file-based):
    - Button clicks for crash protocol, export, etc.
 
 4. **Storage**
-   - All data persists to `localStorage` with key `'fireOSProfile'`
-   - No server communication
+   - **Firebase Realtime Database** (primary): Each authenticated user's portfolio syncs across devices
+   - **localStorage** (fallback): Used when offline or not authenticated; syncs to Firebase on next login
+   - Both use `fireOS_v2` envelope format for consistency
 
 ### DOM Structure
 - **`.nav`**: Tab navigation (Profile, Dashboard, Crash Protocol, Calculators, Optimiser, Watchdog)
@@ -180,6 +183,22 @@ See `FIRE_OS_AUDIT_REPORT.md` for:
 - **Import**: Reads v2 envelope; falls back gracefully to legacy v1 format
 - **NAV cache TTL**: 4 hours (reduced from 30 days to keep prices fresh)
 
+### Firebase Authentication & Cloud Sync
+- **Service**: Firebase Authentication (email/password) + Realtime Database
+- **Project**: fire-os-dd6d6 (Google Cloud project)
+- **Auth Flow**:
+  1. New users sign up with email + password (6+ chars minimum)
+  2. Login screen shows until authenticated
+  3. `onAuthStateChanged()` listener tracks auth state
+  4. Logout button appears in nav when authenticated
+- **Data Sync**:
+  - On login: `loadPortfolioFromFirebase()` fetches user's portfolio from `/users/{uid}/portfolio`
+  - On profile save: `savePortfolioToFirebase()` syncs changes to Realtime Database
+  - Last saved timestamp: `D._lastSavedAt` (ISO format)
+  - Offline: Changes saved to localStorage; auto-sync on next login
+- **Cross-Device**: Same email login on different devices → instant data sync
+- **Database Rules**: Public read/write disabled; only authenticated users can access their own data
+
 ## Testing
 
 ### Manual Testing Checklist
@@ -285,16 +304,29 @@ python -m http.server 3000
 
 ## Deployment
 
-### GitHub Pages (Automatic)
+### Firebase Hosting (Recommended)
+**Live at: https://fire-os-dd6d6.web.app**
+
+Setup:
+```bash
+npm install -g firebase-tools
+firebase login          # Opens browser for OAuth
+firebase deploy         # Deploys to Firebase Hosting
+```
+
+Configuration:
+- `firebase.json`: Public directory = `.` (root), ignores git/docs/node_modules
+- `.firebaserc`: Project ID = `fire-os-dd6d6`
+- Rewrites: All routes → `index.html` (SPA support)
+- Database: Asia Southeast 1 region (india-based)
+
+**Cross-Device Sync**: Users sign up → data stored in Firebase Realtime DB → login on any device with same email → instant sync
+
+### GitHub Pages (Alternative)
 1. Push to `main` branch
 2. GitHub Actions workflow (`.github/workflows/deploy.yml`) auto-deploys
 3. Site live at `https://yourusername.github.io/fire-os`
-
-### Manual Deploy
-1. Push to repo
-2. Go to repo **Settings** → **Pages**
-3. Select **GitHub Actions** as source
-4. Save — workflow runs on next push
+4. **Note**: GitHub Pages version uses localStorage only (no Firebase sync)
 
 ## Key Metrics & Health Checks
 
@@ -315,23 +347,37 @@ python -m http.server 3000
 
 The entire app logic is in `index.html`. To contribute:
 
-1. **Understand the data flow**:
+1. **Understand the auth flow**:
+   - Page load → `firebase.auth().onAuthStateChanged()` checks if user logged in
+   - If authenticated: `currentUser` set, logout button shown, `loadPortfolioFromFirebase()` loads data
+   - If not authenticated: `showLoginScreen()` blocks main app, shows sign-up/login forms
+   - Login/signup → Firebase auth → if success, hide auth screen, load portfolio from DB
+
+2. **Understand the data flow**:
    - User fills Profile tab → Form blur events → `updateProfile()` saves to D & localStorage
    - `updateProfile()` calls `updateDashboard()`
+   - If authenticated: `savePortfolioToFirebase()` syncs to Realtime Database
    - `updateDashboard()` recalculates all KPIs and refreshes UI
+   - **Cross-device**: Firebase listener syncs changes across tabs/devices in real-time
 
-2. **Understand the API flow**:
+3. **Understand the API flow**:
    - User clicks ⟳ or ⚡ button
    - Triggers `fetchNAV()` or `fetchNifty()` (async, Promise-based)
    - Updates `D.nav` and `D.niftyHigh`
    - Calls `updateDashboard()` to refresh UI
 
-3. **Understand the UI flow**:
+4. **Understand the UI flow**:
    - Tab clicks hide/show sections (`.tabs-container > .tab` divs)
    - Modals overlay on Dashboard (`.modal` divs, show/hide via `display: none` or class toggle)
    - Forms in Profile tab update on blur and input
 
-4. **Testing**: Always run `node test-fixes.js` after changes to catch regressions.
+5. **Testing**: Always run `node test-fixes.js` after changes to catch regressions.
+
+**Key Functions**:
+- `firebaseLogin()` / `firebaseSignup()` / `firebaseLogout()`: Auth handlers
+- `loadPortfolioFromFirebase()`: Fetch user data from Realtime DB
+- `savePortfolioToFirebase()`: Sync data to Realtime DB
+- `showLoginScreen()` / `hideLoginScreen()`: Auth UI toggle
 
 ---
 

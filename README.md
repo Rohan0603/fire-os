@@ -2,62 +2,101 @@
 
 A comprehensive personal finance dashboard for FIRE (Financial Independence, Retire Early) planning. Track investments, simulate market crashes, calculate retirement timelines, and manage tax-efficient strategies.
 
-**Live Demo:** Deploy to GitHub Pages (see below)  
-**Status:** Production-ready, continuously improved
+**Live Demo:** https://fire-os-dd6d6.web.app ✨ (with cross-device data sync!)  
+**Status:** Production-ready with Firebase cloud sync & authentication
 
 ---
 
 ## 🚀 Quick Start
 
-### For Users
-1. Open `index.html` in a modern browser (Chrome, Firefox, Safari, Edge)
-2. Enter your financial profile in the **Profile** tab
-3. Tap **⟳ NAV** to fetch live mutual fund prices
-4. Tap **⚡ Fetch Live Nifty** to get current market level
-5. View dashboard & open Crash Protocol modal for crash scenarios
+### For Users — Cloud Sync Edition
+1. Visit **https://fire-os-dd6d6.web.app**
+2. **Sign up** with email & password (accounts stored securely)
+3. Enter your financial profile in the **Profile** tab
+4. Tap **⟳ NAV** to fetch live mutual fund prices
+5. Tap **⚡ Fetch Live Nifty** to get current market level
+6. View dashboard & open Crash Protocol modal for crash scenarios
+7. **Cross-device sync**: Login on mobile/tablet with same email → all data appears instantly! 🔥
 
-### For Developers/GitHub Pages Deployment
+### For Users — Local/Offline (No Account Required)
+1. Open `index.html` in a modern browser (Chrome, Firefox, Safari, Edge)
+2. Enter your financial profile (data saved locally to browser)
+3. Proceed as above (steps 3-6)
+4. **Note**: Data stays on this device only; not synced elsewhere
+
+### For Developers/Firebase Hosting Deployment (Recommended)
+
+**Get cross-device data sync with Firebase Authentication & Realtime Database**
+
+#### Prerequisites
+- Google/Firebase account (free tier available)
+- Node.js + npm (for Firebase CLI)
+- Git
+
+#### Step 1: Set Up Firebase Project
+```bash
+# Create/use Firebase project at https://console.firebase.google.com
+# 1. Create new project or use existing one
+# 2. Enable Realtime Database (Asia Southeast 1 region recommended for India)
+# 3. Enable Authentication → Email/Password method
+# 4. Note down your credentials (shown in Firebase Console)
+```
+
+#### Step 2: Initialize & Deploy
+```bash
+# Install Firebase CLI
+npm install -g firebase-tools
+
+# Login to Firebase (opens browser)
+firebase login
+
+# Deploy to Firebase Hosting (from project root)
+firebase deploy
+```
+
+#### Step 3: Access Your Deployment
+Site will be live at: `https://<project-id>.web.app`
+
+Users can now:
+- Sign up with email/password
+- Sync data across all devices
+- Login from mobile/tablet → instant data access
+
+#### Step 4: Verify Features
+- [ ] Sign up works (create account with email)
+- [ ] Login syncs data (open in another browser, login with same email)
+- [ ] Nifty fetch works (tap ⚡ button)
+- [ ] NAV prices load (tap ⟳ button)
+- [ ] No console errors (open DevTools: F12)
+
+---
+
+### Alternative: GitHub Pages Deployment (No Cloud Sync)
+
+**Deploy without Firebase — data stored locally in browser only**
 
 #### Prerequisites
 - GitHub account with a public repository
-- Git CLI (or GitHub Desktop)
+- Git CLI
 
 #### Step 1: Push Code to GitHub
 ```bash
-# Clone or create a repo
 git clone https://github.com/yourusername/fire-os.git
 cd fire-os
-
-# Copy index.html and audit report
-cp /path/to/index.html ./
-cp /path/to/FIRE_OS_AUDIT_REPORT.md ./
-
-# Create .github/workflows/deploy.yml (included in this repo)
-mkdir -p .github/workflows
-# (copy deploy.yml from repo)
-
-# Commit & push
 git add .
-git commit -m "FIRE OS initial commit"
+git commit -m "FIRE OS deployment"
 git push origin main
 ```
 
 #### Step 2: Enable GitHub Pages
 1. Go to repo **Settings** → **Pages**
-2. Under "Build and deployment", select:
-   - Source: **GitHub Actions**
-3. Save — workflow runs automatically on next push
+2. Select **GitHub Actions** as source
+3. Save — workflow deploys automatically
 
 #### Step 3: Access Your Deployment
 Site will be live at: `https://yourusername.github.io/fire-os`
 
-(Or use a custom domain via Settings → Pages → Custom domain)
-
-#### Step 4: Verify Features
-- [ ] Nifty fetch works (tap ⚡ button)
-- [ ] NAV prices load (tap ⟳ button)
-- [ ] Data persists (reload page, values stay)
-- [ ] No console errors (open DevTools: F12)
+**Note**: No cross-device sync (data local to each browser)
 
 ---
 
@@ -99,14 +138,22 @@ Site will be live at: `https://yourusername.github.io/fire-os`
 - **Demat Holdings Support** — Track stock holdings from Demat account directly in portfolio calculations
 - **Cost Basis Override** — Optional `costBasis1–4` fields let you enter actual-invested amount instead of computed monthly-SIP × months
 
+### Authentication & Cloud Sync (Firebase)
+- **Email/Password Signup** — Create account securely with email + 6+ char password
+- **Cross-Device Sync** — Login on desktop/mobile/tablet with same email → all portfolio data syncs instantly
+- **Secure Cloud Storage** — Portfolio data stored in Firebase Realtime Database (encrypted in transit)
+- **Offline Support** — Changes saved locally when offline; auto-sync when connection restored
+- **Logout** — Securely sign out; data cleared from browser (saved safely in cloud)
+
 ---
 
 ## 🔒 Data & Privacy
 
 ### Storage
-- **localStorage:** All profile data stored locally in browser (never sent to server)
-- **Backup:** Download from Profile tab → "Export" button (TODO in v2.2)
-- **Persistence:** Survives browser restart, private/incognito mode
+- **Firebase Realtime Database:** (Primary) Profile data stored securely in cloud; encrypted in transit; each user only accesses their own data
+- **localStorage:** (Fallback) Local browser storage when offline or not authenticated
+- **Backup:** Download from Profile tab → "Export" button (exports `fireOS_v2` JSON envelope)
+- **Persistence:** Cloud data survives browser restart/clear; can access from any device after login
 
 ### API Calls
 - **Live NAVs:** `api.mfapi.in` (MutualFunds.com API) — public, no auth needed; cached for 4 hours
