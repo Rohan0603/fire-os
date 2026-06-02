@@ -110,12 +110,16 @@ npm run dev
 - **Rate limit**: Check browser console if fails
 - **Fallback**: Manually enter NAV in Profile tab
 
-### Nifty Level & 52W High Fetching
-- **Current approach**: ETF NAV approximation from `api.mfapi.in` (uses Gold ETF as Nifty proxy)
-- **Data fetched**: Current level (used by Float Indicator KPI), 52-week high
-- **Known limitation**: ETF NAV does not reflect true NSE Nifty50 index; ideally would use direct NSE/BSE API
-- **Fallback**: Manually enter Nifty level in Crash Protocol modal
-- **Future**: Integrate NSE/BSE direct API if available
+### Nifty Level & 52W High Fetching (v2.3+ FIX)
+- **Data Source Priority** (NEW):
+  1. **Primary**: Yahoo Finance via CORS proxy (real NSE/Nifty50 data)
+  2. **Fallback**: Gold ETF NAV approximation from `api.mfapi.in` (scheme 135106) if Yahoo fails
+  3. **Manual Entry**: User modal if both APIs fail
+- **Implementation**: `src/modules/api/nifty.ts` attempts real data first, gracefully degrades
+- **Cache TTL**: 1 hour (index data updates daily; kept fresh for market crash simulations)
+- **Source Indicator**: Response includes `source` field ('Yahoo Finance', 'ETF Approximation', or 'manual')
+- **Fallback UI**: If using ETF approximation, dashboard shows disclaimer: "Based on ETF NAV (not official NSE data)"
+- **Manual Entry**: Crash Protocol modal allows user to enter Nifty level + 52W high when APIs fail
 
 ### EUR/INR Exchange Rate Fetching
 - **Endpoint**: Yahoo Finance (`EURINR=X`) via `api.allorigins.win` CORS proxy
@@ -349,12 +353,51 @@ Configuration:
 ### API Integration
 Location: `src/modules/api/`
 
-- **NAV fetching** (`fetchNAV.ts`): Calls `api.mfapi.in/{schemeCode}`, caches for 4 hours
-- **Nifty fetching** (`fetchNifty.ts`): Uses ETF NAV approximation, fallback to manual entry
-- **EUR/INR fetching** (`fetchExchangeRate.ts`): Yahoo Finance via CORS proxy, validates 80-150 range
-- **PDF parsing** (`parsePDF.ts`): PDF.js library extracts text from CAS statements, auto-detects funds + demat holdings
+**Module Structure** (v2.3+):
+- **`mfapi.ts`**: Mutual Fund NAV fetching
+  - Calls `api.mfapi.in/{schemeCode}` for latest NAV
+  - Caches for 4 hours (TTL: 14400000ms)
+  - Returns null on error, falls back to cache
+  - Exports: `fetchNAV()`, `getCachedNAV()`, `setCachedNAV()`, `clearNAVCache()`, `getNAVCacheMap()`, `initializeNAVCache()`
 
-All API modules implement retry logic + fallback gracefully on network errors.
+- **`nifty.ts`** (CRITICAL FIX): Nifty 50 Index Data
+  - **Priority 1**: Yahoo Finance via CORS proxy (real NSE data)
+  - **Priority 2**: Gold ETF (scheme 135106) NAV approximation with disclaimer
+  - **Priority 3**: Cached value (even if expired)
+  - **Priority 4**: Manual entry modal
+  - Caches for 1 hour (TTL: 3600000ms)
+  - Returns `{ level, high52w, source }` to show data origin
+  - Exports: `fetchNifty()`, `getCachedNifty()`, `setCachedNifty()`, `clearNiftyCache()`, `initializeNiftyCache()`, `showManualNiftyModal()`
+
+- **`eurInr.ts`**: EUR/INR Exchange Rate
+  - Fetches `EURINR=X` from Yahoo Finance via CORS proxy
+  - Validates rate between 80-150 (sanity check)
+  - Caches for 24 hours (TTL: 86400000ms)
+  - Returns null on error, falls back to cache
+  - Exports: `fetchEURINR()`, `getCachedEURINR()`, `getCachedEURINRData()`, `setCachedEURINR()`, `clearEURINRCache()`, `initializeEURINRCache()`, `showManualEURINRModal()`
+
+- **`fallbacks.ts`**: Fallback & Cache Utilities
+  - `getFallbackNiftyLevel()`: Returns cached value or shows manual entry modal
+  - `getFallbackEURINRRate()`: Returns cached rate or shows manual entry modal
+  - `getFallbackNAV()`: Returns cached NAV
+  - `showAPIErrorNotification()`: Toast notification when API fails
+  - `checkAPIDataAvailability()`: Checks which API data is cached
+  - `initializeAllAPICache()`: Restores caches from persisted state on app startup
+
+- **`index.ts`**: Module Exports & Initialization
+  - `initAPIModule()`: Restores caches from localStorage/Firebase on app startup
+  - Re-exports all public functions from submodules
+
+**Error Handling**:
+- All API calls include 5-second timeout (AbortController)
+- Network errors logged but don't crash app
+- Graceful fallback: cache → manual entry → null (user notified)
+- HTML parsing errors caught and logged
+
+**PDF parsing** (`src/modules/api/parsePDF.ts`): 
+- PDF.js library extracts text from NSDL/CDSL Consolidated Account Statements
+- Auto-detects funds + demat holdings
+- Handled separately (PDF import feature)
 
 ### Adding New Features
 1. **Create module**: `src/modules/feature-name/index.ts`
