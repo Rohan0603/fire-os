@@ -1,6 +1,6 @@
 {
   "hosting": {
-    "public": ".",
+    "public": "dist",
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -18,5 +18,8 @@
         "destination": "/index.html"
       }
     ]
+  },
+  "database": {
+    "rules": "firebase-rules.json"
   }
 }
