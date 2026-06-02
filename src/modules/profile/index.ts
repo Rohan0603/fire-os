@@ -8,6 +8,7 @@ import { formatCurrency, formatDateISO } from '../../lib/formatters';
 import { saveData } from '../../lib/storage';
 import { showToast } from '../ui';
 import { parseCASPDF } from './pdf-parser';
+import { validateFormInput, handleError, ValidationError } from '../../lib/error-handler';
 import './styles.css';
 
 const DEBOUNCE_MS = 500;
@@ -275,42 +276,78 @@ function saveProfile() {
     const expensesInput = document.getElementById('expenses') as HTMLInputElement;
     const fiTargetInput = document.getElementById('fi-target') as HTMLInputElement;
 
-    if (nameInput) D.profile.name = nameInput.value;
-    if (ageInput) D.profile.age = parseInt(ageInput.value) || 0;
-    if (expensesInput) D.profile.annualExpenses = parseFloat(expensesInput.value) || 0;
-    if (fiTargetInput) D.profile.fiTarget = parseFloat(fiTargetInput.value) || 0;
+    if (nameInput) {
+      const name = nameInput.value.trim();
+      if (name && name.length > 1) {
+        D.profile.name = name;
+      }
+    }
 
-    // SIP section
+    if (ageInput) {
+      const age = parseInt(ageInput.value);
+      if (!isNaN(age) && age > 0 && age < 120) {
+        D.profile.age = age;
+      }
+    }
+
+    if (expensesInput) {
+      const expenses = parseFloat(expensesInput.value);
+      if (!isNaN(expenses) && expenses >= 0) {
+        D.profile.annualExpenses = expenses;
+      }
+    }
+
+    if (fiTargetInput) {
+      const fiTarget = parseFloat(fiTargetInput.value);
+      if (!isNaN(fiTarget) && fiTarget >= 0) {
+        D.profile.fiTarget = fiTarget;
+      }
+    }
+
+    // SIP section with validation
     for (let i = 1; i <= 10; i++) {
-      const name = (document.querySelector(`.sip-name[data-index="${i}"]`) as HTMLInputElement)?.value;
-      const code = (document.querySelector(`.sip-code[data-index="${i}"]`) as HTMLInputElement)?.value;
-      const units = (document.querySelector(`.sip-units[data-index="${i}"]`) as HTMLInputElement)?.value;
-      const amount = (document.querySelector(`.sip-amount[data-index="${i}"]`) as HTMLInputElement)?.value;
-      const start = (document.querySelector(`.sip-start[data-index="${i}"]`) as HTMLInputElement)?.value;
-      const costBasis = (document.querySelector(`.sip-cost-basis[data-index="${i}"]`) as HTMLInputElement)?.value;
+      const name = (document.querySelector(`.sip-name[data-index="${i}"]`) as HTMLInputElement)?.value?.trim();
+      const code = (document.querySelector(`.sip-code[data-index="${i}"]`) as HTMLInputElement)?.value?.trim();
+      const units = parseFloat((document.querySelector(`.sip-units[data-index="${i}"]`) as HTMLInputElement)?.value || '0');
+      const amount = parseFloat((document.querySelector(`.sip-amount[data-index="${i}"]`) as HTMLInputElement)?.value || '0');
+      const start = (document.querySelector(`.sip-start[data-index="${i}"]`) as HTMLInputElement)?.value?.trim();
+      const costBasis = parseFloat((document.querySelector(`.sip-cost-basis[data-index="${i}"]`) as HTMLInputElement)?.value || '0');
 
-      if (name || code) {
+      if (name && code) {
+        // Validate values
+        if (units < 0 || amount < 0 || costBasis < 0) {
+          throw new ValidationError(`SIP ${i}: Negative values not allowed`);
+        }
+
         D.sip[`sip${i}`] = {
-          name: name || '',
-          schemeCode: code || '',
-          units: parseFloat(units) || 0,
-          monthlyAmount: parseFloat(amount) || 0,
+          name,
+          schemeCode: code,
+          units: isNaN(units) ? 0 : units,
+          monthlyAmount: isNaN(amount) ? 0 : amount,
           startDate: start || '',
-          costBasis: costBasis ? parseFloat(costBasis) : undefined,
+          costBasis: costBasis > 0 ? costBasis : undefined,
         };
       } else {
         delete D.sip[`sip${i}`];
       }
     }
 
-    // Holdings section
+    // Holdings section with validation
     const fdInput = document.getElementById('fd') as HTMLInputElement;
     const epfInput = document.getElementById('epf') as HTMLInputElement;
     const esopInput = document.getElementById('esop') as HTMLInputElement;
 
-    D.fd.fd = { amount: parseFloat(fdInput?.value) || 0, currency: 'INR' };
-    D.epf.epf = { amount: parseFloat(epfInput?.value) || 0, currency: 'INR' };
-    D.esop.esop = { amount: parseFloat(esopInput?.value) || 0, currency: 'INR' };
+    const fdAmount = parseFloat(fdInput?.value || '0') || 0;
+    const epfAmount = parseFloat(epfInput?.value || '0') || 0;
+    const esopAmount = parseFloat(esopInput?.value || '0') || 0;
+
+    if (fdAmount < 0 || epfAmount < 0 || esopAmount < 0) {
+      throw new ValidationError('Holdings: Negative amounts not allowed');
+    }
+
+    D.fd.fd = { amount: fdAmount, currency: 'INR' };
+    D.epf.epf = { amount: epfAmount, currency: 'INR' };
+    D.esop.esop = { amount: esopAmount, currency: 'INR' };
 
     saveData(D);
     showToast('✓ Profile saved');
