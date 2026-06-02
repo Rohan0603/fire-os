@@ -3,7 +3,7 @@
  * Defines the complete FireOSState interface and initialization logic
  */
 
-import type { PortfolioProfile, Holdings, DematHoldings, AlphaTrackerDataCollection } from './portfolio';
+import type { PortfolioProfile, Holdings, DematHoldings, AlphaTrackerDataCollection, SIPFunds } from './portfolio';
 import type { NiftyData, EURINRData, NAVCacheMap } from './api';
 import type { SyncMetadata, FirebaseUser } from './firebase';
 
@@ -16,10 +16,10 @@ export interface FireOSState {
   profile: PortfolioProfile;
 
   // Holdings by type
-  mf: Holdings; // Mutual funds
+  mf: SIPFunds; // Mutual funds (with SIP structure)
   fd: Holdings; // Fixed deposits
   epf: Holdings; // EPF balances
-  sip: Holdings; // SIP investments
+  sip: SIPFunds; // SIP investments (with cost basis + XIRR structure)
   esop: Holdings; // ESOP stocks
   demat: DematHoldings; // Demat stock holdings
 
@@ -119,11 +119,14 @@ export function mergeState(existing: FireOSState, incoming: Partial<FireOSState>
     ...(incoming.mf && { mf: { ...existing.mf, ...incoming.mf } }),
     ...(incoming.fd && { fd: { ...existing.fd, ...incoming.fd } }),
     ...(incoming.epf && { epf: { ...existing.epf, ...incoming.epf } }),
+    ...(incoming.sip && { sip: { ...existing.sip, ...incoming.sip } }),
     ...(incoming.esop && { esop: { ...existing.esop, ...incoming.esop } }),
     ...(incoming.demat && { demat: { ...existing.demat, ...incoming.demat } }),
     ...(incoming.nav && { nav: { ...existing.nav, ...incoming.nav } }),
     ...(incoming.niftyHigh && { niftyHigh: incoming.niftyHigh }),
-    ...(incoming.eurInr && { eurInr: incoming.eurInr }),
+    ...(incoming.niftyData !== undefined && { niftyData: incoming.niftyData }),
+    ...(incoming.eurInr !== undefined && { eurInr: incoming.eurInr }),
+    ...(incoming.eurInrData !== undefined && { eurInrData: incoming.eurInrData }),
     ...(incoming.alphaTrackerData && { alphaTrackerData: { ...existing.alphaTrackerData, ...incoming.alphaTrackerData } }),
     // Metadata is only set explicitly, never from incoming
     _lastSavedAt: incoming._lastSavedAt ?? existing._lastSavedAt,

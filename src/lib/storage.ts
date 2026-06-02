@@ -1,6 +1,15 @@
 /**
- * Storage layer for FIRE OS
- * Handles localStorage persistence, Firebase Realtime Database sync, and data import/export
+ * Storage Module - Data persistence layer
+ *
+ * Provides offline-first data persistence with Firebase Realtime Database sync.
+ * Functions are exported as library utilities; main.ts has its own simple
+ * localStorage integration for initial bootstrap. Full integration happens
+ * when Firebase auth module (Task 7) is implemented.
+ *
+ * - loadData() / saveData() → localStorage only
+ * - loadPortfolioFromFirebase() / savePortfolioToFirebase() → Firebase with 1s debounce
+ * - exportPortfolio() / importPortfolio() → JSON file export/import
+ *
  * Implements offline-first architecture with 4-hour NAV cache TTL
  */
 
@@ -16,6 +25,7 @@ const NAV_CACHE_TTL = 4 * 60 * 60 * 1000; // 14400000ms
 
 // Debounce timer for Firebase saves
 let pendingSave: ReturnType<typeof setTimeout> | null = null;
+let lastState: FireOSState | null = null;
 
 /**
  * Load portfolio data from localStorage
@@ -142,6 +152,9 @@ export async function loadPortfolioFromFirebase(uid: string): Promise<FireOSStat
  * @param state FireOSState to persist
  */
 export async function savePortfolioToFirebase(uid: string, state: FireOSState): Promise<void> {
+  // Always capture the latest state to avoid race conditions
+  lastState = state;
+
   // Cancel any pending save (coalesce rapid calls)
   if (pendingSave !== null) {
     clearTimeout(pendingSave);
@@ -150,6 +163,9 @@ export async function savePortfolioToFirebase(uid: string, state: FireOSState): 
   // Schedule save 1 second from now
   pendingSave = setTimeout(async () => {
     try {
+      // Use the last captured state, not the one from the closure
+      if (!lastState) return;
+
       // Lazy-load Firebase to avoid circular dependencies
       const { getDatabase, ref, set } = await import('firebase/database');
 
@@ -158,33 +174,33 @@ export async function savePortfolioToFirebase(uid: string, state: FireOSState): 
 
       // Create backup envelope
       const holdings: BackupHoldings = {
-        mf: state.mf as Record<string, unknown> as Record<string, any>,
-        fd: state.fd,
-        epf: state.epf,
-        sip: state.sip as Record<string, unknown> as Record<string, any>,
-        esop: state.esop,
-        demat: state.demat,
+        mf: lastState.mf,
+        fd: lastState.fd,
+        epf: lastState.epf,
+        sip: lastState.sip,
+        esop: lastState.esop,
+        demat: lastState.demat,
       };
 
-      const eurInrData: EURINRData | undefined = state.eurInr
-        ? { rate: state.eurInr, timestamp: new Date().toISOString() }
+      const eurInrData: EURINRData | undefined = lastState.eurInr
+        ? { rate: lastState.eurInr, timestamp: new Date().toISOString() }
         : undefined;
 
       const backup: FireOSBackup = {
         version: '2',
         timestamp: new Date().toISOString(),
-        profile: state.profile,
+        profile: lastState.profile,
         holdings,
-        navCache: state.nav,
-        niftyData: state.niftyData,
+        navCache: lastState.nav,
+        niftyData: lastState.niftyData,
         eurInr: eurInrData,
-        alphaTrackerData: state.alphaTrackerData,
+        alphaTrackerData: lastState.alphaTrackerData,
       };
 
       await set(portfolioRef, backup);
 
       // Update local timestamp
-      state._lastSavedAt = new Date().toISOString();
+      lastState._lastSavedAt = new Date().toISOString();
 
       if (process.env.NODE_ENV === 'development') {
         console.debug('[Storage] Saved portfolio to Firebase');
@@ -214,10 +230,10 @@ export async function savePortfolioToFirebase(uid: string, state: FireOSState): 
 export function exportPortfolio(state: FireOSState): void {
   try {
     const holdings: BackupHoldings = {
-      mf: state.mf as Record<string, unknown> as Record<string, any>,
+      mf: state.mf,
       fd: state.fd,
       epf: state.epf,
-      sip: state.sip as Record<string, unknown> as Record<string, any>,
+      sip: state.sip,
       esop: state.esop,
       demat: state.demat,
     };
