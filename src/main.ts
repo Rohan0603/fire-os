@@ -15,6 +15,12 @@ import { initUIModule } from './modules/ui';
 // Import dashboard module
 import { initDashboardModule, renderDashboard } from './modules/dashboard';
 
+// Import profile module
+import { initProfileModule } from './modules/profile';
+
+// Import calculators module
+import { initCalculatorsModule } from './modules/calculators';
+
 // Import styles
 import './styles/global.css';
 import './styles/layout.css';
@@ -56,7 +62,9 @@ function loadFromLocalStorage() {
 function initApp() {
   loadFromLocalStorage();
   initUIModule();
+  initProfileModule('profile');
   initDashboardModule('dashboard');
+  initCalculatorsModule('calculators');
   renderApp();
   setupAuthListener();
   setupTabNavigation();
