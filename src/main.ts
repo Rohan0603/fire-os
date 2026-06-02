@@ -9,6 +9,9 @@ import { initializeState } from './types/state';
 // Import auth module
 import { renderAuthScreen, hideAuthScreen, showAuthScreen, initAuthModule } from './modules/auth';
 
+// Import UI module
+import { initUIModule } from './modules/ui';
+
 // Import styles
 import './styles/global.css';
 import './styles/layout.css';
@@ -49,6 +52,7 @@ function loadFromLocalStorage() {
 // Initialize app on startup
 function initApp() {
   loadFromLocalStorage();
+  initUIModule();
   renderApp();
   setupAuthListener();
   setupTabNavigation();
