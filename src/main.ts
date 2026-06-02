@@ -6,6 +6,9 @@ import { getDatabase } from 'firebase/database';
 import type { FireOSState } from './types/state';
 import { initializeState } from './types/state';
 
+// Import auth module
+import { renderAuthScreen, hideAuthScreen, showAuthScreen, initAuthModule } from './modules/auth';
+
 // Import styles
 import './styles/global.css';
 import './styles/layout.css';
@@ -70,19 +73,7 @@ function renderApp() {
       <button id="logout-btn" class="btn-logout" style="display: none;">Logout</button>
     </nav>
 
-    <div id="login-screen" class="login-screen">
-      <div class="login-container">
-        <h1>FIRE OS</h1>
-        <p>Sign up or login to get started</p>
-        <form id="auth-form">
-          <input type="email" id="auth-email" placeholder="Email" required>
-          <input type="password" id="auth-password" placeholder="Password (6+ chars)" required>
-          <button type="button" id="signup-btn">Sign Up</button>
-          <button type="button" id="login-btn">Login</button>
-        </form>
-        <p id="auth-error" class="error" style="display: none;"></p>
-      </div>
-    </div>
+    <div id="auth-screen"></div>
 
     <div class="tabs-container">
       <div id="profile" class="tab active"></div>
@@ -92,6 +83,10 @@ function renderApp() {
       <div id="watchdog" class="tab"></div>
     </div>
   `;
+
+  // Initialize and render auth screen
+  initAuthModule('auth-screen');
+  renderAuthScreen();
 }
 
 // Firebase auth listener
@@ -99,27 +94,16 @@ function setupAuthListener() {
   onAuthStateChanged(auth, (user) => {
     if (user) {
       D.currentUser = user;
-      hideLoginScreen();
+      hideAuthScreen();
       const logoutBtn = document.getElementById('logout-btn');
       if (logoutBtn) logoutBtn.style.display = 'block';
     } else {
       D.currentUser = null;
-      showLoginScreen();
+      showAuthScreen();
       const logoutBtn = document.getElementById('logout-btn');
       if (logoutBtn) logoutBtn.style.display = 'none';
     }
   });
-}
-
-// Show/hide auth screens
-function showLoginScreen() {
-  const screen = document.getElementById('login-screen');
-  if (screen) screen.style.display = 'flex';
-}
-
-function hideLoginScreen() {
-  const screen = document.getElementById('login-screen');
-  if (screen) screen.style.display = 'none';
 }
 
 // Tab navigation
@@ -140,8 +124,12 @@ function setupTabNavigation() {
   // Logout button
   const logoutBtn = document.getElementById('logout-btn');
   if (logoutBtn) {
-    logoutBtn.addEventListener('click', () => {
-      signOut(auth).catch((e) => console.error('Logout failed:', e));
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        await signOut(auth);
+      } catch (e) {
+        console.error('Logout failed:', e);
+      }
     });
   }
 }
