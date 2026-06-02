@@ -87,19 +87,20 @@ export function initializeState(): FireOSState {
  * Type guard to check if a value is a valid FireOSState
  */
 export function isFireOSState(value: unknown): value is FireOSState {
+  if (typeof value !== 'object' || value === null) return false;
+
+  const obj = value as Record<string, unknown>;
+
+  // Validate core properties exist and have correct types
   return (
-    typeof value === 'object' &&
-    value !== null &&
-    'profile' in value &&
-    'mf' in value &&
-    'fd' in value &&
-    'epf' in value &&
-    'sip' in value &&
-    'esop' in value &&
-    'demat' in value &&
-    'nav' in value &&
-    'alphaTrackerData' in value &&
-    'currentUser' in value
+    typeof obj.profile === 'object' &&
+    obj.profile !== null &&
+    typeof obj.mf === 'object' &&
+    typeof obj.fd === 'object' &&
+    typeof obj.epf === 'object' &&
+    typeof obj.esop === 'object' &&
+    typeof obj.demat === 'object' &&
+    (obj.currentUser === null || typeof obj.currentUser === 'object')
   );
 }
 
@@ -112,15 +113,19 @@ export function isFireOSState(value: unknown): value is FireOSState {
 export function mergeState(existing: FireOSState, incoming: Partial<FireOSState>): FireOSState {
   return {
     ...existing,
-    ...incoming,
-    profile: { ...existing.profile, ...incoming.profile },
-    mf: { ...existing.mf, ...incoming.mf },
-    fd: { ...existing.fd, ...incoming.fd },
-    epf: { ...existing.epf, ...incoming.epf },
-    sip: { ...existing.sip, ...incoming.sip },
-    esop: { ...existing.esop, ...incoming.esop },
-    demat: { ...existing.demat, ...incoming.demat },
-    nav: { ...existing.nav, ...incoming.nav },
-    alphaTrackerData: { ...existing.alphaTrackerData, ...incoming.alphaTrackerData },
+    // Only merge profile if provided
+    ...(incoming.profile && { profile: { ...existing.profile, ...incoming.profile } }),
+    // Only merge holdings if provided
+    ...(incoming.mf && { mf: { ...existing.mf, ...incoming.mf } }),
+    ...(incoming.fd && { fd: { ...existing.fd, ...incoming.fd } }),
+    ...(incoming.epf && { epf: { ...existing.epf, ...incoming.epf } }),
+    ...(incoming.esop && { esop: { ...existing.esop, ...incoming.esop } }),
+    ...(incoming.demat && { demat: { ...existing.demat, ...incoming.demat } }),
+    ...(incoming.nav && { nav: { ...existing.nav, ...incoming.nav } }),
+    ...(incoming.niftyHigh && { niftyHigh: incoming.niftyHigh }),
+    ...(incoming.eurInr && { eurInr: incoming.eurInr }),
+    ...(incoming.alphaTrackerData && { alphaTrackerData: { ...existing.alphaTrackerData, ...incoming.alphaTrackerData } }),
+    // Metadata is only set explicitly, never from incoming
+    _lastSavedAt: incoming._lastSavedAt ?? existing._lastSavedAt,
   };
 }

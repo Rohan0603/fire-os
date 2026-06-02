@@ -12,14 +12,10 @@ import type {
 } from './portfolio';
 import type { NAVCacheMap, NiftyData, EURINRData } from './api';
 import type { FireOSState } from './state';
+import type { User as FirebaseSDKUser } from 'firebase/auth';
 
-/** Firebase authenticated user (compatible with Firebase SDK User object) */
-export interface FirebaseUser {
-  uid: string;
-  email: string | null;
-  emailVerified?: boolean;
-  createdAt?: string; // ISO timestamp (optional, not provided by Firebase SDK)
-}
+/** Firebase authenticated user (uses official Firebase SDK type) */
+export type FirebaseUser = FirebaseSDKUser;
 
 /** Sync metadata for portfolio state */
 export interface SyncMetadata {
