@@ -1441,6 +1441,35 @@ body::before {
 </head>
 <body>
 
+<!-- LOGIN / SIGNUP MODAL -->
+<div id="authScreen" style="position:fixed;top:0;left:0;right:0;bottom:0;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#0f3460;padding:40px;border-radius:12px;max-width:400px;width:100%;border:1px solid #533483;">
+    <div style="font-family:'Fraunces',serif;font-size:24px;font-weight:600;color:#7c6fff;margin-bottom:24px;text-align:center;">FIRE OS</div>
+
+    <!-- Login Form -->
+    <div id="loginMode">
+      <input type="email" id="loginEmail" class="form-input" placeholder="Email address" style="margin-bottom:12px;">
+      <input type="password" id="loginPassword" class="form-input" placeholder="Password" style="margin-bottom:16px;">
+      <button class="btn btn-primary" onclick="firebaseLogin()" style="width:100%;margin-bottom:12px;">Sign In</button>
+      <div style="text-align:center;font-size:12px;color:#6b6880;">
+        Don't have an account? <a href="#" onclick="switchAuthMode(); return false;" style="color:#7c6fff;cursor:pointer;text-decoration:none;">Sign up</a>
+      </div>
+      <div id="loginError" style="color:#e74c3c;font-size:11px;margin-top:12px;display:none;"></div>
+    </div>
+
+    <!-- Signup Form -->
+    <div id="signupMode" style="display:none;">
+      <input type="email" id="signupEmail" class="form-input" placeholder="Email address" style="margin-bottom:12px;">
+      <input type="password" id="signupPassword" class="form-input" placeholder="Password (6+ chars)" style="margin-bottom:16px;">
+      <button class="btn btn-primary" onclick="firebaseSignup()" style="width:100%;margin-bottom:12px;">Create Account</button>
+      <div style="text-align:center;font-size:12px;color:#6b6880;">
+        Already have an account? <a href="#" onclick="switchAuthMode(); return false;" style="color:#7c6fff;cursor:pointer;text-decoration:none;">Sign in</a>
+      </div>
+      <div id="signupError" style="color:#e74c3c;font-size:11px;margin-top:12px;display:none;"></div>
+    </div>
+  </div>
+</div>
+
 <!-- NAV -->
 <nav class="nav">
   <div class="nav-brand">
@@ -1458,6 +1487,7 @@ body::before {
     <button class="btn" onclick="exportData()">⬇ Export</button>
     <button class="btn" onclick="importData()">⬆ Import</button>
     <button class="btn" onclick="importMFCentralCAS()">⬆ CAS</button>
+    <button id="logoutBtn" class="btn" onclick="firebaseLogout()" style="margin-left:auto;display:none;color:#e74c3c;">Logout</button>
   </div>
 </nav>
 
@@ -2870,7 +2900,7 @@ function normalizeSipStart(val) {
 function loadData() {
   // Try loading latest schema version
   let saved = localStorage.getItem('fireOS_v2');
-  
+
   // If not found, try v1 and migrate
   if (!saved) {
     const v1 = localStorage.getItem('fireOS_v1');
@@ -2880,7 +2910,7 @@ function loadData() {
       saved = JSON.stringify({ ...oldData, _schemaVersion: 1 });
     }
   }
-  
+
   D = saved ? JSON.parse(saved) : { ...CONFIG.defaults };
 
   // Validate schema — if broken, reset to defaults
@@ -2914,7 +2944,12 @@ function loadData() {
     console.log('Normalization saved to localStorage');
   }
 
-  populateProfileFields();
+  // Load from Firebase if user is logged in
+  if (currentUser) {
+    loadPortfolioFromFirebase();
+  } else {
+    populateProfileFields();
+  }
 }
 
 function saveData() {
@@ -2985,7 +3020,11 @@ function saveProfile() {
     if (el && el.value === '') delete D[f];
   });
 
-  saveData();
+  // Save to localStorage and Firebase
+  localStorage.setItem('fireOS_v2', JSON.stringify(D));
+  if (currentUser) {
+    savePortfolioToFirebase();
+  }
   showToast('✓ Profile saved', 2000);
   renderDashboard();
   switchTab('dashboard');
@@ -6061,6 +6100,149 @@ window.onload = () => {
     }
   }, 5000);
 };
+</script>
+
+<!-- Firebase SDKs (CDN - compat version) -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+<script>
+// Firebase Configuration
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyBD38ygGdv7IeAOh5V8tI5Ih0DpTk2niww",
+  authDomain: "fire-os-dd6d6.firebaseapp.com",
+  databaseURL: "https://fire-os-dd6d6-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "fire-os-dd6d6",
+  storageBucket: "fire-os-dd6d6.firebasestorage.app",
+  messagingSenderId: "824527645307",
+  appId: "1:824527645307:web:7dc209d225e8280d17d0de",
+  measurementId: "G-8JFDMMJ8QM"
+};
+
+// Initialize Firebase
+firebase.initializeApp(FIREBASE_CONFIG);
+window.auth = firebase.auth();
+window.db = firebase.database();
+
+// Check authentication state on page load
+let currentUser = null;
+firebase.auth().onAuthStateChanged((user) => {
+  currentUser = user;
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (user) {
+    logoutBtn.style.display = '';
+    loadPortfolioFromFirebase();
+  } else {
+    logoutBtn.style.display = 'none';
+    showLoginScreen();
+  }
+});
+
+// Load portfolio from Firebase
+function loadPortfolioFromFirebase() {
+  if (!currentUser || !window.db) return;
+
+  window.db.ref('users/' + currentUser.uid + '/portfolio').once('value', (snapshot) => {
+    const firebaseData = snapshot.val();
+    if (firebaseData) {
+      D = firebaseData;
+      console.log('✓ Loaded portfolio from Firebase');
+    } else {
+      D = { ...CONFIG.defaults };
+      savePortfolioToFirebase();
+    }
+    populateProfileFields();
+    renderDashboard();
+  });
+}
+
+// Save portfolio to Firebase
+function savePortfolioToFirebase() {
+  if (!currentUser || !window.db) return;
+
+  D._lastSavedAt = new Date().toISOString();
+  window.db.ref('users/' + currentUser.uid + '/portfolio').set(D)
+    .then(() => {
+      console.log('✓ Saved to Firebase');
+    })
+    .catch((err) => {
+      console.warn('⚠ Firebase save failed:', err.message);
+      showToast('⚠ Could not save to cloud', 2000);
+    });
+}
+
+// Authentication functions
+function showLoginScreen() {
+  document.getElementById('authScreen').style.display = 'flex';
+}
+
+function hideLoginScreen() {
+  document.getElementById('authScreen').style.display = 'none';
+}
+
+function switchAuthMode() {
+  const loginMode = document.getElementById('loginMode');
+  const signupMode = document.getElementById('signupMode');
+  if (loginMode.style.display === 'none') {
+    loginMode.style.display = '';
+    signupMode.style.display = 'none';
+  } else {
+    loginMode.style.display = 'none';
+    signupMode.style.display = '';
+  }
+}
+
+function firebaseLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errorEl = document.getElementById('loginError');
+
+  if (!email || !password) {
+    errorEl.textContent = 'Please enter email and password';
+    errorEl.style.display = '';
+    return;
+  }
+
+  firebase.auth().signInWithEmailAndPassword(email, password)
+    .then((userCredential) => {
+      console.log('✓ Logged in:', userCredential.user.email);
+      hideLoginScreen();
+    })
+    .catch((error) => {
+      errorEl.textContent = error.message;
+      errorEl.style.display = '';
+    });
+}
+
+function firebaseSignup() {
+  const email = document.getElementById('signupEmail').value.trim();
+  const password = document.getElementById('signupPassword').value;
+  const errorEl = document.getElementById('signupError');
+
+  if (!email || !password || password.length < 6) {
+    errorEl.textContent = 'Email required, password must be 6+ chars';
+    errorEl.style.display = '';
+    return;
+  }
+
+  firebase.auth().createUserWithEmailAndPassword(email, password)
+    .then((userCredential) => {
+      console.log('✓ Account created:', userCredential.user.email);
+      hideLoginScreen();
+    })
+    .catch((error) => {
+      errorEl.textContent = error.message;
+      errorEl.style.display = '';
+    });
+}
+
+function firebaseLogout() {
+  firebase.auth().signOut().then(() => {
+    console.log('✓ Logged out');
+    showLoginScreen();
+  });
+}
 </script>
 
 </body>
