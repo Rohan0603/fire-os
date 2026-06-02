@@ -1,0 +1,94 @@
+- generic [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]: FIRE OS
+    - generic [ref=e4]:
+      - button "Dashboard" [ref=e5] [cursor=pointer]
+      - button "Planner" [ref=e6] [cursor=pointer]
+      - button "Protector" [ref=e7] [cursor=pointer]
+      - button "Optimiser" [ref=e8] [cursor=pointer]
+      - button "Watchdog" [ref=e9] [cursor=pointer]
+      - button "Profile" [ref=e10] [cursor=pointer]
+    - generic [ref=e11]:
+      - button "⬇ Export" [ref=e12] [cursor=pointer]
+      - button "⬆ Import" [ref=e13] [cursor=pointer]
+  - main [ref=e14]:
+    - text: RECOMMENDED
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e18]: // PHASE 5 — WATCHDOG
+        - heading "Discipline Enforcement Suite" [level=2] [ref=e19]:
+          - text: Discipline
+          - emphasis [ref=e20]: Enforcement
+          - text: Suite
+        - generic [ref=e21]: Fund Switch Firewall · Alpha Tracker · Annual Review Checklist · 30-Day Cooling Log
+      - generic [ref=e22]:
+        - button "Fund Switch" [ref=e23] [cursor=pointer]
+        - button "Alpha Tracker" [active] [ref=e24] [cursor=pointer]
+        - button "Annual Review" [ref=e25] [cursor=pointer]
+        - button "30-Day Log" [ref=e26] [cursor=pointer]
+      - generic [ref=e139]:
+        - generic [ref=e140]: Alpha vs Benchmark Tracker
+        - generic [ref=e141]: Enter rolling 3Y returns for each fund and its benchmark. Two consecutive negative alpha years → watch. Third → exit.
+        - generic [ref=e142]: "Use rolling returns, not point-to-point. Source: Value Research or Morningstar India. Update annually every April."
+        - generic [ref=e143]:
+          - generic [ref=e144]:
+            - generic [ref=e145]: PPFCF Direct
+            - generic [ref=e146]: vs Nifty 500 TRI
+            - generic [ref=e147]:
+              - generic [ref=e148]:
+                - generic [ref=e149]: Fund 3Y Rolling (%)
+                - spinbutton [ref=e150]: "14.920875000000002"
+              - generic [ref=e151]:
+                - generic [ref=e152]: Benchmark 3Y Rolling (%)
+                - spinbutton [ref=e153]: "10.2"
+              - generic [ref=e154]:
+                - generic [ref=e155]: Last Year Alpha (%)
+                - spinbutton [ref=e156]
+              - generic [ref=e157]:
+                - generic [ref=e158]: Year Before Alpha (%)
+                - spinbutton [ref=e159]
+            - generic [ref=e160]: "Alpha this year: +4.72% | Neg streak: 0Y | ✓ HOLD — Alpha positive. No action needed."
+            - generic [ref=e161]: "Trigger: AUM > ₹1.75L Cr · Plan B: Mirae Asset Flexi Cap Direct"
+          - generic [ref=e162]:
+            - generic [ref=e163]: Nippon Growth Direct
+            - generic [ref=e164]: vs Nifty Midcap 150 TRI
+            - generic [ref=e165]:
+              - generic [ref=e166]:
+                - generic [ref=e167]: Fund 3Y Rolling (%)
+                - spinbutton [ref=e168]: "2.1983999999999995"
+              - generic [ref=e169]:
+                - generic [ref=e170]: Benchmark 3Y Rolling (%)
+                - spinbutton [ref=e171]: "15.8"
+              - generic [ref=e172]:
+                - generic [ref=e173]: Last Year Alpha (%)
+                - spinbutton [ref=e174]
+              - generic [ref=e175]:
+                - generic [ref=e176]: Year Before Alpha (%)
+                - spinbutton [ref=e177]
+            - generic [ref=e178]: "Alpha this year: -13.60% | Neg streak: 1Y | 📋 MONITOR — 1Y negative alpha. Normal. Hold."
+            - generic [ref=e179]: "Trigger: ER > 0.85% or Liq > 14d · Plan B: Motilal Oswal Midcap Direct"
+          - generic [ref=e180]:
+            - generic [ref=e181]: Nippon Small Cap Direct
+            - generic [ref=e182]: vs Nifty Smallcap 250 TRI
+            - generic [ref=e183]:
+              - generic [ref=e184]:
+                - generic [ref=e185]: Fund 3Y Rolling (%)
+                - spinbutton [ref=e186]: "15.32458823529411"
+              - generic [ref=e187]:
+                - generic [ref=e188]: Benchmark 3Y Rolling (%)
+                - spinbutton [ref=e189]: "20.5"
+              - generic [ref=e190]:
+                - generic [ref=e191]: Last Year Alpha (%)
+                - spinbutton [ref=e192]
+              - generic [ref=e193]:
+                - generic [ref=e194]: Year Before Alpha (%)
+                - spinbutton [ref=e195]
+            - generic [ref=e196]: "Alpha this year: -5.18% | Neg streak: 1Y | 📋 MONITOR — 1Y negative alpha. Normal. Hold."
+            - generic [ref=e197]: "Trigger: ER > 0.83% · Plan B: SBI Small Cap or Bandhan Small Cap"
+        - generic [ref=e198]:
+          - text: 📊 Alpha data auto-populated from historical records (Value Research/Morningstar).
+          - text: 💡 Current year (2026) fund returns calculated from live NAVs. Update benchmark returns manually from Value Research / Morningstar India.
+  - generic [ref=e135]:
+    - generic [ref=e136]: "Nifty: ₹26,023 ✓ ATH zone"
+    - button "🔴 Market Down?" [ref=e137] [cursor=pointer]
+  - generic: "✓ NAV updated: 4/4 funds"

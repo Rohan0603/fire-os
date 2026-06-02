@@ -27,7 +27,7 @@ The app features:
 ## Architecture & File Structure
 
 ### Single-File Design
-- **`index.html`** (~190 KB) contains:
+- **`index.html`** (~258 KB) contains:
   - All HTML (nav, modals, forms, cards, charts)
   - All CSS (design tokens, layout, typography, animations)
   - All JavaScript (DOM management, API calls, calculations, state)
@@ -86,18 +86,29 @@ http-server -p 3000
 # Right-click index.html → Open with Live Server
 ```
 
-### Testing with Playwright
+### Manual Testing
 ```bash
-# The project includes a test suite in test-fixes.js
-# It verifies:
-# - Page loads and dashboard renders
-# - NAV fetching works
-# - Bug fixes (live MF values, FI goal progress)
+# Start local server (choose one)
+python -m http.server 3000
+# or
+http-server -p 3000
 
-npm install  # Installs @playwright/test and playwright
+# Open http://localhost:3000 in browser
+# Test:
+# - Sign up/login with email
+# - Enter portfolio data in Profile tab
+# - Click ⟳ NAV, ⚡ Nifty to verify live fetches
+# - Reload page → verify data persists
+# - Open on another device/browser → login same email → verify cross-device sync
+# - F12 DevTools → no console errors
+```
 
-# Run tests (assumes server on localhost:3000)
-node test-fixes.js
+### Automated Testing (Playwright Setup)
+```bash
+# Install Playwright dependencies
+npm install
+
+# (test-fixes.js no longer exists; create custom tests if needed)
 ```
 
 ### Making Changes to the App
@@ -123,12 +134,22 @@ node test-fixes.js
 4. **Add validation** for inputs (check for negative values, empty fields)
 5. **Test edge cases** (zero values, extreme inputs)
 
-## Known Issues & Audit
+## Known Limitations & Future Improvements
 
-See `FIRE_OS_AUDIT_REPORT.md` for:
-- **5 Critical Issues**: Monolithic file structure, no input validation, error handling, test coverage
-- **5 High-Priority Improvements**: Data migration, refactoring, modals, API resilience, state management
-- **Roadmap**: v2.1 → v2.2 → v2.3 → v3.0 (eventual modularization)
+**Current v2.1 Strengths:**
+- ✅ Single-file app (no build pipeline)
+- ✅ Firebase cloud sync + authentication
+- ✅ SIP P&L with cost basis + XIRR
+- ✅ PDF import (MF Central CAS + Demat)
+- ✅ Cross-device data sync
+- ✅ Comprehensive calculators
+
+**Future Improvements (v2.2+):**
+- Modularization (split index.html into separate components)
+- Input validation (client-side)
+- Error handling boundaries (API resilience)
+- E2E test suite (Playwright)
+- State management refactor
 
 ## API Dependencies
 
@@ -218,14 +239,12 @@ See `FIRE_OS_AUDIT_REPORT.md` for:
 ### Automated Testing (Playwright)
 ```bash
 # Prerequisites: Local server running on http://localhost:3000
-node test-fixes.js
+# Install Playwright
+npm install
+
+# Create and run custom test suite as needed
+# (Recommended test scenarios: Firebase auth, cross-device sync, NAV fetch, dashboard render)
 ```
-Tests verify:
-- Page loads and renders
-- SIP cards display
-- NAV prices fetch
-- Net worth KPI updates
-- FI goal progress uses live MF value (bug fix verification)
 
 ## Git Workflow & Commits
 
@@ -260,12 +279,12 @@ Earlier changes (ESOP Tools Enhancements, May 8, 2026):
 When committing changes:
 - Use clear messages: "fix: ...", "feat: ...", "perf: ...", "test: ..."
 - Reference the issue or bug being fixed if applicable
-- Run `node test-fixes.js` before pushing to verify no regressions
+- Test manually: start server, verify changes in browser, check cross-device sync if applicable
 
 ## Performance Notes
 
 ### Current
-- Single file (~190 KB minified, uncompressed)
+- Single file (~258 KB uncompressed)
 - No minification or bundling
 - All calculations run on client (no server calls except NAV/Nifty)
 - localStorage is synchronous (blocks on large data saves)
@@ -371,7 +390,7 @@ The entire app logic is in `index.html`. To contribute:
    - Modals overlay on Dashboard (`.modal` divs, show/hide via `display: none` or class toggle)
    - Forms in Profile tab update on blur and input
 
-5. **Testing**: Always run `node test-fixes.js` after changes to catch regressions.
+5. **Testing**: Always test manually after changes — start server, verify in browser, test cross-device sync if applicable.
 
 **Key Functions**:
 - `firebaseLogin()` / `firebaseSignup()` / `firebaseLogout()`: Auth handlers

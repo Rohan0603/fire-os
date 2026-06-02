@@ -171,14 +171,17 @@ All APIs are **CORS-friendly** and work from GitHub Pages (static hosting).
 ### File Structure
 ```
 fire-os/
-├── index.html                      # Main app (190 KB, all-in-one)
-├── FIRE_OS_AUDIT_REPORT.md         # Code review & improvement plan
+├── index.html                      # Main app (258 KB, all-in-one)
 ├── README.md                       # This file
+├── CLAUDE.md                       # Developer guide
+├── firebase.json                   # Firebase Hosting config
+├── .firebaserc                     # Firebase project alias
+├── .gitignore                      # Git ignore rules
+├── package.json                    # Playwright dependency
 ├── .github/
 │   └── workflows/
-│       └── deploy.yml              # GitHub Actions workflow
-└── uploads/
-    └── fireOS_backup_*.json        # User backups (optional)
+│       └── static.yml              # GitHub Pages workflow (alternative)
+└── docs/superpowers/specs/         # Design documentation
 ```
 
 ### Technology Stack
@@ -186,8 +189,9 @@ fire-os/
 - **UI:** Hand-coded HTML/CSS (no Bootstrap/Tailwind)
 - **Charts:** Chart.js v4.4.0 (via CDN)
 - **Fonts:** Google Fonts (Space Mono, Fraunces, DM Sans)
-- **Storage:** browser localStorage
-- **Hosting:** GitHub Pages (static)
+- **Storage:** Firebase Realtime Database (primary) + browser localStorage (fallback)
+- **Auth:** Firebase Authentication (email/password)
+- **Hosting:** Firebase Hosting (recommended) or GitHub Pages (alternative)
 
 ### MF Central CAS Import
 - **Trigger**: "Import CAS PDF" button in Profile tab
@@ -196,11 +200,9 @@ fire-os/
 - **Demat Support**: Automatically detects and includes demat stock holdings (quantity + current value)
 - **Scheme Coverage**: Works with all NSDL/CDSL schemes (not limited to specific funds)
 
-### Known Issues & Improvements
-See `FIRE_OS_AUDIT_REPORT.md` for:
-- 5 critical issues (monolithic file, validation, error handling, etc.)
-- 5 high-priority improvements (data migration, refactoring, modals, etc.)
-- 5 medium & 5 nice-to-have improvements
+### Future Improvements
+- **v2.2+:** Input validation, error handling boundaries, E2E test suite
+- **v3.0:** Modularization (component-based architecture)
 
 ---
 

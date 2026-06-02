@@ -1,0 +1,19 @@
+[     336ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:3000/:0
+[     481ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:3000/favicon.ico:0
+[     681ms] [LOG] ✓ Nifty from SBI Nifty 50 ETF (code 135106): NAV=260.1796 → ₹26018 @ http://localhost:3000/:5516
+[     760ms] [LOG] Data saved (schema v1) @ http://localhost:3000/:2901
+[     761ms] [LOG] ✓ Nifty 52W High from mfapi.in: ₹28122 @ http://localhost:3000/:5551
+[    6563ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:3000/:0
+[    6630ms] [LOG] ✓ Nifty from SBI Nifty 50 ETF (code 135106): NAV=260.1796 → ₹26018 @ http://localhost:3000/:5516
+[    6716ms] [LOG] Data saved (schema v1) @ http://localhost:3000/:2901
+[    6716ms] [LOG] ✓ Nifty 52W High from mfapi.in: ₹28122 @ http://localhost:3000/:5551
+[  173831ms] [LOG] Data saved (schema v1) @ http://localhost:3000/:2901
+[  293081ms] [LOG] Data saved (schema v1) @ http://localhost:3000/:2901
+[  293319ms] [LOG] ✓ Nifty from SBI Nifty 50 ETF (code 135106): NAV=260.1796 → ₹26018 @ http://localhost:3000/:5516
+[  293381ms] [LOG] Data saved (schema v1) @ http://localhost:3000/:2901
+[  293381ms] [LOG] ✓ Nifty 52W High from mfapi.in: ₹28122 @ http://localhost:3000/:5551
+[  296039ms] [VERBOSE] [DOM] Password field is not contained in a form: (More info: https://goo.gl/9p2vKq) %o @ http://localhost:3000/:0
+[  296218ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:3000/favicon.ico:0
+[  296244ms] [LOG] ✓ Nifty from SBI Nifty 50 ETF (code 135106): NAV=260.1796 → ₹26018 @ http://localhost:3000/:5516
+[  296360ms] [LOG] Data saved (schema v1) @ http://localhost:3000/:2901
+[  296360ms] [LOG] ✓ Nifty 52W High from mfapi.in: ₹28122 @ http://localhost:3000/:5551

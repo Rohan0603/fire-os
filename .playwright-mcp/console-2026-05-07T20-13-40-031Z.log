@@ -1,0 +1,14 @@
+[     153ms] [ERROR] Failed to load resource: the server responded with a status of 404 (File not found) @ http://localhost:8888/favicon.ico:0
+[     327ms] [LOG] ✓ Nifty from SBI Nifty 50 ETF (code 135106): NAV=260.2255 → ₹26023 @ http://localhost:8888/:4988
+[  127594ms] [LOG] Data saved (schema v1) @ http://localhost:8888/:2743
+[  127595ms] [LOG] Data saved (schema v1) @ http://localhost:8888/:2743
+[  135602ms] [ERROR] EUR/INR fetch error: signal is aborted without reason @ http://localhost:8888/:5166
+[  148905ms] [LOG] Data saved (schema v1) @ http://localhost:8888/:2743
+[  167058ms] [LOG] ✓ Nifty from SBI Nifty 50 ETF (code 135106): NAV=260.2255 → ₹26023 @ http://localhost:8888/:4991
+[  169574ms] [LOG] Data saved (schema v1) @ http://localhost:8888/:2743
+[  177578ms] [ERROR] EUR/INR fetch error: signal is aborted without reason @ http://localhost:8888/:5169
+[  182498ms] [LOG] Data saved (schema v1) @ http://localhost:8888/:2743
+[  196220ms] [LOG] ✓ Nifty from SBI Nifty 50 ETF (code 135106): NAV=260.2255 → ₹26023 @ http://localhost:8888/:5007
+[  198788ms] [LOG] Data saved (schema v1) @ http://localhost:8888/:2743
+[  206798ms] [ERROR] EUR/INR fetch error: signal is aborted without reason @ http://localhost:8888/:5185
+[  225608ms] [LOG] ✓ Nifty from SBI Nifty 50 ETF (code 135106): NAV=260.2255 → ₹26023 @ http://localhost:8888/:5007

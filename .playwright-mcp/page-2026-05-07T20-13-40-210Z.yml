@@ -1,0 +1,193 @@
+- generic [active] [ref=e1]:
+  - navigation [ref=e2]:
+    - generic [ref=e3]: FIRE OS
+    - generic [ref=e4]:
+      - button "Dashboard" [ref=e5] [cursor=pointer]
+      - button "Planner" [ref=e6] [cursor=pointer]
+      - button "Protector" [ref=e7] [cursor=pointer]
+      - button "Optimiser" [ref=e8] [cursor=pointer]
+      - button "Watchdog" [ref=e9] [cursor=pointer]
+      - button "Profile" [ref=e10] [cursor=pointer]
+    - generic [ref=e11]:
+      - button "⬇ Export" [ref=e12] [cursor=pointer]
+      - button "⬆ Import" [ref=e13] [cursor=pointer]
+  - main [ref=e14]:
+    - generic [ref=e16]:
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - generic [ref=e19]: // FIRE OPERATING SYSTEM
+          - heading "Net Worth Command Centre" [level=1] [ref=e20]:
+            - text: Net Worth
+            - emphasis [ref=e21]: Command
+            - text: Centre
+          - generic [ref=e22]: // 8 MAY 2026
+        - button "Update Portfolio →" [ref=e23] [cursor=pointer]
+      - generic [ref=e25]:
+        - generic [ref=e26]:
+          - generic [ref=e27]: Total Net Worth
+          - generic [ref=e28]: ₹14.92L
+          - generic [ref=e29]: Age 25 · Updated today
+        - generic [ref=e30]:
+          - generic [ref=e31]: Active Wealth Engine
+          - generic [ref=e32]: ₹28.5K
+          - generic [ref=e33]: Mutual Funds
+        - generic [ref=e34]:
+          - generic [ref=e35]: Safety Net
+          - generic [ref=e36]: ₹6.97L
+          - generic [ref=e37]: FDs + EPF + Buffer
+        - generic [ref=e38]:
+          - generic [ref=e39]: Monthly Deployed
+          - generic [ref=e40]: ₹27.0K
+          - generic [ref=e41]: SIP Total
+      - generic [ref=e43]: Asset Breakdown
+      - generic [ref=e45]:
+        - generic [ref=e46] [cursor=pointer]:
+          - generic [ref=e47]:
+            - generic [ref=e48]: ESOPs
+            - generic [ref=e49]: WINDFALL
+          - generic [ref=e50]: ₹6.96L
+          - generic [ref=e51]: 46.6% of portfolio · ₹6,95,500
+          - generic [ref=e54]: Societe Generale · EUR
+        - generic [ref=e55] [cursor=pointer]:
+          - generic [ref=e56]:
+            - generic [ref=e57]: Fixed Deposits
+            - generic [ref=e58]: SAFETY
+          - generic [ref=e59]: ₹5.40L
+          - generic [ref=e60]: 36.2% of portfolio · ₹5,40,000
+          - generic [ref=e63]: Extra corpus · Untouched
+        - generic [ref=e64] [cursor=pointer]:
+          - generic [ref=e65]:
+            - generic [ref=e66]: EPF
+            - generic [ref=e67]: SILENT
+          - generic [ref=e68]: ₹1.37L
+          - generic [ref=e69]: 9.2% of portfolio · ₹1,37,471
+          - generic [ref=e72]: EEE · 8.15% · Black box
+        - generic [ref=e73] [cursor=pointer]:
+          - generic [ref=e74]:
+            - generic [ref=e75]: Wint Wealth
+            - generic [ref=e76]: CRASH GUN
+          - generic [ref=e77]: ₹70.9K
+          - generic [ref=e78]: 4.8% of portfolio · ₹70,900
+          - generic [ref=e81]: Crash weapon · 10.75%
+        - generic [ref=e82] [cursor=pointer]:
+          - generic [ref=e83]:
+            - generic [ref=e84]: Mutual Funds
+            - generic [ref=e85]: CORE
+          - generic [ref=e86]: ₹28.5K
+          - generic [ref=e87]: 1.9% of portfolio · ₹28,499
+          - generic [ref=e90]: 30Y engine · 4 funds
+        - generic [ref=e91] [cursor=pointer]:
+          - generic [ref=e92]:
+            - generic [ref=e93]: SBI Buffer
+            - generic [ref=e94]: LIQUID
+          - generic [ref=e95]: ₹20.0K
+          - generic [ref=e96]: 1.3% of portfolio · ₹20,000
+          - generic [ref=e99]: Liquid reserve
+      - generic [ref=e101]: Goal Progress
+      - generic [ref=e103]:
+        - generic [ref=e104]:
+          - generic [ref=e107]:
+            - generic [ref=e108]: 0.01%
+            - generic [ref=e109]: to FI
+          - generic [ref=e110]:
+            - generic [ref=e111]:
+              - text: Financial
+              - emphasis [ref=e112]: Independence
+            - generic [ref=e113]: Target · 2041–2048
+            - generic [ref=e114]:
+              - generic [ref=e115]: Target
+              - generic [ref=e116]: ₹33,00,00,000
+            - generic [ref=e117]:
+              - generic [ref=e118]: Current MF Corpus
+              - generic [ref=e119]: ₹28,499
+            - generic [ref=e120]:
+              - generic [ref=e121]: Remaining
+              - generic [ref=e122]: ₹33.00Cr
+            - generic [ref=e123]:
+              - generic [ref=e124]: SWR Monthly
+              - generic [ref=e125]: ₹82,500
+        - generic [ref=e126]:
+          - generic [ref=e129]:
+            - generic [ref=e130]: 0.00%
+            - generic [ref=e131]: to Home
+          - generic [ref=e132]:
+            - generic [ref=e133]:
+              - text: Coorg
+              - emphasis [ref=e134]: Dream Home
+            - generic [ref=e135]: Target · 2034–2036
+            - generic [ref=e136]:
+              - generic [ref=e137]: Target
+              - generic [ref=e138]: ₹2,00,00,000
+            - generic [ref=e139]:
+              - generic [ref=e140]: Home Corpus
+              - generic [ref=e141]: ₹0
+            - generic [ref=e142]:
+              - generic [ref=e143]: Corpus Starts
+              - generic [ref=e144]: Jan 2031
+            - generic [ref=e145]:
+              - generic [ref=e146]: Zone
+              - generic [ref=e147]: Kushalnagar belt
+      - generic [ref=e148]:
+        - generic [ref=e149]: SIP Status
+        - button "⟳ NAV" [ref=e151] [cursor=pointer]
+      - generic [ref=e152]:
+        - generic [ref=e153]:
+          - generic [ref=e154]: Parag Parikh Flexi Cap Direct
+          - generic [ref=e155]: ₹12.0K/mo
+          - generic [ref=e158]: LIVE
+          - generic [ref=e159]:
+            - generic [ref=e160]: "NAV: …"
+            - generic [ref=e161]: 131.490 units
+          - generic [ref=e162]: −₹NaN (NaN%)
+          - generic [ref=e163]: XIRR ≈ —
+        - generic [ref=e164]:
+          - generic [ref=e165]: Nippon India Growth Mid Cap Direct
+          - generic [ref=e166]: ₹9.0K/mo
+          - generic [ref=e169]: LIVE
+          - generic [ref=e170]:
+            - generic [ref=e171]: "NAV: …"
+            - generic [ref=e172]: 1.882 units
+          - generic [ref=e173]: −₹NaN (NaN%)
+          - generic [ref=e174]: XIRR ≈ —
+        - generic [ref=e175]:
+          - generic [ref=e176]: Nippon India Small Cap Direct
+          - generic [ref=e177]: ₹3.0K/mo
+          - generic [ref=e180]: LIVE
+          - generic [ref=e181]:
+            - generic [ref=e182]: "NAV: …"
+            - generic [ref=e183]: 30.965 units
+          - generic [ref=e184]: −₹NaN (NaN%)
+          - generic [ref=e185]: XIRR ≈ —
+        - generic [ref=e186]:
+          - generic [ref=e187]: ICICI Prudential Gold ETF
+          - generic [ref=e188]: ₹3.0K/mo
+          - generic [ref=e191]: LIVE
+          - generic [ref=e192]:
+            - generic [ref=e193]: "NAV: …"
+            - generic [ref=e194]: 18.987 units
+          - generic [ref=e195]: −₹NaN (NaN%)
+          - generic [ref=e196]: XIRR ≈ —
+      - generic [ref=e198]: Trigger Watchdog
+      - generic [ref=e200]:
+        - generic [ref=e201]:
+          - generic [ref=e202]: PPFCF AUM
+          - generic [ref=e203]: 1,28,966 Cr
+          - generic [ref=e204]: "Limit: 1,75,000 Cr"
+          - generic [ref=e205]: ✓ CLEAR
+        - generic [ref=e206]:
+          - generic [ref=e207]: Nippon Growth ER
+          - generic [ref=e208]: 0.78%
+          - generic [ref=e209]: "Limit: 0.85%"
+          - generic [ref=e210]: ~ WATCH
+        - generic [ref=e211]:
+          - generic [ref=e212]: Nippon Small Cap ER
+          - generic [ref=e213]: 0.67%
+          - generic [ref=e214]: "Limit: 0.83%"
+          - generic [ref=e215]: ✓ CLEAR
+        - generic [ref=e216]:
+          - generic [ref=e217]: Nippon Growth Liquidity
+          - generic [ref=e218]: 7 days
+          - generic [ref=e219]: "Limit: 14 days"
+          - generic [ref=e220]: ✓ CLEAR
+    - text: RECOMMENDED
+  - button "🔴 Market Down?" [ref=e222] [cursor=pointer]
