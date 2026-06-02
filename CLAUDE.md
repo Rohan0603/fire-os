@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**FIRE OS** is a personal finance dashboard for FIRE (Financial Independence, Retire Early) planning. It's a **single-file, all-in-one HTML application** with no framework dependencies—just vanilla JavaScript, HTML/CSS, and Chart.js.
+**FIRE OS** is a personal finance dashboard for FIRE (Financial Independence, Retire Early) planning. Built with **Vite + TypeScript**, it features a modular architecture with clear separation of concerns: auth, API, calculations, UI, and state management.
 
 The app features:
 - Portfolio tracking (MF, FD, EPF, SIP, ESOP, Demat stocks)
@@ -26,130 +26,81 @@ The app features:
 
 ## Architecture & File Structure
 
-### Single-File Design
-- **`index.html`** (~258 KB) contains:
-  - All HTML (nav, modals, forms, cards, charts)
-  - All CSS (design tokens, layout, typography, animations)
-  - All JavaScript (DOM management, API calls, calculations, state)
-  - Embedded Chart.js library via CDN
+### Modular TypeScript Design
+**Build Output**: `dist/` (Vite output, minified & optimized for production)
 
-**Why monolithic:** Browser-based app, no build pipeline, no dependency management needed. GitHub Pages deployment is direct.
+**Module Organization** (`src/modules/`):
+- **`auth/`**: Firebase authentication (signup, login, logout, session management)
+- **`api/`**: External API integrations (NAV fetching, Nifty levels, EUR/INR rates, PDF parsing)
+- **`dashboard/`**: Portfolio dashboard (KPI calculations, P&L tracking, XIRR)
+- **`profile/`**: User settings, portfolio input forms, data import/export
+- **`calculators/`**: Financial calculators (Crash Protocol, SIP Pause, Emergency Runway, etc.)
+- **`ui/`**: Shared components (modals, charts, forms, navigation)
+- **`state/`**: Typed state object (D) and persistence logic (Firebase + localStorage)
 
-### Code Organization Within index.html
-The JavaScript is organized by feature area (not file-based):
+**State Management**:
+- **D object** (TypeScript interface): Centralized portfolio state (profile, holdings, prices, user prefs)
+- **updateProfile()**: Validates inputs, saves to D, triggers `updateDashboard()`
+- **updateDashboard()**: Recalculates all KPIs, refreshes UI (debounced)
+- **Firebase persistence**: Auto-sync to Realtime DB on authenticated session
+- **localStorage fallback**: Offline-safe backup, merges on next login
 
-1. **Data Object (D)**
-   - `D.profile`: User inputs (income, age, holdings, SIP amounts)
-   - `D.mf`, `D.fd`, `D.epf`, etc.: Portfolio holdings
-   - `D.nav`: Live mutual fund prices (fetched from API)
-   - `D.niftyHigh`: Current market level
-
-2. **Core Functions (no namespacing)**
-   - `updateProfile()`: Parse form inputs, save to localStorage
-   - `fetchNAV()`: Call mfapi.in API
-   - `fetchNifty()`: CORS-proxied Yahoo Finance call
-   - `updateDashboard()`: Recalculate all KPIs and re-render
-   - Calculation functions: `sipCorpusYear()`, `emergencyRunway()`, `xirr()`, etc.
-
-3. **UI Handlers**
-   - Tab switching: `.nav-tab` click handlers
-   - Modal open/close
-   - Form field blur → `updateProfile()` → `updateDashboard()`
-   - Button clicks for crash protocol, export, etc.
-
-4. **Storage**
-   - **Firebase Realtime Database** (primary): Each authenticated user's portfolio syncs across devices
-   - **localStorage** (fallback): Used when offline or not authenticated; syncs to Firebase on next login
-   - Both use `fireOS_v2` envelope format for consistency
-
-### DOM Structure
-- **`.nav`**: Tab navigation (Profile, Dashboard, Crash Protocol, Calculators, Optimiser, Watchdog)
-- **`.tabs-container`**: Content for each tab (hidden/shown via `display: none`)
-- **`.modal`**: Overlays for detailed views (asset breakdown, crash protocol, etc.)
-- **`.kpi-grid`**: Dashboard KPI cards
-- **`.chart-container`**: Chart.js visualizations
+**Module Boundaries**:
+- No direct imports between modules (event delegation + D object coupling)
+- Each module exports: `init()` (setup), `render()` (UI), `teardown()` (cleanup)
+- Module registration in `main.ts`
 
 ## Common Development Tasks
 
-### Running the App Locally
+### First-Time Setup
 ```bash
-# Option 1: Python http.server (recommended for testing)
-cd C:\Users\ponna\Project\fire-os
-python -m http.server 3000
-# Open http://localhost:3000 in browser
-
-# Option 2: Node.js http-server
-npm install -g http-server
-http-server -p 3000
-
-# Option 3: VS Code Live Server extension
-# Right-click index.html → Open with Live Server
-```
-
-### Manual Testing
-```bash
-# Start local server (choose one)
-python -m http.server 3000
-# or
-http-server -p 3000
-
-# Open http://localhost:3000 in browser
-# Test:
-# - Sign up/login with email
-# - Enter portfolio data in Profile tab
-# - Click ⟳ NAV, ⚡ Nifty to verify live fetches
-# - Reload page → verify data persists
-# - Open on another device/browser → login same email → verify cross-device sync
-# - F12 DevTools → no console errors
-```
-
-### Automated Testing (Playwright Setup)
-```bash
-# Install Playwright dependencies
+git clone https://github.com/Rohan0603/fire-os.git
+cd fire-os
 npm install
-
-# (test-fixes.js no longer exists; create custom tests if needed)
+npm run dev
+# Opens http://localhost:5173 in browser (Vite dev server)
 ```
+
+### Available Scripts
+- **`npm run dev`**: Start Vite dev server with HMR (hot module reload)
+- **`npm run build`**: Production build to `dist/` (minified, tree-shaken)
+- **`npm run preview`**: Preview production build locally
+- **`npm run test`**: Run Playwright tests (headless)
+- **`npm run test:ui`**: Run Playwright tests with interactive UI
+- **`npm run test:debug`**: Run single test with debugger
 
 ### Making Changes to the App
-1. **Open `index.html` in editor** (VS Code, Sublime, etc.)
-2. **Find the feature area** (use Ctrl+F):
-   - Calculations: Search for function name (e.g., `sipCorpusYear`)
-   - UI: Search for CSS class (e.g., `.sip-card`)
-   - Data: Search for `D.` (the data object)
-3. **Edit the code** (HTML, CSS, or JS)
-4. **Reload browser** (Ctrl+R or Cmd+R)
+1. **Edit TypeScript** in `src/` (modules auto-reload via HMR)
+2. **Import from modules**: `import { functionName } from '../modules/auth'`
+3. **Access state**: Import `D` object from `src/state`
+4. **Browser auto-reloads** on file save (no manual refresh needed)
 5. **Test changes** with sample data in the Profile tab
 
 ### Debugging
 - **Open DevTools**: F12 (or Cmd+Option+I on Mac)
-- **Console**: See error messages, log custom messages
-- **Application tab**: View localStorage contents
-- **Network tab**: See API calls (NAV fetch, Nifty fetch, CORS proxy)
-
-### Adding a New Calculator
-1. **Add form in HTML** (within the Calculators tab section)
-2. **Add JavaScript function** to calculate values
-3. **Update DOM** with results (use `document.getElementById()` or query selectors)
-4. **Add validation** for inputs (check for negative values, empty fields)
-5. **Test edge cases** (zero values, extreme inputs)
+- **Console**: See error messages, type variables to inspect
+- **Sources tab**: Set breakpoints in TypeScript (source maps included)
+- **Network tab**: See API calls (NAV fetch, Nifty fetch, Firebase sync)
+- **Application tab**: View localStorage/Firebase cached data
 
 ## Known Limitations & Future Improvements
 
-**Current v2.1 Strengths:**
-- ✅ Single-file app (no build pipeline)
+**Current v2.2 Strengths:**
+- ✅ Modular TypeScript architecture (Vite)
+- ✅ Hot module reload during development
+- ✅ Production minification + tree-shaking
 - ✅ Firebase cloud sync + authentication
 - ✅ SIP P&L with cost basis + XIRR
 - ✅ PDF import (MF Central CAS + Demat)
 - ✅ Cross-device data sync
 - ✅ Comprehensive calculators
+- ✅ Playwright test suite with UI runner
 
-**Future Improvements (v2.2+):**
-- Modularization (split index.html into separate components)
-- Input validation (client-side)
-- Error handling boundaries (API resilience)
-- E2E test suite (Playwright)
-- State management refactor
+**Future Improvements (v2.3+):**
+- Client-side input validation layer
+- Enhanced error handling boundaries (API resilience)
+- Virtual scrolling for long lists
+- Service Worker for offline API caching
 
 ## API Dependencies
 
@@ -160,10 +111,11 @@ npm install
 - **Fallback**: Manually enter NAV in Profile tab
 
 ### Nifty Level & 52W High Fetching
-- **Endpoint**: Yahoo Finance (`^NSEI`) via `api.allorigins.win` CORS proxy
-- **Data fetched**: Current level + 52-week high (used by Float Indicator KPI)
-- **Reason for proxy**: GitHub Pages cannot make direct cross-origin requests
+- **Current approach**: ETF NAV approximation from `api.mfapi.in` (uses Gold ETF as Nifty proxy)
+- **Data fetched**: Current level (used by Float Indicator KPI), 52-week high
+- **Known limitation**: ETF NAV does not reflect true NSE Nifty50 index; ideally would use direct NSE/BSE API
 - **Fallback**: Manually enter Nifty level in Crash Protocol modal
+- **Future**: Integrate NSE/BSE direct API if available
 
 ### EUR/INR Exchange Rate Fetching
 - **Endpoint**: Yahoo Finance (`EURINR=X`) via `api.allorigins.win` CORS proxy
@@ -223,10 +175,11 @@ npm install
 ## Testing
 
 ### Manual Testing Checklist
-- [ ] Load `index.html` in browser
+- [ ] `npm run dev` → Verify app loads at http://localhost:5173
+- [ ] Sign up/login with email (Firebase auth)
 - [ ] Enter profile data in Profile tab
 - [ ] Click ⟳ NAV → Verify prices load (₹ values)
-- [ ] Click ⚡ Nifty → Verify Nifty level + 52W high appear
+- [ ] Click ⚡ Nifty → Verify Nifty level appears
 - [ ] Switch tabs → Verify all content renders
 - [ ] Reload page → Verify data persists (localStorage)
 - [ ] Open DevTools Console → Verify no errors
@@ -238,114 +191,116 @@ npm install
 
 ### Automated Testing (Playwright)
 ```bash
-# Prerequisites: Local server running on http://localhost:3000
-# Install Playwright
-npm install
+# Run all tests (headless)
+npm run test
 
-# Create and run custom test suite as needed
-# (Recommended test scenarios: Firebase auth, cross-device sync, NAV fetch, dashboard render)
+# Run tests with interactive UI
+npm run test:ui
+
+# Run single test with debugger
+npm run test:debug tests/auth.e2e.ts
+
+# Test file locations
+tests/
+  ├── auth.e2e.ts           # Firebase auth flow
+  ├── dashboard.test.ts     # Dashboard KPI calculations
+  ├── calculations.test.ts  # Financial calculators (XIRR, SIP P&L)
+  ├── api.test.ts           # API integrations (NAV, Nifty, EUR/INR)
+  └── state.test.ts         # State management (D object, persistence)
 ```
 
 ## Git Workflow & Commits
 
-Recent changes (as of May 15, 2026) - CAS PDF Import & Demat Holdings:
-- **8e00445**: feat: enhance CAS PDF import with Demat holdings support
-- **3d6a476**: feat: replace Paytm Money PDF import with MF Central CAS import
-- **29eb822**: docs: update CLAUDE.md and README for v2.1 features
-- **b0ae88c**: feat: remove redundant MF Current Value field; add Units Held hint in Profile
-- **1912d00**: fix: rewrite PDF parser for continuous text extraction from Paytm Money statements
-- **9fa5253**: fix: normalize only doubled lowercase letters in PDF text (preserve "Nippon")
-- **c734649**: fix: normalize doubled characters in PDF text extraction (Paytm encoding quirk)
-- **7f99766**: feat: implement Paytm Money PDF import with PDF.js + confirmation modal
-- **0634cb2**: fix: restore XIRR display; implement working 52W high fetch
-- **898ab72**: fix: stabilize XIRR calculation; implement live Nifty 52W high fetch
+### Commit Message Format
+Use conventional commits for clear, semantic messaging:
+```
+type(scope): message
+```
 
-Earlier changes (Cost Basis & XIRR Overhaul, May 9, 2026):
-- **7d071aa**: chore: remove dev artifacts; production-ready cleanup
-- **e3fa183**: fix: normalize corrupted sipStart dates (0001-05 → undefined)
-- **f67df81**: fix: clear costBasis on blank input; hide portfolio card when NAV unavailable
-- **f2aa89c**: fix: use sip-card class; fix missing minus sign in P&L display
-- **ecee8d1**: feat: add per-fund P&L rows (Invested/Current/P&L/XIRR) + Portfolio summary card
-- **230a55c**: feat: calculateSIPPL uses costBasis override; returns null on insufficient data
-- **55e583c**: feat: add costBasis1..4 optional fields to Profile for actual-invested override
+**Types**: `feat`, `fix`, `perf`, `test`, `docs`, `chore`, `refactor`
+**Scope**: Module name or area (e.g., `auth`, `dashboard`, `api`, `nifty`)
 
-Earlier changes (ESOP Tools Enhancements, May 8, 2026):
-- **66a3749**: test: verify all ESOP Tools enhancements work end-to-end
-- **a518e2b**: feat: add manual entry fields for benchmark reference levels in ESOP Tools
-- **69932c9**: feat: auto-populate Alpha vs Benchmark Tracker with rolling 3-year data
-- **f5164c2**: feat: auto-fetch and display live EUR/INR rate when ESOP Tools tab opens
-- **93003b3**: feat: display SIP P&L (cost basis) and XIRR on Dashboard SIP cards
+**Examples**:
+```
+feat(auth): add password reset via email
+fix(dashboard): correct XIRR calculation for negative flows
+perf(dashboard): debounce updateDashboard on form input
+test(calculations): add edge cases for SIP P&L
+docs(CLAUDE.md): update v2.2 architecture overview
+chore(deps): upgrade Vite to 4.2
+```
 
-When committing changes:
-- Use clear messages: "fix: ...", "feat: ...", "perf: ...", "test: ..."
-- Reference the issue or bug being fixed if applicable
-- Test manually: start server, verify changes in browser, check cross-device sync if applicable
+**Best Practices**:
+- One logical change per commit
+- Reference related issue if applicable
+- Test manually before pushing: `npm run dev`, verify in browser, cross-device sync if applicable
+- Ensure `npm run test` passes (or skip with valid reason in commit body)
 
 ## Performance Notes
 
-### Current
-- Single file (~258 KB uncompressed)
-- No minification or bundling
-- All calculations run on client (no server calls except NAV/Nifty)
-- localStorage is synchronous (blocks on large data saves)
+### Current (v2.2)
+- Vite bundled production build (~80-120 KB gzipped)
+- Minified + tree-shaken (unused code removed)
+- All calculations run on client (no server calls except NAV/EUR-INR)
+- localStorage synchronous but small (portfolio data only ~10-50 KB)
 
 ### Optimizations Made
-- **sipCorpusMissYear**: Converted to geometric series formula (was iterative)
-- **updateDashboard**: Called on all form changes (potential bottleneck)
+- **sipCorpusMissYear**: Geometric series formula (was iterative)
+- **updateDashboard**: Debounced on form input (was recalculating on every keystroke)
+- **Lazy-loaded charts**: Only render visible chart sections
+- **Firebase offline persistence**: Automatic offline-safe caching + auto-sync on reconnect
 
 ### Future Optimizations
-- Debounce form input handlers
-- Lazy-load charts (only render visible charts)
 - Virtual scrolling for long calculator lists
-- Service Worker for offline API caching
+- Service Worker for API response caching
+- Module-level code splitting (lazy-load heavy features)
 
 ## Local Development Setup
 
 ### Prerequisites
 - Git
-- Node.js (for `npm install` and Playwright)
+- Node.js 16+ (for npm, Vite, Playwright)
 - A modern browser (Chrome, Firefox, Safari, Edge)
-- Python 3 or Node.js (for local server)
 
-### First-Time Setup
-```bash
-git clone https://github.com/Rohan0603/fire-os.git
-cd fire-os
-npm install
-python -m http.server 3000
-# Open http://localhost:3000 in browser
-```
-
-### Useful VS Code Extensions
-- **Prettier**: Auto-format HTML/CSS/JS
-- **Live Server**: Right-click index.html → Open with Live Server
+### Recommended VS Code Extensions
+- **Prettier**: Auto-format TypeScript/CSS
+- **ESLint**: Catch code quality issues
+- **Vitest**: Test runner UI (if using Vitest alongside Playwright)
 - **Thunder Client** or **REST Client**: Test API calls
 
 ## Deployment
 
-### Firebase Hosting (Recommended)
+### Firebase Hosting (Primary)
 **Live at: https://fire-os-dd6d6.web.app**
 
 Setup:
 ```bash
+npm run build              # Builds to dist/
 npm install -g firebase-tools
-firebase login          # Opens browser for OAuth
-firebase deploy         # Deploys to Firebase Hosting
+firebase login             # Opens browser for OAuth
+firebase deploy --only hosting
 ```
 
 Configuration:
-- `firebase.json`: Public directory = `.` (root), ignores git/docs/node_modules
+- `firebase.json`: Public directory = `dist/` (Vite build output), ignores src/tests/docs/node_modules
 - `.firebaserc`: Project ID = `fire-os-dd6d6`
 - Rewrites: All routes → `index.html` (SPA support)
 - Database: Asia Southeast 1 region (india-based)
+- **Security Rules** (Realtime Database):
+  ```json
+  {
+    "rules": {
+      "users": {
+        "$uid": {
+          ".read": "$uid === auth.uid",
+          ".write": "$uid === auth.uid"
+        }
+      }
+    }
+  }
+  ```
 
-**Cross-Device Sync**: Users sign up → data stored in Firebase Realtime DB → login on any device with same email → instant sync
-
-### GitHub Pages (Alternative)
-1. Push to `main` branch
-2. GitHub Actions workflow (`.github/workflows/deploy.yml`) auto-deploys
-3. Site live at `https://yourusername.github.io/fire-os`
-4. **Note**: GitHub Pages version uses localStorage only (no Firebase sync)
+**Cross-Device Sync**: Users sign up → data stored in Firebase Realtime DB → login on any device with same email → instant sync via `onValue()` listeners
 
 ## Key Metrics & Health Checks
 
@@ -362,42 +317,57 @@ Configuration:
 - **SIP Pause Impact**: Cost of missing contributions for N months during downturn
 - **ESOP Tools**: Stock option valuation + **EUR/INR auto-fetch** + **Benchmark reference levels**
 
-## Redux of Codebase for New Contributors
+## Understanding the Codebase (v2.2)
 
-The entire app logic is in `index.html`. To contribute:
+### Auth Flow
+1. **Page load**: `src/modules/auth/index.ts` → `onAuthStateChanged()` checks if user logged in
+2. **If authenticated**: Render main app, show logout button, load portfolio via `loadPortfolioFromFirebase()`
+3. **If not authenticated**: Show login/signup modal, block main app content
+4. **On login/signup**: Firebase validates credentials → creates user session → app auto-loads portfolio from Realtime DB
 
-1. **Understand the auth flow**:
-   - Page load → `firebase.auth().onAuthStateChanged()` checks if user logged in
-   - If authenticated: `currentUser` set, logout button shown, `loadPortfolioFromFirebase()` loads data
-   - If not authenticated: `showLoginScreen()` blocks main app, shows sign-up/login forms
-   - Login/signup → Firebase auth → if success, hide auth screen, load portfolio from DB
+**Key exports** from `src/modules/auth/`:
+- `loginUser(email, password)`: Email/password login
+- `signupUser(email, password)`: Create account
+- `logoutUser()`: Sign out + clear session
+- `getCurrentUser()`: Returns authenticated user (or null)
 
-2. **Understand the data flow**:
-   - User fills Profile tab → Form blur events → `updateProfile()` saves to D & localStorage
-   - `updateProfile()` calls `updateDashboard()`
-   - If authenticated: `savePortfolioToFirebase()` syncs to Realtime Database
-   - `updateDashboard()` recalculates all KPIs and refreshes UI
-   - **Cross-device**: Firebase listener syncs changes across tabs/devices in real-time
+### Data Management Flow
+1. **User edits Profile tab**: Form inputs → blur event handler
+2. **`updateProfile()`**: Validates inputs, updates D object, calls `updateDashboard()`
+3. **`updateDashboard()`**: Recalculates KPIs (P&L, XIRR, net worth), re-renders UI
+4. **Persistence**:
+   - Save to localStorage immediately (offline-safe)
+   - If authenticated: Sync to Firebase Realtime DB (`savePortfolioToFirebase()`)
+5. **Cross-device**: Firebase `onValue()` listener auto-syncs portfolio changes across devices/tabs in real-time
 
-3. **Understand the API flow**:
-   - User clicks ⟳ or ⚡ button
-   - Triggers `fetchNAV()` or `fetchNifty()` (async, Promise-based)
-   - Updates `D.nav` and `D.niftyHigh`
-   - Calls `updateDashboard()` to refresh UI
+### Module Communication
+- **No direct imports between modules** (decoupled design)
+- **Shared state**: All modules read/write to `D` object (from `src/state/`)
+- **Event delegation**: Modules dispatch custom events or use callbacks
+- **Example**: Auth module sets `D.currentUser` on login → Dashboard module listens for changes, re-renders
 
-4. **Understand the UI flow**:
-   - Tab clicks hide/show sections (`.tabs-container > .tab` divs)
-   - Modals overlay on Dashboard (`.modal` divs, show/hide via `display: none` or class toggle)
-   - Forms in Profile tab update on blur and input
+### API Integration
+Location: `src/modules/api/`
 
-5. **Testing**: Always test manually after changes — start server, verify in browser, test cross-device sync if applicable.
+- **NAV fetching** (`fetchNAV.ts`): Calls `api.mfapi.in/{schemeCode}`, caches for 4 hours
+- **Nifty fetching** (`fetchNifty.ts`): Uses ETF NAV approximation, fallback to manual entry
+- **EUR/INR fetching** (`fetchExchangeRate.ts`): Yahoo Finance via CORS proxy, validates 80-150 range
+- **PDF parsing** (`parsePDF.ts`): PDF.js library extracts text from CAS statements, auto-detects funds + demat holdings
 
-**Key Functions**:
-- `firebaseLogin()` / `firebaseSignup()` / `firebaseLogout()`: Auth handlers
-- `loadPortfolioFromFirebase()`: Fetch user data from Realtime DB
-- `savePortfolioToFirebase()`: Sync data to Realtime DB
-- `showLoginScreen()` / `hideLoginScreen()`: Auth UI toggle
+All API modules implement retry logic + fallback gracefully on network errors.
+
+### Adding New Features
+1. **Create module**: `src/modules/feature-name/index.ts`
+2. **Export interface**: `{ init(), render(), teardown() }`
+3. **Register in `main.ts`**: Import + call `moduleInit()`
+4. **Access state**: Import `D` object, update directly or via `updateProfile()` / `updateDashboard()`
+5. **Test**: `npm run test` → add test file to `tests/feature-name.test.ts`
+
+### Testing
+- **Unit tests** (`tests/*.test.ts`): Test calculations, parsing, state logic (Vitest)
+- **E2E tests** (`tests/*.e2e.ts`): Test auth flow, UI interactions, cross-device sync (Playwright)
+- **Run locally**: `npm run test` (headless) or `npm run test:ui` (interactive)
 
 ---
 
-**Happy coding! 🔥💰**
+See `/docs/ARCHITECTURE.md` for detailed module APIs and state schema.
