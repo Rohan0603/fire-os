@@ -2,32 +2,17 @@ import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getDatabase } from 'firebase/database';
 
+// Import types
+import type { FireOSState } from './types/state';
+import { initializeState } from './types/state';
+
 // Import styles
 import './styles/global.css';
 import './styles/layout.css';
 import './styles/tokens.css';
 
-// Global state object
-export const D = {
-  profile: {
-    name: '',
-    age: 0,
-    annualExpenses: 0,
-    fiTarget: 0,
-  },
-  mf: {},
-  fd: {},
-  epf: {},
-  sip: {},
-  esop: {},
-  demat: {},
-  nav: {},
-  niftyHigh: 0,
-  eurInr: 0,
-  alphaTrackerData: {},
-  _lastSavedAt: '',
-  currentUser: null as any,
-};
+// Global state object - properly typed
+export const D: FireOSState = initializeState();
 
 // Firebase configuration
 const firebaseConfig = {
