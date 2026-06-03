@@ -171,7 +171,7 @@ test.describe('PDF Import Flow', () => {
 
     // Verify all 3 SoA funds are detected
     expect(previewText).toContain('Parag Parikh');
-    expect(previewText).toContain('131.49');
+    expect(previewText).toContain('131.490');
     expect(previewText).toContain('NIPPON INDIA GROWTH MID CAP');
     expect(previewText).toContain('1.882');
     expect(previewText).toContain('NIPPON INDIA SMALL CAP');

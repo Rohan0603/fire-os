@@ -171,9 +171,25 @@ function extractInvestorInfo(
     if (dateM && !asOnDate) asOnDate = parseDate(dateM[0]);
   }
 
-  const panRowIdx = page1Rows.findIndex(r => r.items.some(i => /PAN\s*:/.test(i.str)));
-  if (panRowIdx >= 0 && panRowIdx + 1 < page1Rows.length) {
-    name = page1Rows[panRowIdx + 1].items.map(i => i.str.trim()).join(' ').trim();
+  // Search all page 1 rows for investor name patterns
+  // Look for all-caps names (typically 5-20 chars) before or near PAN
+  const allPage1Text = page1Rows.map(r => r.items.map(i => i.str).join(' ')).join(' | ');
+
+  // Look for single uppercase word that's a likely name (not company boilerplate)
+  const nameMatch = allPage1Text.match(/\b([A-Z]{3,15})\b\s+\|\s+PAN\s*:/);
+  if (nameMatch) {
+    name = nameMatch[1];
+  } else {
+    // Fallback: find any all-caps word that appears alone on a line or between punctuation
+    const panRowIdx = page1Rows.findIndex(r => r.items.some(i => /PAN\s*:/.test(i.str)));
+    if (panRowIdx > 0) {
+      // Check row before PAN row
+      const prevRow = page1Rows[panRowIdx - 1].items.map(i => i.str.trim()).join(' ').trim();
+      const nameFromPrev = prevRow.match(/\b([A-Z][A-Z]{2,14})\b(?:\s+\|\s*)?$/);
+      if (nameFromPrev && !nameFromPrev[1].match(/PAN|EMAIL|MOBILE|CAS|CAMS|KFINTECH/i)) {
+        name = nameFromPrev[1];
+      }
+    }
   }
 
   return { pan, name, email, mobile, asOnDate };
