@@ -28,6 +28,13 @@ import { initWatchdogModule } from './modules/watchdog';
 // Import API module
 import { initAPIModule } from './modules/api';
 
+// Import Nifty monitoring
+import { monitorNiftyLevel } from './modules/api/nifty-monitor';
+import { updateCrashAlert, updateWatchdogAlerts } from './modules/dashboard';
+
+// Import watchdog monitoring
+import { monitorWatchdogRules } from './modules/watchdog/fund-manager-alerts';
+
 // Import error handling
 import { setupErrorHandling, handleError } from './lib/error-handler';
 import { showToast } from './modules/ui';
@@ -200,6 +207,39 @@ function setupAuthListener() {
         saveCloudBtn.classList.remove('btn-disabled');
         const hint = document.querySelector('.save-cloud-hint') as HTMLElement;
         if (hint) hint.style.display = 'none';
+      }
+
+      // Start Nifty monitoring when user logs in
+      try {
+        monitorNiftyLevel((alert) => {
+          if (alert) {
+            console.warn('Crash alert detected:', {
+              crashPercentage: alert.crashPercentage,
+              severity: alert.severity,
+              deployAmount: alert.deployAmount,
+            });
+            // Update dashboard with alert (dashboard will re-render if visible)
+            updateCrashAlert(alert);
+          } else {
+            // Alert cleared
+            updateCrashAlert(null);
+          }
+        });
+      } catch (e) {
+        console.warn('Failed to start Nifty monitoring:', e);
+      }
+
+      // Start watchdog monitoring when user logs in
+      try {
+        monitorWatchdogRules(D, (alerts) => {
+          if (alerts.length > 0) {
+            console.warn('Watchdog alerts detected:', alerts);
+          }
+          // Update dashboard with alerts (dashboard will re-render if visible)
+          updateWatchdogAlerts(alerts);
+        });
+      } catch (e) {
+        console.warn('Failed to start watchdog monitoring:', e);
       }
     } else {
       D.currentUser = null;

@@ -50,6 +50,10 @@ export interface FireOSBackup {
   eurInr?: EURINRData;
   alphaTrackerData?: Record<string, AlphaTrackerData>;
   watchdogData?: Record<string, AlphaTrackerData>;
+  coorgCorpus?: number;
+  coorgStartDate?: string;
+  coorgTarget?: number;
+  coorgMonthlyAmount?: number;
 }
 
 /** Firebase Realtime Database user portfolio entry */

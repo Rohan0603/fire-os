@@ -34,6 +34,25 @@ export interface FireOSState {
   // Alpha Tracking
   alphaTrackerData: AlphaTrackerDataCollection; // Fund vs benchmark returns
 
+  // Coorg Goal Tracking (Kerala home purchase by 2036)
+  coorgCorpus: number; // Current corpus in rupees
+  coorgStartDate: string; // When Coorg SIP starts (YYYY-MM format)
+  coorgTarget: number; // Target: ₹2Cr = 20000000
+  coorgMonthlyAmount: number; // Monthly SIP amount: ₹10000
+
+  // Watchdog Rules & Alerts (fund health monitoring)
+  watchdogRules: {
+    ppfcfAumLimit: number; // ₹1.75L Cr = 175000000000
+    nipponGrowthBlockThreshold: number; // 14 days
+    nipponSmallCapBlockThreshold: number; // 60 days
+    currentAum: { PPFCF: number }; // Current AUM values for monitoring
+    blockedDays: { NipponGrowth: number; NipponSmallCap: number }; // Redemption block days
+    managerExits: {
+      PPFCF: boolean; // Rajeev Thakkar exit status
+      NipponSmallCap: boolean; // Samir Rachh exit status
+    };
+  };
+
   // Authentication & Sync
   currentUser: FirebaseUserType;
   _lastSavedAt: string; // ISO timestamp of last save
@@ -73,6 +92,25 @@ export function initializeState(): FireOSState {
     // Tracking
     alphaTrackerData: {},
 
+    // Coorg Goal Tracking (Kerala home purchase by 2036)
+    coorgCorpus: 0,
+    coorgStartDate: '2031-01', // Coorg SIP starts Jan 2031
+    coorgTarget: 20000000, // ₹2Cr
+    coorgMonthlyAmount: 10000, // ₹10K monthly
+
+    // Watchdog Rules
+    watchdogRules: {
+      ppfcfAumLimit: 175000000000, // ₹1.75L Cr
+      nipponGrowthBlockThreshold: 14, // 14 days
+      nipponSmallCapBlockThreshold: 60, // 60 days
+      currentAum: { PPFCF: 0 }, // Current AUM values
+      blockedDays: { NipponGrowth: 0, NipponSmallCap: 0 }, // Blocked days for redemptions
+      managerExits: {
+        PPFCF: false, // Not exited
+        NipponSmallCap: false, // Not exited
+      },
+    },
+
     // Auth
     currentUser: null,
     _lastSavedAt: new Date().toISOString(),
@@ -94,6 +132,12 @@ export function isFireOSState(value: unknown): value is FireOSState {
   const obj = value as Record<string, unknown>;
 
   // Validate core properties exist and have correct types
+  if (typeof obj.watchdogRules !== 'object' || obj.watchdogRules === null) {
+    return false;
+  }
+
+  const watchdog = obj.watchdogRules as Record<string, unknown>;
+
   return (
     typeof obj.profile === 'object' &&
     obj.profile !== null &&
@@ -103,6 +147,16 @@ export function isFireOSState(value: unknown): value is FireOSState {
     typeof obj.esop === 'object' &&
     typeof obj.bonds === 'object' &&
     typeof obj.demat === 'object' &&
+    typeof obj.coorgCorpus === 'number' &&
+    typeof obj.coorgStartDate === 'string' &&
+    typeof obj.coorgTarget === 'number' &&
+    typeof obj.coorgMonthlyAmount === 'number' &&
+    typeof watchdog.ppfcfAumLimit === 'number' &&
+    typeof watchdog.nipponGrowthBlockThreshold === 'number' &&
+    typeof watchdog.nipponSmallCapBlockThreshold === 'number' &&
+    typeof watchdog.currentAum === 'object' &&
+    typeof watchdog.blockedDays === 'object' &&
+    typeof watchdog.managerExits === 'object' &&
     (obj.currentUser === null || typeof obj.currentUser === 'object')
   );
 }
@@ -132,6 +186,30 @@ export function mergeState(existing: FireOSState, incoming: Partial<FireOSState>
     ...(incoming.eurInr !== undefined && { eurInr: incoming.eurInr }),
     ...(incoming.eurInrData !== undefined && { eurInrData: incoming.eurInrData }),
     ...(incoming.alphaTrackerData && { alphaTrackerData: { ...existing.alphaTrackerData, ...incoming.alphaTrackerData } }),
+    // Coorg goal fields
+    ...(incoming.coorgCorpus !== undefined && { coorgCorpus: incoming.coorgCorpus }),
+    ...(incoming.coorgStartDate !== undefined && { coorgStartDate: incoming.coorgStartDate }),
+    ...(incoming.coorgTarget !== undefined && { coorgTarget: incoming.coorgTarget }),
+    ...(incoming.coorgMonthlyAmount !== undefined && { coorgMonthlyAmount: incoming.coorgMonthlyAmount }),
+    // Watchdog rules (merge deeply for nested objects)
+    ...(incoming.watchdogRules && {
+      watchdogRules: {
+        ...existing.watchdogRules,
+        ...(incoming.watchdogRules as typeof existing.watchdogRules),
+        currentAum: {
+          ...existing.watchdogRules.currentAum,
+          ...((incoming.watchdogRules as typeof existing.watchdogRules)?.currentAum || {}),
+        },
+        blockedDays: {
+          ...existing.watchdogRules.blockedDays,
+          ...((incoming.watchdogRules as typeof existing.watchdogRules)?.blockedDays || {}),
+        },
+        managerExits: {
+          ...existing.watchdogRules.managerExits,
+          ...((incoming.watchdogRules as typeof existing.watchdogRules)?.managerExits || {}),
+        },
+      },
+    }),
     // Metadata is only set explicitly, never from incoming
     _lastSavedAt: incoming._lastSavedAt ?? existing._lastSavedAt,
   };

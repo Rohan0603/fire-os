@@ -39,6 +39,10 @@ function stateSnapshot(state: FireOSState): string {
     esop: state.esop,
     demat: state.demat,
     eurInr: typeof state.eurInr === 'number' ? state.eurInr : 0,
+    coorgCorpus: state.coorgCorpus,
+    coorgStartDate: state.coorgStartDate,
+    coorgTarget: state.coorgTarget,
+    coorgMonthlyAmount: state.coorgMonthlyAmount,
   });
 }
 
@@ -245,6 +249,10 @@ export async function savePortfolioToFirebase(uid: string, state: FireOSState): 
         niftyData: lastState.niftyData,
         ...(eurInrData && { eurInr: eurInrData }),
         alphaTrackerData: lastState.alphaTrackerData,
+        coorgCorpus: lastState.coorgCorpus,
+        coorgStartDate: lastState.coorgStartDate,
+        coorgTarget: lastState.coorgTarget,
+        coorgMonthlyAmount: lastState.coorgMonthlyAmount,
       };
 
       await set(portfolioRef, backup);
@@ -303,6 +311,10 @@ export function exportPortfolio(state: FireOSState): void {
       ...(eurInrData && { eurInr: eurInrData }),
       alphaTrackerData: state.alphaTrackerData,
       watchdogData: state.alphaTrackerData, // Same as alphaTrackerData for v2
+      coorgCorpus: state.coorgCorpus,
+      coorgStartDate: state.coorgStartDate,
+      coorgTarget: state.coorgTarget,
+      coorgMonthlyAmount: state.coorgMonthlyAmount,
     };
 
     // Generate filename: fireOS_backup_YYYY-MM-DD.json
@@ -390,6 +402,20 @@ export async function importPortfolio(file: File): Promise<FireOSState> {
       if (typeof eurInrObj.rate === 'number') {
         state.eurInr = eurInrObj.rate;
       }
+    }
+
+    // Restore Coorg fields if present in backup
+    if (typeof backup.coorgCorpus === 'number') {
+      state.coorgCorpus = backup.coorgCorpus;
+    }
+    if (typeof backup.coorgStartDate === 'string') {
+      state.coorgStartDate = backup.coorgStartDate;
+    }
+    if (typeof backup.coorgTarget === 'number') {
+      state.coorgTarget = backup.coorgTarget;
+    }
+    if (typeof backup.coorgMonthlyAmount === 'number') {
+      state.coorgMonthlyAmount = backup.coorgMonthlyAmount;
     }
 
     state._lastSavedAt = (backup.timestamp as string) || new Date().toISOString();

@@ -9,11 +9,17 @@ import { formatCurrency, formatPercentage, formatNumber } from '../../lib/format
 import { D } from '../../main';
 import { fetchNAV, getNAVCacheMap } from '../api';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
+import { renderCoorgWidget } from './coorg-tracker';
+import { calculateAllocationDrift, type AllocationDrift } from '../calculators/portfolio-rebalancing';
+import type { CrashAlert } from '../api/nifty-monitor';
+import type { WatchdogAlert } from '../watchdog/fund-manager-alerts';
 import './styles.css';
 
 // Module state
 let containerId = 'dashboard';
 let currentChartType: 'pie' | 'line' = 'pie';
+let currentCrashAlert: CrashAlert | null = null;
+let currentWatchdogAlerts: WatchdogAlert[] = [];
 
 /**
  * Fetch NAVs for all SIPs with units (holdings)
@@ -43,6 +49,36 @@ export async function fetchSIPNAVs(): Promise<void> {
 }
 
 /**
+ * Update the current crash alert state
+ * Called by monitoring module when crash detected
+ * @param alert - CrashAlert object or null if cleared
+ */
+export function updateCrashAlert(alert: CrashAlert | null): void {
+  currentCrashAlert = alert;
+  // Re-render dashboard if it's visible
+  const container = document.getElementById(containerId);
+  if (container && container.offsetParent !== null) {
+    // Container is visible, re-render to show alert
+    renderDashboard();
+  }
+}
+
+/**
+ * Update watchdog alerts (fund health monitoring)
+ * Called by watchdog monitoring when alerts are generated
+ * @param alerts - Array of WatchdogAlert objects
+ */
+export function updateWatchdogAlerts(alerts: WatchdogAlert[]): void {
+  currentWatchdogAlerts = alerts;
+  // Re-render dashboard if it's visible
+  const container = document.getElementById(containerId);
+  if (container && container.offsetParent !== null) {
+    // Container is visible, re-render to show alerts
+    renderDashboard();
+  }
+}
+
+/**
  * Initialize the dashboard module
  * Called once when the app starts
  */
@@ -68,9 +104,20 @@ export async function renderDashboard(): Promise<void> {
   const nifty = floatIndicator(D);
   const composition = portfolioComposition(D);
 
+  // Calculate rebalancing drift
+  const holdings = calculatePortfolioHoldings();
+  const totalHoldingsValue = Object.values(holdings).reduce((sum, val) => sum + val, 0);
+  const drift = calculateAllocationDrift(holdings, totalHoldingsValue);
+
   // Build the dashboard HTML
   container.innerHTML = `
     <div class="dashboard-container">
+      <!-- Crash Alert (if present) -->
+      ${currentCrashAlert ? renderCrashAlertBanner(currentCrashAlert) : ''}
+
+      <!-- Watchdog Alerts (if present) -->
+      ${currentWatchdogAlerts.length > 0 ? renderWatchdogAlertsBanner(currentWatchdogAlerts) : ''}
+
       <!-- KPI Cards Grid -->
       <div class="kpi-grid">
         ${renderNetWorthCard(netWorth.netWorth)}
@@ -81,6 +128,9 @@ export async function renderDashboard(): Promise<void> {
 
       <!-- Portfolio Summary Section -->
       ${renderPortfolioSummary(netWorth.breakdown, sip.totalCurrentValue, fi)}
+
+      <!-- Rebalancing Widget (if drift exists) -->
+      ${renderRebalancingWidget(drift)}
 
       <!-- Charts Section -->
       <div class="charts-section">
@@ -147,6 +197,77 @@ function renderFloatIndicatorCard(drawdownPercent: number): string {
 }
 
 /**
+ * Render crash alert banner
+ * Displays at top of dashboard when crash detected
+ */
+function renderCrashAlertBanner(alert: CrashAlert): string {
+  const iconMap = {
+    low: '⚠️',
+    medium: '⚠️',
+    high: '🔴',
+    critical: '🔴',
+  };
+
+  const icon = iconMap[alert.severity];
+
+  return `
+    <div class="crash-alert-banner alert-${alert.severity}">
+      <div class="crash-alert-content">
+        <span class="crash-alert-icon">${icon}</span>
+        <div class="crash-alert-text">
+          <strong>Nifty crashed ${alert.crashPercentage}%!</strong>
+          <p>Deploy ₹${formatNumber(alert.deployAmount || 0)} via Wint Wealth (Crash Protocol)</p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Render watchdog alerts banner
+ * Displays fund health alerts (AUM breach, block threshold, manager exit)
+ */
+function renderWatchdogAlertsBanner(alerts: WatchdogAlert[]): string {
+  // Helper to escape HTML special characters
+  const escapeHtml = (text: string): string => {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  };
+
+  const iconMap: { [key: string]: string } = {
+    'manager-exit': '🔴',
+    'aum-breach': '⚠️',
+    'block-threshold': '⚡',
+  };
+
+  const alertItems = alerts.map(alert => {
+    const icon = iconMap[alert.type] || '⚠️';
+    const alertClass = `watchdog-alert-item alert-${alert.severity}`;
+
+    return `
+      <div class="${alertClass}">
+        <div class="watchdog-alert-header">
+          <span class="watchdog-alert-icon">${icon}</span>
+          <div class="watchdog-alert-title">${escapeHtml(alert.fund)}: ${alert.type.replace('-', ' ').toUpperCase()}</div>
+        </div>
+        <div class="watchdog-alert-message">${escapeHtml(alert.message)}</div>
+        <div class="watchdog-alert-action">Action: ${escapeHtml(alert.action)}</div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="watchdog-alerts-banner">
+      <div class="watchdog-alerts-title">📊 Fund Health Alerts</div>
+      <div class="watchdog-alerts-list">
+        ${alertItems}
+      </div>
+    </div>
+  `;
+}
+
+/**
  * Render Portfolio Summary Section
  */
 function renderPortfolioSummary(breakdown: any, sipValue: number, fi: any): string {
@@ -178,6 +299,128 @@ function renderPortfolioSummary(breakdown: any, sipValue: number, fi: any): stri
           <div class="fi-progress-bar-fill" style="width: ${Math.min(fi.progressPercent, 100)}%">
             <span class="fi-progress-percent">${fi.progressPercent.toFixed(1)}%</span>
           </div>
+        </div>
+      </div>
+
+      <!-- Coorg Goal Widget -->
+      ${renderCoorgWidget(D)}
+    </div>
+  `;
+}
+
+/**
+ * Calculate portfolio holdings from D object
+ * Aggregates all holdings by fund type
+ * @returns Object with fund values: { PPFCF: number, NipponGrowth: number, ... }
+ */
+function calculatePortfolioHoldings(): { [fundName: string]: number } {
+  const holdings: { [fundName: string]: number } = {
+    PPFCF: 0,
+    NipponGrowth: 0,
+    NipponSmallCap: 0,
+    Gold: 0,
+  };
+
+  // Sum SIP holdings
+  Object.entries(D.sip).forEach(([, fund]) => {
+    if (!fund.name) return;
+    const fundName = getFundDisplayName(fund.name);
+    const value = (fund.units || 0) * ((D.nav[fund.schemeCode || ''] as any)?.nav || 0);
+    if (fundName in holdings) {
+      holdings[fundName] = (holdings[fundName] || 0) + value;
+    }
+  });
+
+  // Sum MF holdings
+  Object.entries(D.mf).forEach(([, fund]) => {
+    if (!fund.name) return;
+    const fundName = getFundDisplayName(fund.name);
+    const value = (fund.units || 0) * ((D.nav[fund.schemeCode || ''] as any)?.nav || 0);
+    if (fundName in holdings) {
+      holdings[fundName] = (holdings[fundName] || 0) + value;
+    }
+  });
+
+  return holdings;
+}
+
+/**
+ * Get display name for fund from its full name
+ * Maps fund names to canonical names used in allocation targets
+ */
+function getFundDisplayName(fundName: string): string {
+  if (fundName.includes('Parag') || fundName.includes('PPFCF')) {
+    return 'PPFCF';
+  }
+  if (fundName.includes('Nippon') && (fundName.includes('Growth') || fundName.includes('growth'))) {
+    return 'NipponGrowth';
+  }
+  if (fundName.includes('Nippon') && (fundName.includes('Small') || fundName.includes('small'))) {
+    return 'NipponSmallCap';
+  }
+  if (fundName.includes('Gold') || fundName.includes('gold')) {
+    return 'Gold';
+  }
+  return fundName;
+}
+
+/**
+ * Render Portfolio Rebalancing Widget
+ * Shows current vs target allocation and drift recommendations
+ */
+function renderRebalancingWidget(drift: AllocationDrift): string {
+  // Hide widget if no significant drift
+  if (drift.recommendations.length === 0) {
+    return '';
+  }
+
+  // Build comparison table
+  const tableRows = Object.keys(drift.target)
+    .map(fund => {
+      const current = drift.current[fund] || 0;
+      const target = drift.target[fund];
+      const driftAmount = drift.driftAmount[fund] || 0;
+      const driftClass = driftAmount > 5 ? 'drift-high' : driftAmount < -5 ? 'drift-low' : 'drift-ok';
+
+      return `
+        <tr class="${driftClass}">
+          <td>${fund}</td>
+          <td>${current.toFixed(1)}%</td>
+          <td>${target}%</td>
+          <td>${driftAmount > 0 ? '+' : ''}${driftAmount.toFixed(1)}%</td>
+        </tr>
+      `;
+    })
+    .join('');
+
+  const recommendationsHtml = drift.recommendations
+    .map(rec => `<li>${rec}</li>`)
+    .join('');
+
+  return `
+    <div class="rebalancing-widget">
+      <div class="rebalancing-widget-title">📊 Portfolio Rebalancing</div>
+      <div class="rebalancing-content">
+        <div class="rebalancing-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Fund</th>
+                <th>Current</th>
+                <th>Target</th>
+                <th>Drift</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${tableRows}
+            </tbody>
+          </table>
+        </div>
+        <div class="rebalancing-recommendations">
+          <div class="recommendations-title">Actions (drift > 5%):</div>
+          <ul>
+            ${recommendationsHtml}
+          </ul>
         </div>
       </div>
     </div>

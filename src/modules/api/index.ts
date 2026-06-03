@@ -57,6 +57,13 @@ export {
   initializeAllAPICache,
 } from './fallbacks';
 
+export {
+  detectCrashAlert,
+  monitorNiftyLevel,
+  type CrashAlert,
+  type CrashAlertParams,
+} from './nifty-monitor';
+
 /**
  * Initialize API module
  * Restores caches from persisted state
