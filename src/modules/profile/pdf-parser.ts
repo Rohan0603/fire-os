@@ -130,15 +130,24 @@ function parseTableSection(
 }
 
 async function extractItems(arrayBuffer: ArrayBuffer, pdfjsLib: any): Promise<PDFTextItem[]> {
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let pdf;
+  try {
+    pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  } catch (err) {
+    throw new Error(`Failed to load PDF: ${err instanceof Error ? err.message : 'Unknown error'}`);
+  }
   const items: PDFTextItem[] = [];
   for (let p = 1; p <= pdf.numPages; p++) {
-    const page = await pdf.getPage(p);
-    const content = await page.getTextContent();
-    for (const item of content.items as any[]) {
-      if (item.str?.trim()) {
-        items.push({ str: item.str, x: item.transform[4], y: item.transform[5], page: p });
+    try {
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      for (const item of content.items as any[]) {
+        if (item.str?.trim() && item.transform && item.transform.length >= 6) {
+          items.push({ str: item.str, x: item.transform[4], y: item.transform[5], page: p });
+        }
       }
+    } catch (err) {
+      throw new Error(`Failed to extract text from page ${p}: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   }
   return items;
