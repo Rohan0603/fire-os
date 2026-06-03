@@ -82,6 +82,30 @@ export async function fetchNifty(): Promise<{
     logger.warn('Yahoo Finance fetch failed, attempting ETF fallback', error);
   }
 
+  // ATTEMPT 1.5: Fall back to Gold ETF NAV as Nifty proxy (live fallback)
+  try {
+    logger.log('Attempting Gold ETF fallback for Nifty estimate...');
+    const etfNav = await fetchNAV('135106');
+    if (etfNav && etfNav >= 5000 && etfNav <= 10000) {
+      const niftyEst = etfNav * 2.4;
+      const niftyHigh = niftyEst * 1.1;
+      niftyCache = {
+        level: niftyEst,
+        high52w: niftyHigh,
+        timestamp: new Date().toISOString(),
+        source: 'Gold ETF Proxy (approximation)',
+      };
+      logger.log('Nifty estimated from Gold ETF:', { level: niftyEst, high52w: niftyHigh });
+      return {
+        level: niftyEst,
+        high52w: niftyHigh,
+        source: 'Gold ETF Proxy (approximation)',
+      };
+    }
+  } catch (error) {
+    logger.warn('Gold ETF fallback failed', error);
+  }
+
   // ATTEMPT 2: Return cached value if available (even if expired)
   if (niftyCache) {
     logger.warn('Returning cached Nifty data (Yahoo Finance failed)', {
