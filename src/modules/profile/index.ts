@@ -516,68 +516,41 @@ function parseCASContent(text: string): { funds: any[]; stocks: any[] } {
   const stocks: any[] = [];
 
   console.log('CAS parsing text length:', text.length);
+  console.log('CAS text sample:', text.substring(0, 300));
 
-  // Search for common fund scheme names and extract units that follow
-  const fundPatterns = [
-    {
-      name: /Parag\s+Parikh.*?Flexi\s+Cap.*?Fund/i,
-      units: /Parag\s+Parikh.*?Flexi\s+Cap.*?Fund.*?(\d+\.\d+)/
-    },
-    {
-      name: /NIPPON.*?INDIA.*?GROWTH.*?MID.*?CAP/i,
-      units: /NIPPON.*?INDIA.*?GROWTH.*?MID.*?CAP.*?(\d+\.\d+)/
-    },
-    {
-      name: /NIPPON.*?INDIA.*?SMALL.*?CAP/i,
-      units: /NIPPON.*?INDIA.*?SMALL.*?CAP.*?(\d+\.\d+)/
-    },
-    {
-      name: /ICICI.*?PRUD.*?GOLD.*?ETF/i,
-      units: /ICICI.*?PRUD.*?GOLD.*?ETF.*?(\d+\.?\d*)/
-    },
-  ];
+  // Strategy: Find "Scheme Details" section, then extract fund names and their units
+  // Pattern: find fund name blocks followed by their unit balance
 
-  for (const pattern of fundPatterns) {
-    const fundMatch = text.match(pattern.name);
-    if (fundMatch) {
-      const fundName = fundMatch[0].replace(/\s+/g, ' ').substring(0, 80).trim();
-      const unitsMatch = text.match(pattern.units);
-      const units = unitsMatch ? parseFloat(unitsMatch[1]) : 0;
+  // Split by common delimiters to find fund blocks
+  const fundBlockPattern = /Scheme Details[^]*?(?=(?:Scheme Details|Demat Holdings|Total|Client Id|$))/gi;
+  const fundBlocks = text.match(fundBlockPattern) || [];
 
-      console.log('CAS: Found fund:', fundName, 'Units:', units, 'Regex match:', unitsMatch?.[0]?.substring(0, 50));
+  console.log('Found fund blocks:', fundBlocks.length);
 
-      if (fundName && fundName.length > 5) {
-        if (!funds.find(f => f.name.includes(fundName.substring(0, 20)))) {
-          funds.push({
-            name: fundName,
-            units: units > 0 ? units : 1, // default to 1 if units extraction failed
-            date: new Date().toISOString().split('T')[0],
-          });
-        }
-      }
-    }
-  }
+  for (const block of fundBlocks) {
+    // Extract fund name (first line after "Scheme Details")
+    const fundNameMatch = block.match(/Scheme\s+Details\s+([^\n]+)/i);
+    if (!fundNameMatch) continue;
 
-  // Also extract any blocks containing "Fund" or "Scheme" or "ETF" with associated unit numbers
-  const schemeBlocks = text.match(/[A-Z][^.!?]*(?:Fund|Scheme|ETF)[^.!?]*(?:\d+\.?\d*\s+(?:unit|Unit|balance|Balance))/gi) || [];
+    let fundName = fundNameMatch[1].replace(/\s+/g, ' ').trim();
+    // Remove common suffixes that aren't part of the fund name
+    fundName = fundName.replace(/\s+(Folio|Client|Scheme|Balance|Invested|NAV|Market).*$/i, '').trim();
 
-  for (const block of schemeBlocks) {
-    const fundMatch = block.match(/([A-Z].*?(?:Fund|Scheme|ETF))/i);
-    const unitsMatch = block.match(/(\d+\.?\d*)\s+(?:unit|Unit|balance|Balance)/i);
+    // Extract balance units - look for "Balance Units" followed by a number
+    const unitsMatch = block.match(/Balance\s+Units\s+(\d+\.?\d*)/i);
+    const units = unitsMatch ? parseFloat(unitsMatch[1]) : 0;
 
-    if (fundMatch && unitsMatch) {
-      const fundName = fundMatch[1].replace(/\s+/g, ' ').trim().substring(0, 80);
-      const units = parseFloat(unitsMatch[1]);
+    console.log('CAS block: Fund:', fundName, 'Units:', units);
 
-      if (fundName && fundName.length > 5 && units > 0) {
-        if (!funds.find(f => f.name.includes(fundName.substring(0, 20)))) {
-          console.log('CAS: Block found fund:', fundName, 'Units:', units);
-          funds.push({
-            name: fundName,
-            units,
-            date: new Date().toISOString().split('T')[0],
-          });
-        }
+    if (fundName && fundName.length > 5 && units > 0) {
+      // Check if not already added
+      if (!funds.find(f => f.name.includes(fundName.substring(0, 30)))) {
+        console.log('CAS: Adding fund:', fundName, 'with', units, 'units');
+        funds.push({
+          name: fundName.substring(0, 100),
+          units,
+          date: new Date().toISOString().split('T')[0],
+        });
       }
     }
   }
