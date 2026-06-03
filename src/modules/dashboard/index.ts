@@ -97,7 +97,7 @@ function renderFIProgressCard(progressPercent: number): string {
     <div class="kpi-card ${cardClass}">
       <div class="kpi-card-title">FI Progress</div>
       <div class="kpi-card-value">${displayPercent.toFixed(1)}%</div>
-      <div class="kpi-card-subtitle">${progressPercent >= 100 ? 'Financial Freedom Achieved!' : 'Inflation-adjusted goal'}</div>
+      <div class="kpi-card-subtitle">${progressPercent >= 100 ? 'Financial Freedom Achieved!' : 'Towards FI goal'}</div>
     </div>
   `;
 }
@@ -126,7 +126,7 @@ function renderPortfolioSummary(breakdown: any, sipValue: number, fi: any): stri
           <div class="portfolio-summary-value">${formatCurrency(fi.currentCorpus, 0)}</div>
         </div>
         <div class="portfolio-summary-item">
-          <div class="portfolio-summary-label">FI Target (20yr, 3% SWR)</div>
+          <div class="portfolio-summary-label">FI Target</div>
           <div class="portfolio-summary-value">${formatCurrency(fi.fiTarget, 0)}</div>
         </div>
         <div class="portfolio-summary-item">

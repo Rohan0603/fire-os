@@ -142,16 +142,8 @@ export interface FIProgressKPI {
 }
 
 export function fiProgress(state: FireOSState): FIProgressKPI {
-  // FI target: inflation-adjusted for 20 years, 3% SWR (India-specific)
-  // annualExpenses field stores MONTHLY expense amount
-  const monthlyExpenses = state.profile.annualExpenses;
-  const currentAnnualExpenses = monthlyExpenses * 12;
-  // Expenses after 20 years at 6% inflation
-  const inflationRate = 0.06;
-  const yearsToFI = 20;
-  const expenseAtFI = currentAnnualExpenses * Math.pow(1 + inflationRate, yearsToFI);
-  // FI corpus needed: expense / safe withdrawal rate (3%)
-  const fiTarget = expenseAtFI / 0.03;
+  // FI target: user-entered value in profile
+  const fiTarget = state.profile.fiTarget;
 
   // Current corpus from totalNetWorth
   const netWorthData = totalNetWorth(state);
