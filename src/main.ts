@@ -171,14 +171,19 @@ function setupAuthListener() {
       // Load portfolio from Firebase on login
       try {
         const firebaseState = await loadPortfolioFromFirebase(user.uid);
+        console.log('[Auth] Firebase state loaded:', firebaseState);
         if (firebaseState) {
+          console.log('[Auth] Before assign - D.sip:', D.sip);
           Object.assign(D, firebaseState);
+          console.log('[Auth] After assign - D.sip:', D.sip);
           console.debug('[Auth] Loaded portfolio from Firebase');
 
           // Re-render profile tab if visible to show loaded data
           const profileTab = document.getElementById('profile');
           const profileNavTab = document.querySelector('[data-tab="profile"]');
+          console.log('[Auth] Profile tab found:', !!profileTab, 'is active:', profileNavTab?.classList.contains('active'));
           if (profileTab && profileNavTab?.classList.contains('active')) {
+            console.log('[Auth] Rendering profile with loaded data');
             const { renderProfile } = await import('./modules/profile');
             renderProfile(profileTab);
           }
