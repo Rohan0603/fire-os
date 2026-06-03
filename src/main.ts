@@ -175,8 +175,11 @@ function setupAuthListener() {
       try {
         const firebaseState = await loadPortfolioFromFirebase(user.uid);
         if (firebaseState) {
+          // Save currentUser before assign, restore after (Firebase data doesn't include auth state)
+          const savedUser = D.currentUser;
           Object.assign(D, firebaseState);
-          console.debug('[Auth] Loaded portfolio from Firebase');
+          D.currentUser = savedUser;
+          console.debug('[Auth] Loaded portfolio from Firebase, currentUser preserved');
 
           // Re-render profile tab if visible to show loaded data
           const profileTab = document.getElementById('profile');
