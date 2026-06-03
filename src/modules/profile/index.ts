@@ -516,74 +516,77 @@ function parseCASContent(text: string): { funds: any[]; stocks: any[] } {
   const stocks: any[] = [];
 
   const lines = text.split('\n');
-  let inMFSection = false;
-  let inDematSection = false;
-  let lastFund: any = null;
 
+  // Pass 1: Find all ISIN entries (both MF and Demat)
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
 
-    // Detect MF section start
-    if (line.match(/Consolidated Holdings|Mutual Fund|NSDL|CDSL/i)) {
-      inMFSection = true;
-      inDematSection = false;
-      continue;
-    }
+    // Match ISIN pattern: XX999999999X
+    const isinMatch = line.match(/([A-Z]{2}\d{9}[A-Z]{1})/);
+    if (isinMatch) {
+      const isin = isinMatch[1];
+      const parts = line.split(/\s+/);
 
-    // Detect Demat section start
-    if (line.match(/Demat|Dematerialized|Equity|Stock/i)) {
-      inDematSection = true;
-      inMFSection = false;
-      continue;
-    }
+      // Try to extract quantity/units from the line
+      let quantity = 0;
+      let fundName = '';
 
-    // Extract MF data - look for scheme names + units + NAV
-    if (inMFSection && !inDematSection) {
-      const isinMatch = line.match(/([A-Z]{2}\d{9}[A-Z]{1})/);
-      if (isinMatch) {
-        const parts = line.split(/\s+/);
-        if (parts.length >= 2) {
-          const name = parts.slice(0, -2).join(' ') || 'Mutual Fund';
-          const units = parseFloat(parts[parts.length - 1]);
-          if (!isNaN(units) && units > 0) {
-            lastFund = {
-              name: name.substring(0, 50),
-              units,
-              date: new Date().toISOString().split('T')[0],
-            };
-            funds.push(lastFund);
+      if (parts.length >= 2) {
+        // Last number is usually quantity
+        const lastNum = parseFloat(parts[parts.length - 1]);
+        if (!isNaN(lastNum) && lastNum > 0) {
+          quantity = lastNum;
+          fundName = parts.slice(0, -1).join(' ').replace(isin, '').trim();
+        } else {
+          // Try second-to-last
+          const secondNum = parseFloat(parts[parts.length - 2]);
+          if (!isNaN(secondNum) && secondNum > 0) {
+            quantity = secondNum;
+            fundName = parts.slice(0, -2).join(' ').replace(isin, '').trim();
           }
         }
-      } else if (line.match(/\d+\.\d+/) && line.match(/units?|units?/i)) {
-        // Alternative: parse lines with "units" keyword
-        const parts = line.split(/\s+/);
-        const fundName = parts.filter((p) => !p.match(/^\d+\.?\d*$/))[0];
-        const units = parseFloat(parts.find((p) => p.match(/^\d+\.?\d*$/)) || '0');
-        if (fundName && units > 0) {
+      }
+
+      // Classify as MF or Stock based on context
+      const isMF = line.match(/Mutual Fund|MF|NSDL|Fund|Scheme/i) ||
+                   (fundName && !line.match(/Equity|Stock|NSE|BSE|Demat/i));
+
+      if (quantity > 0) {
+        if (isMF) {
           funds.push({
-            name: fundName.substring(0, 50),
-            units,
+            name: fundName.substring(0, 50) || isin,
+            units: quantity,
             date: new Date().toISOString().split('T')[0],
+          });
+        } else {
+          stocks.push({
+            isin,
+            name: fundName.substring(0, 100) || isin,
+            quantity,
           });
         }
       }
     }
+  }
 
-    // Extract Demat data - ISIN pattern
-    if (inDematSection && !inMFSection) {
-      const isinMatch = line.match(/([A-Z]{2}\d{9}[A-Z]{1})/);
-      if (isinMatch) {
-        const isin = isinMatch[1];
-        const parts = line.split(/\s+/);
-        if (parts.length >= 2) {
-          const quantity = parseFloat(parts[parts.length - 1]);
-          if (!isNaN(quantity) && quantity > 0) {
-            const name = parts.slice(1, -1).join(' ') || isin;
-            stocks.push({
-              isin,
-              name: name.substring(0, 100),
-              quantity,
+  // Pass 2: Look for fund entries that don't have ISIN (some CAS formats)
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line || line.match(/[A-Z]{2}\d{9}[A-Z]{1}/)) continue; // Skip lines with ISIN
+
+    // Look for "units" keyword with numbers
+    if (line.match(/units?/i)) {
+      const numMatches = line.match(/[\d,]+\.?\d*/g);
+      if (numMatches && numMatches.length > 0) {
+        const units = parseFloat(numMatches[numMatches.length - 1].replace(/,/g, ''));
+        if (!isNaN(units) && units > 0) {
+          const name = line.replace(/units?/i, '').replace(/[\d,]+\.?\d*/g, '').trim();
+          if (name && !funds.some((f) => f.name === name)) {
+            funds.push({
+              name: name.substring(0, 50),
+              units,
+              date: new Date().toISOString().split('T')[0],
             });
           }
         }
