@@ -137,11 +137,16 @@ export async function loadPortfolioFromFirebase(uid: string): Promise<FireOSStat
       return null;
     }
 
-    const firebaseData = snapshot.val() as Partial<FireOSState>;
+    const rawData = snapshot.val() as any;
 
     if (process.env.NODE_ENV === 'development') {
       console.debug('[Storage] Loaded portfolio from Firebase');
     }
+
+    // Unwrap holdings if stored in nested structure
+    const firebaseData: Partial<FireOSState> = rawData.holdings
+      ? { ...rawData, ...rawData.holdings, holdings: undefined }
+      : rawData;
 
     // Merge with current local state
     const currentState = loadData() || initializeState();
