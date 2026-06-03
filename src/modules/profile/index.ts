@@ -43,8 +43,8 @@ export function renderProfile(container: HTMLElement) {
             <input type="number" id="age" placeholder="Age" value="${D.profile.age || ''}">
           </div>
           <div class="form-group">
-            <label for="expenses">Annual Expenses (₹)</label>
-            <input type="number" id="expenses" placeholder="Annual expenses" value="${D.profile.annualExpenses || ''}">
+            <label for="expenses">Monthly Expenses (₹)</label>
+            <input type="number" id="expenses" placeholder="Monthly expenses" value="${D.profile.annualExpenses || ''}">
           </div>
           <div class="form-group">
             <label for="fi-target">FI Target (₹)</label>
@@ -516,6 +516,8 @@ function parseCASContent(text: string): { funds: any[]; stocks: any[] } {
   const stocks: any[] = [];
 
   const lines = text.split('\n');
+  console.log('CAS parsing: total lines:', lines.length);
+  console.log('CAS parsing: sample lines:', lines.slice(0, 20));
 
   // Pass 1: Find all ISIN entries (both MF and Demat)
   for (let i = 0; i < lines.length; i++) {
@@ -529,7 +531,14 @@ function parseCASContent(text: string): { funds: any[]; stocks: any[] } {
 
     // Match ISIN pattern: XX999999999X (strict - must be exactly 12 chars)
     const isinMatch = line.match(/([A-Z]{2}\d{9}[A-Z]{1})/);
-    if (!isinMatch) continue;
+    if (!isinMatch) {
+      // Log lines that might contain ISINs
+      if (line.match(/[A-Z]{2}\d{8,10}[A-Z]?/)) {
+        console.log('CAS: line with potential ISIN but no match:', line.substring(0, 100));
+      }
+      continue;
+    }
+    console.log('CAS: ISIN found:', isinMatch[1]);
 
     const isin = isinMatch[1];
     const parts = line.split(/\s+/);

@@ -60,6 +60,9 @@ async function extractText(
       fullText += pageText + '\n';
     }
 
+    console.log('PDF extracted text (first 500 chars):', fullText.substring(0, 500));
+    console.log('PDF total pages:', pdf.numPages);
+    console.log('PDF text length:', fullText.length);
     resolve(fullText);
   } catch (err) {
     reject(err instanceof Error ? err : new Error('PDF parsing failed'));
