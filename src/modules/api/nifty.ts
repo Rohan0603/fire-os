@@ -86,9 +86,10 @@ export async function fetchNifty(): Promise<{
   try {
     logger.log('Attempting Gold ETF fallback for Nifty estimate...');
     const etfNav = await fetchNAV('135106');
-    if (etfNav && etfNav >= 5000 && etfNav <= 10000) {
-      const niftyEst = etfNav * 2.4;
-      const niftyHigh = niftyEst * 1.1;
+    logger.log('Gold ETF NAV fetched:', etfNav);
+    if (etfNav && etfNav >= 30 && etfNav <= 80) {
+      const niftyEst = etfNav * 380;
+      const niftyHigh = niftyEst * 1.12;
       niftyCache = {
         level: niftyEst,
         high52w: niftyHigh,
@@ -101,6 +102,8 @@ export async function fetchNifty(): Promise<{
         high52w: niftyHigh,
         source: 'Gold ETF Proxy (approximation)',
       };
+    } else {
+      logger.warn('Gold ETF NAV out of range:', etfNav);
     }
   } catch (error) {
     logger.warn('Gold ETF fallback failed', error);
