@@ -87,9 +87,10 @@ export async function fetchNifty(): Promise<{
     logger.log('Attempting Gold ETF fallback for Nifty estimate...');
     const etfNav = await fetchNAV('135106');
     logger.log('Gold ETF NAV fetched:', etfNav);
-    if (etfNav && etfNav >= 30 && etfNav <= 80) {
-      const niftyEst = etfNav * 380;
-      const niftyHigh = niftyEst * 1.12;
+    // Gold ETF NAV is typically 40-300 (ICICI Gold ETF fluctuates with gold prices)
+    if (etfNav && etfNav > 20 && etfNav < 500) {
+      const niftyEst = etfNav * 95;
+      const niftyHigh = niftyEst * 1.08;
       niftyCache = {
         level: niftyEst,
         high52w: niftyHigh,
