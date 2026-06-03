@@ -529,12 +529,13 @@ function parseCASContent(text: string): { funds: any[]; stocks: any[] } {
       continue;
     }
 
-    // Match ISIN pattern: XX999999999X (strict - must be exactly 12 chars)
-    const isinMatch = line.match(/([A-Z]{2}\d{9}[A-Z]{1})/);
+    // Match ISIN pattern: 2 letters + 9 alphanumeric + 1 check digit = 12 chars total
+    // Example: INF123A01234X (IN + F123A01234 + X)
+    const isinMatch = line.match(/([A-Z]{2}[A-Z0-9]{9}[A-Z0-9])/);
     if (!isinMatch) {
       // Log lines that might contain ISINs
-      if (line.match(/[A-Z]{2}\d{8,10}[A-Z]?/)) {
-        console.log('CAS: line with potential ISIN but no match:', line.substring(0, 100));
+      if (line.match(/[A-Z]{2}[A-Z0-9]{9,11}/)) {
+        console.log('CAS: line with potential ISIN pattern but no strict match:', line.substring(0, 100));
       }
       continue;
     }
