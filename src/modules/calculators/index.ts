@@ -167,7 +167,9 @@ function renderEmergencyRunway(): string {
 }
 
 function renderSIPPause(): string {
-  const totalSIPMonthly = Object.values(D.sip).reduce((sum, sip) => sum + sip.monthlyAmount, 0);
+  const totalSIPMonthly = Object.values(D.sip)
+    .filter(sip => sip && sip.monthlyAmount)
+    .reduce((sum, sip) => sum + (sip.monthlyAmount || 0), 0);
 
   return `
     <div class="calc-card">
