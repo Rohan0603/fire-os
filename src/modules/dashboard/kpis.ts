@@ -143,9 +143,7 @@ export interface FIProgressKPI {
 
 export function fiProgress(state: FireOSState): FIProgressKPI {
   // FI target: 25x annual expenses (4% safe withdrawal rule)
-  // Note: stored value is monthly, so multiply by 12 to get annual
-  const monthlyExpenses = state.profile.annualExpenses;
-  const annualExpenses = monthlyExpenses * 12;
+  const annualExpenses = state.profile.annualExpenses;
   const fiTarget = annualExpenses * 25;
 
   // Current corpus from totalNetWorth
