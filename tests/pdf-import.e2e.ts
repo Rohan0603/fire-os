@@ -4,6 +4,7 @@
  */
 
 import { test, expect } from '@playwright/test';
+import fs from 'fs';
 
 test.describe('PDF Import Flow', () => {
   test.beforeEach(async ({ page }) => {
@@ -41,7 +42,7 @@ test.describe('PDF Import Flow', () => {
     const consoleLogs = (page as any)._consoleLogs || [];
 
     // Wait a bit more for any pending logs
-    await page.waitForNavigation({ waitUntil: 'networkidle' }).catch(() => {});
+    await page.waitForLoadState('networkidle').catch(() => {});
 
     // Check for any Nifty-related logging
     const niftyLogs = consoleLogs.filter(
@@ -120,7 +121,7 @@ test.describe('PDF Import Flow', () => {
     const consoleLogs = (page as any)._consoleLogs || [];
 
     // Wait for network activity to settle
-    await page.waitForNavigation({ waitUntil: 'networkidle' }).catch(() => {});
+    await page.waitForLoadState('networkidle').catch(() => {});
 
     // Should attempt Gold ETF fallback if Yahoo fails
     const etfLogs = consoleLogs.filter(
@@ -150,7 +151,6 @@ test.describe('PDF Import Flow', () => {
   });
 
   test('parseCASPDF extracts all SoA holdings from real CAS summary', async ({ page }) => {
-    const fs = require('fs');
     const filePath = 'C:\\Users\\ponna\\Downloads\\cas_summary_report_2026_05_09_103313.pdf';
 
     // Skip test if PDF file doesn't exist

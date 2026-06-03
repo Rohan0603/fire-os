@@ -148,6 +148,7 @@
 /* Primary Button */
 .btn-primary {
   padding: 0.875rem 1rem;
+  min-height: 44px;
   background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
   color: #1a1a1a;
   border: none;
