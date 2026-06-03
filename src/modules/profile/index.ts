@@ -7,7 +7,7 @@ import { D } from '../../main';
 import { formatCurrency, formatDateISO } from '../../lib/formatters';
 import { saveData } from '../../lib/storage';
 import { showToast } from '../ui';
-import { parseCASPDF } from './pdf-parser';
+import { parseCASPDF, CASParseResult } from './pdf-parser';
 import { validateFormInput, validateFormFields, handleError, ValidationError, ValidationRules } from '../../lib/error-handler';
 import './styles.css';
 
@@ -480,42 +480,28 @@ async function handlePDFImport(event: Event) {
 
   try {
     const result = await parseCASPDF(file);
+    const soaHoldings = result.holdings.filter(h => h.type === 'soa');
 
-    // Convert structured CASParseResult to funds/stocks format for UI
-    const funds = result.holdings
-      .filter(h => h.type === 'soa')
-      .map(h => ({
-        name: h.schemeName,
-        units: h.balanceUnits,
-        date: result.asOnDate,
-      }));
-
-    const stocks = result.holdings
-      .filter(h => h.type === 'demat')
-      .map(h => ({
-        name: h.schemeName,
-        isin: h.identifier,
-        quantity: h.balanceUnits,
-      }));
-
-    // Show confirmation modal
     const modal = document.getElementById('pdf-confirmation');
     const preview = document.getElementById('pdf-preview');
     if (modal && preview) {
-      let html = '<h4>Detected Holdings:</h4>';
+      let html = `<h4>Detected Holdings (as on ${result.asOnDate}):</h4>`;
+      html += `<p><strong>${result.investor.name}</strong> | PAN: ${result.investor.pan}</p>`;
       html += '<h5>Mutual Funds:</h5>';
-      funds.forEach((f) => {
-        html += `<p>📈 ${f.name}: ${f.units} units (Updated: ${f.date})</p>`;
+      soaHoldings.forEach(h => {
+        html += `<p>📈 ${h.schemeName}: ${h.balanceUnits} units`;
+        html += ` | Invested: ₹${h.investedValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+        html += ` | Current: ₹${h.marketValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>`;
       });
-      html += '<h5>Demat Stocks:</h5>';
-      stocks.forEach((s) => {
-        html += `<p>📊 ${s.name} (${s.isin}): ${s.quantity} qty</p>`;
-      });
+      const dematHoldings = result.holdings.filter(h => h.type === 'demat');
+      if (dematHoldings.length) {
+        html += '<h5>Demat Holdings (not imported — ISIN unavailable in summary):</h5>';
+        dematHoldings.forEach(h => {
+          html += `<p>📊 ${h.schemeName}: ${h.balanceUnits} units | Current: ₹${h.marketValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>`;
+        });
+      }
       preview.innerHTML = html;
-
-      // Store for confirmation
-      (window as any)._pendingCASImport = { funds, stocks };
-
+      (window as any)._pendingCASImport = result;
       modal.style.display = 'flex';
     }
   } catch (e) {
@@ -525,102 +511,34 @@ async function handlePDFImport(event: Event) {
 }
 
 /**
- * Parse CAS PDF content
- */
-function parseCASContent(text: string): { funds: any[]; stocks: any[] } {
-  const funds: any[] = [];
-  const stocks: any[] = [];
-
-  console.log('CAS parsing text length:', text.length);
-
-  // Strategy: Find fund names by searching for known MF scheme keywords
-  // Then extract the Balance Units number from the same section
-
-  // Known fund patterns - these appear in CAS
-  const fundSchemes = [
-    { pattern: /Parag\s+Parikh.*?Flexi\s+Cap.*?Fund.*?Direct.*?Plan.*?Growth/i, name: 'Parag Parikh Flexi Cap Fund - Direct Plan Growth' },
-    { pattern: /NIPPON\s+INDIA\s+GROWTH\s+MID\s+CAP.*?FUND.*?DIRECT\s+GROWTH\s+PLAN/i, name: 'NIPPON INDIA GROWTH MID CAP FUND - DIRECT GROWTH PLAN' },
-    { pattern: /NIPPON\s+INDIA\s+SMALL\s+CAP.*?FUND.*?DIRECT\s+GROWTH\s+PLAN/i, name: 'NIPPON INDIA SMALL CAP FUND - DIRECT GROWTH PLAN' },
-    { pattern: /ICICI\s+PRU.*?GOLD.*?ETF/i, name: 'ICICI PRUENTIAL GOLD ETF' },
-  ];
-
-  for (const scheme of fundSchemes) {
-    const schemeMatch = text.match(scheme.pattern);
-    if (!schemeMatch) {
-      console.log('CAS: No match for', scheme.name);
-      continue;
-    }
-
-    console.log('CAS: Found scheme:', scheme.name);
-
-    // Find the section containing this scheme and extract Balance Units
-    const schemePos = schemeMatch.index || 0;
-    // Look for Balance Units in a window around this match (500 chars after)
-    const searchWindow = text.substring(schemePos, schemePos + 500);
-    const unitsMatch = searchWindow.match(/Balance\s+Units?\s+(\d+\.?\d*)/i);
-    const units = unitsMatch ? parseFloat(unitsMatch[1]) : 0;
-
-    console.log('CAS: Fund:', scheme.name, 'Units:', units);
-
-    if (units > 0 && !funds.find(f => f.name.includes(scheme.name.substring(0, 30)))) {
-      funds.push({
-        name: scheme.name,
-        units,
-        date: new Date().toISOString().split('T')[0],
-      });
-    } else if (units === 0) {
-      console.log('CAS: No units found for', scheme.name);
-    }
-  }
-
-  console.log('Parsed CAS:', { fundCount: funds.length, stockCount: stocks.length, funds, stocks });
-  return { funds, stocks };
-}
-
-/**
  * Confirm PDF import and update state
  */
 function confirmPDFImport() {
-  const pending = (window as any)._pendingCASImport;
-  if (!pending) return;
+  const result: CASParseResult | null = (window as any)._pendingCASImport;
+  if (!result) return;
 
-  const { funds, stocks } = pending;
+  result.holdings
+    .filter(h => h.type === 'soa')
+    .forEach((h, idx) => {
+      const sipKey = `sip${idx + 1}`;
+      if (!D.sip[sipKey]) {
+        D.sip[sipKey] = {
+          name: h.schemeName,
+          schemeCode: '',
+          units: h.balanceUnits,
+          startDate: h.navDate ? h.navDate.substring(0, 7) : new Date().toISOString().substring(0, 7),
+          monthlyAmount: 0,
+          ...(h.investedValue > 0 ? { costBasis: h.investedValue } : {}),
+        };
+      }
+    });
 
-  // Update SIP data
-  funds.forEach((fund: any, idx: number) => {
-    const sipKey = `sip${idx + 1}`;
-    if (!D.sip[sipKey]) {
-      D.sip[sipKey] = {
-        name: fund.name,
-        schemeCode: '',
-        units: fund.units,
-        startDate: fund.date.substring(0, 7),
-        monthlyAmount: 0,
-      };
-    }
-  });
-
-  // Update demat holdings
-  stocks.forEach((stock: any) => {
-    D.demat[stock.isin] = {
-      isin: stock.isin,
-      name: stock.name,
-      quantity: stock.quantity,
-      currentValue: 0,
-    };
-  });
-
-  // Hide modal
   const modal = document.getElementById('pdf-confirmation');
   if (modal) modal.style.display = 'none';
 
-  // Re-render profile FIRST to update form inputs with imported data
   const container = document.getElementById('profile');
   if (container) renderProfile(container);
-
-  // THEN save to persist the imported data
   saveProfile();
-
   showToast('✓ CAS imported successfully');
 }
 
