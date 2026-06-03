@@ -7,7 +7,7 @@
 import { totalNetWorth, sipStatus, fiProgress, floatIndicator, portfolioComposition } from './kpis';
 import { formatCurrency, formatPercentage, formatNumber } from '../../lib/formatters';
 import { D } from '../../main';
-import { fetchNAV } from '../api';
+import { fetchNAV, getNAVCacheMap } from '../api';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
 import './styles.css';
 
@@ -28,6 +28,11 @@ async function fetchSIPNAVs(): Promise<void> {
     if (schemeCode) {
       try {
         await fetchNAV(schemeCode);
+        // Sync fetched NAV from cache to state.nav so KPI calc can find it
+        const navCache = getNAVCacheMap();
+        if (navCache[schemeCode]) {
+          D.nav[schemeCode] = navCache[schemeCode];
+        }
       } catch (e) {
         console.warn(`[Dashboard] Failed to fetch NAV for SIP ${key}:`, e);
       }
