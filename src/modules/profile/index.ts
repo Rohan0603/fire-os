@@ -524,7 +524,6 @@ function confirmPDFImport() {
       if (!D.sip[sipKey]) {
         D.sip[sipKey] = {
           name: h.schemeName,
-          schemeCode: '',
           units: h.balanceUnits,
           startDate: h.navDate ? h.navDate.substring(0, 7) : new Date().toISOString().substring(0, 7),
           monthlyAmount: 0,

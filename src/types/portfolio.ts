@@ -6,7 +6,7 @@
 /** Represents a single SIP (Systematic Investment Plan) fund */
 export interface SIPFund {
   name: string;
-  schemeCode: string;
+  schemeCode?: string;
   units: number;
   startDate: string; // YYYY-MM format
   monthlyAmount: number;
