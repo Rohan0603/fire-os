@@ -1,0 +1,251 @@
+.plan-container {
+  padding: var(--spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.plan-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.plan-card-title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-md) 0;
+}
+
+.plan-card-subtitle {
+  font-size: var(--font-size-sm);
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+/* KPI row */
+.plan-kpi-row {
+  display: flex;
+  gap: var(--spacing-xl);
+  flex-wrap: wrap;
+  margin-bottom: var(--spacing-md);
+}
+
+.plan-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.plan-kpi-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.plan-kpi-value {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.plan-kpi-value--accent {
+  color: var(--accent);
+}
+
+/* Progress bar */
+.plan-progress-bar {
+  height: 10px;
+  background: var(--color-gray-200);
+  border-radius: 5px;
+  overflow: hidden;
+  margin-bottom: var(--spacing-sm);
+}
+
+.plan-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent) 0%, #0056b3 100%);
+  border-radius: 5px;
+  transition: width 0.4s ease;
+  min-width: 2px;
+}
+
+.plan-progress-fill--coorg {
+  background: linear-gradient(90deg, #ff9800 0%, #ff6f00 100%);
+}
+
+.plan-progress-note {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  margin: var(--spacing-xs) 0 0 0;
+}
+
+/* Stress test table */
+.plan-stress-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.plan-stress-table th {
+  text-align: left;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+
+.plan-stress-table td {
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+}
+
+.stress-row--base td { background: rgba(40, 167, 69, 0.06); }
+.stress-row--likely td { background: rgba(255, 193, 7, 0.06); }
+.stress-row--stress td { background: rgba(220, 53, 69, 0.06); }
+
+.stress-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+}
+
+.stress-badge--base   { background: #d4edda; color: #155724; }
+.stress-badge--likely { background: #fff3cd; color: #856404; }
+.stress-badge--stress { background: #f8d7da; color: #721c24; }
+
+/* Coorg funding */
+.plan-funding-list {
+  margin-top: var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.plan-funding-item {
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  padding-left: var(--spacing-md);
+  position: relative;
+}
+
+.plan-funding-item::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  color: #ff9800;
+}
+
+/* Milestones */
+.plan-milestones {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.milestone {
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: baseline;
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.milestone:last-child {
+  border-bottom: none;
+}
+
+.milestone-year {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 130px;
+  flex-shrink: 0;
+}
+
+.milestone-desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+
+.milestone--fi .milestone-year {
+  color: var(--accent);
+}
+
+.milestone--fi .milestone-desc {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* Next Actions */
+.plan-actions {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.action {
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: baseline;
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.action:last-child {
+  border-bottom: none;
+}
+
+.action-timing {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  min-width: 110px;
+  flex-shrink: 0;
+}
+
+.action-desc {
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+}
+
+.action--now    .action-timing { color: var(--color-success); }
+.action--now::before { content: '✓ '; color: var(--color-success); }
+.action--upcoming .action-timing { color: var(--color-warning); }
+.action--upcoming::before { content: '⏰ '; }
+.action--future .action-timing { color: var(--text-secondary); }
+.action--future::before { content: '⏰ '; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .plan-container {
+    padding: var(--spacing-md);
+  }
+
+  .plan-kpi-row {
+    gap: var(--spacing-md);
+  }
+
+  .plan-kpi-value {
+    font-size: var(--font-size-lg);
+  }
+
+  .milestone-year {
+    min-width: 100px;
+  }
+}
