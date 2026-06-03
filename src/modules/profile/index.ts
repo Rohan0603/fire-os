@@ -516,42 +516,44 @@ function parseCASContent(text: string): { funds: any[]; stocks: any[] } {
   const stocks: any[] = [];
 
   console.log('CAS parsing text length:', text.length);
-  console.log('CAS text sample:', text.substring(0, 300));
 
-  // Strategy: Find "Scheme Details" section, then extract fund names and their units
-  // Pattern: find fund name blocks followed by their unit balance
+  // Strategy: Find fund names by searching for known MF scheme keywords
+  // Then extract the Balance Units number from the same section
 
-  // Split by common delimiters to find fund blocks
-  const fundBlockPattern = /Scheme Details[^]*?(?=(?:Scheme Details|Demat Holdings|Total|Client Id|$))/gi;
-  const fundBlocks = text.match(fundBlockPattern) || [];
+  // Known fund patterns - these appear in CAS
+  const fundSchemes = [
+    { pattern: /Parag\s+Parikh.*?Flexi\s+Cap.*?Fund.*?Direct.*?Plan.*?Growth/i, name: 'Parag Parikh Flexi Cap Fund - Direct Plan Growth' },
+    { pattern: /NIPPON\s+INDIA\s+GROWTH\s+MID\s+CAP.*?FUND.*?DIRECT\s+GROWTH\s+PLAN/i, name: 'NIPPON INDIA GROWTH MID CAP FUND - DIRECT GROWTH PLAN' },
+    { pattern: /NIPPON\s+INDIA\s+SMALL\s+CAP.*?FUND.*?DIRECT\s+GROWTH\s+PLAN/i, name: 'NIPPON INDIA SMALL CAP FUND - DIRECT GROWTH PLAN' },
+    { pattern: /ICICI\s+PRU.*?GOLD.*?ETF/i, name: 'ICICI PRUENTIAL GOLD ETF' },
+  ];
 
-  console.log('Found fund blocks:', fundBlocks.length);
+  for (const scheme of fundSchemes) {
+    const schemeMatch = text.match(scheme.pattern);
+    if (!schemeMatch) {
+      console.log('CAS: No match for', scheme.name);
+      continue;
+    }
 
-  for (const block of fundBlocks) {
-    // Extract fund name (first line after "Scheme Details")
-    const fundNameMatch = block.match(/Scheme\s+Details\s+([^\n]+)/i);
-    if (!fundNameMatch) continue;
+    console.log('CAS: Found scheme:', scheme.name);
 
-    let fundName = fundNameMatch[1].replace(/\s+/g, ' ').trim();
-    // Remove common suffixes that aren't part of the fund name
-    fundName = fundName.replace(/\s+(Folio|Client|Scheme|Balance|Invested|NAV|Market).*$/i, '').trim();
-
-    // Extract balance units - look for "Balance Units" followed by a number
-    const unitsMatch = block.match(/Balance\s+Units\s+(\d+\.?\d*)/i);
+    // Find the section containing this scheme and extract Balance Units
+    const schemePos = schemeMatch.index || 0;
+    // Look for Balance Units in a window around this match (500 chars after)
+    const searchWindow = text.substring(schemePos, schemePos + 500);
+    const unitsMatch = searchWindow.match(/Balance\s+Units?\s+(\d+\.?\d*)/i);
     const units = unitsMatch ? parseFloat(unitsMatch[1]) : 0;
 
-    console.log('CAS block: Fund:', fundName, 'Units:', units);
+    console.log('CAS: Fund:', scheme.name, 'Units:', units);
 
-    if (fundName && fundName.length > 5 && units > 0) {
-      // Check if not already added
-      if (!funds.find(f => f.name.includes(fundName.substring(0, 30)))) {
-        console.log('CAS: Adding fund:', fundName, 'with', units, 'units');
-        funds.push({
-          name: fundName.substring(0, 100),
-          units,
-          date: new Date().toISOString().split('T')[0],
-        });
-      }
+    if (units > 0 && !funds.find(f => f.name.includes(scheme.name.substring(0, 30)))) {
+      funds.push({
+        name: scheme.name,
+        units,
+        date: new Date().toISOString().split('T')[0],
+      });
+    } else if (units === 0) {
+      console.log('CAS: No units found for', scheme.name);
     }
   }
 
