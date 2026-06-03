@@ -11,6 +11,9 @@ const logger = getLogger();
 // In-memory NAV cache with TTL management
 let navCache: NAVCacheMap = {};
 
+// Track in-flight requests to deduplicate concurrent fetches for same scheme
+const inFlightRequests: Map<string, Promise<number | null>> = new Map();
+
 // Constants
 const MFAPI_BASE_URL = 'https://api.mfapi.in/mf';
 const NAV_CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours in milliseconds
@@ -35,55 +38,70 @@ export async function fetchNAV(schemeCode: string): Promise<number | null> {
     return cached.nav;
   }
 
-  try {
-    // Create a timeout abort controller
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-    const response = await fetch(`${MFAPI_BASE_URL}/${schemeCode}`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeoutId);
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const data = (await response.json()) as MFAPIResponse;
-
-    // Validate response structure
-    if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
-      logger.warn(`fetchNAV: No data for scheme ${schemeCode}`);
-      return getCachedNAV(schemeCode);
-    }
-
-    // Extract NAV from latest entry (first in array)
-    const latestEntry = data.data[0];
-    const nav = parseFloat(latestEntry.nav);
-
-    if (isNaN(nav)) {
-      logger.warn(`fetchNAV: Invalid NAV value for scheme ${schemeCode}`, latestEntry.nav);
-      return getCachedNAV(schemeCode);
-    }
-
-    // Update cache
-    navCache[schemeCode] = {
-      schemeCode,
-      nav,
-      timestamp: new Date().toISOString(),
-      ttl: NAV_CACHE_TTL,
-    };
-
-    logger.log(`NAV fetched for scheme ${schemeCode}`, { nav, date: latestEntry.date });
-    return nav;
-  } catch (error) {
-    logger.error(`fetchNAV failed for scheme ${schemeCode}`, error);
-    // Fall back to cached value if available
-    return getCachedNAV(schemeCode);
+  // Deduplicate: if request already in flight, wait for it
+  if (inFlightRequests.has(schemeCode)) {
+    logger.log(`NAV fetch already in flight for scheme ${schemeCode}, waiting...`);
+    return inFlightRequests.get(schemeCode)!;
   }
+
+  // Create fetch promise and track it
+  const fetchPromise = (async () => {
+    try {
+      // Create a timeout abort controller (mfapi.in response is large, needs 15s timeout)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const response = await fetch(`${MFAPI_BASE_URL}/${schemeCode}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = (await response.json()) as MFAPIResponse;
+
+      // Validate response structure
+      if (!data.data || !Array.isArray(data.data) || data.data.length === 0) {
+        logger.warn(`fetchNAV: No data for scheme ${schemeCode}`);
+        return getCachedNAV(schemeCode);
+      }
+
+      // Extract NAV from latest entry (first in array)
+      const latestEntry = data.data[0];
+      const nav = parseFloat(latestEntry.nav);
+
+      if (isNaN(nav)) {
+        logger.warn(`fetchNAV: Invalid NAV value for scheme ${schemeCode}`, latestEntry.nav);
+        return getCachedNAV(schemeCode);
+      }
+
+      // Update cache
+      navCache[schemeCode] = {
+        schemeCode,
+        nav,
+        timestamp: new Date().toISOString(),
+        ttl: NAV_CACHE_TTL,
+      };
+
+      logger.log(`NAV fetched for scheme ${schemeCode}`, { nav, date: latestEntry.date });
+      return nav;
+    } catch (error) {
+      logger.error(`fetchNAV failed for scheme ${schemeCode}`, error);
+      // Fall back to cached value if available
+      return getCachedNAV(schemeCode);
+    } finally {
+      // Remove from in-flight map when done
+      inFlightRequests.delete(schemeCode);
+    }
+  })();
+
+  inFlightRequests.set(schemeCode, fetchPromise);
+  return fetchPromise;
 }
 
 /**
