@@ -9,6 +9,7 @@ import { saveData, savePortfolioToFirebase } from '../../lib/storage';
 import { showToast } from '../ui';
 import { parseCASPDF, CASParseResult } from './pdf-parser';
 import { validateFormInput, validateFormFields, handleError, ValidationError, ValidationRules } from '../../lib/error-handler';
+import { getFundSchemeCode } from '../../lib/fundMatcher';
 import './styles.css';
 
 const DEBOUNCE_MS = 500;
@@ -73,6 +74,10 @@ export function renderProfile(container: HTMLElement) {
             <input type="number" id="epf" placeholder="EPF balance" value="${D.epf.epf?.amount || ''}">
           </div>
           <div class="form-group">
+            <label for="bonds">Bonds (₹)</label>
+            <input type="number" id="bonds" placeholder="Bonds value" value="${D.bonds.bonds?.amount || ''}">
+          </div>
+          <div class="form-group">
             <label for="esop">ESOP Value (₹)</label>
             <input type="number" id="esop" placeholder="ESOP value" value="${D.esop.esop?.amount || ''}">
           </div>
@@ -92,6 +97,11 @@ export function renderProfile(container: HTMLElement) {
           <button id="import-pdf-btn" class="btn-primary">📄 Import CAS PDF</button>
           <button id="export-json-btn" class="btn-primary">💾 Export Data</button>
           <button id="import-json-btn" class="btn-primary">📂 Import Data</button>
+        </div>
+        <div class="save-cloud-row">
+          <button id="save-cloud-btn" class="btn-primary${!D.currentUser?.uid ? ' btn-disabled' : ''}"
+            ${!D.currentUser?.uid ? 'disabled' : ''}>☁ Save to Cloud</button>
+          ${!D.currentUser?.uid ? '<span class="save-cloud-hint">Log in to sync to cloud</span>' : ''}
         </div>
         <input type="file" id="pdf-input" accept=".pdf" style="display: none;">
         <input type="file" id="json-input" accept=".json" style="display: none;">
@@ -208,6 +218,25 @@ function attachProfileHandlers() {
     sipForm.querySelectorAll('input').forEach((input) => {
       input.addEventListener('blur', debounceProfileSave);
     });
+
+    // Event delegation for auto-populate scheme code when fund name changes
+    sipForm.addEventListener('blur', (e) => {
+      const target = e.target as HTMLInputElement;
+      if (target.classList.contains('sip-name')) {
+        const index = target.getAttribute('data-index');
+        if (index) {
+          const fundName = target.value?.trim();
+          const codeInput = sipForm.querySelector(`.sip-code[data-index="${index}"]`) as HTMLInputElement;
+          if (fundName && codeInput && !codeInput.value) {
+            const schemeCode = getFundSchemeCode(fundName);
+            if (schemeCode) {
+              codeInput.value = schemeCode;
+              debounceProfileSave();
+            }
+          }
+        }
+      }
+    }, true); // Use capture phase for blur event
   }
 
   // Holdings form inputs
@@ -261,6 +290,35 @@ function attachProfileHandlers() {
   // Confirmation modal
   document.getElementById('pdf-confirm-btn')?.addEventListener('click', confirmPDFImport);
   document.getElementById('pdf-cancel-btn')?.addEventListener('click', cancelPDFImport);
+
+  // Save to Cloud button
+  const saveCloudBtn = document.getElementById('save-cloud-btn') as HTMLButtonElement;
+  if (saveCloudBtn) {
+    saveCloudBtn.addEventListener('click', async () => {
+      if (!D.currentUser?.uid) return;
+
+      saveCloudBtn.textContent = '⏳ Saving...';
+      saveCloudBtn.disabled = true;
+
+      try {
+        saveProfile();
+        const { savePortfolioToFirebase } = await import('../lib/storage');
+        await savePortfolioToFirebase(D.currentUser.uid, D);
+        showToast('✓ Saved to cloud');
+        saveCloudBtn.textContent = '✓ Saved';
+      } catch (e) {
+        console.error('[Profile] Save to cloud failed:', e);
+        showToast('✗ Cloud sync failed', 3000, 'warning');
+        saveCloudBtn.textContent = '☁ Save to Cloud';
+        saveCloudBtn.disabled = false;
+      } finally {
+        setTimeout(() => {
+          saveCloudBtn.textContent = '☁ Save to Cloud';
+          saveCloudBtn.disabled = false;
+        }, 2000);
+      }
+    });
+  }
 }
 
 /**
@@ -305,10 +363,12 @@ function debounceProfileSave() {
   if (!isDirty) {
     const fdInput = document.getElementById('fd') as HTMLInputElement;
     const epfInput = document.getElementById('epf') as HTMLInputElement;
+    const bondsInput = document.getElementById('bonds') as HTMLInputElement;
     const esopInput = document.getElementById('esop') as HTMLInputElement;
 
     if ((fdInput?.value ? parseFloat(fdInput.value) : 0) !== (D.fd.fd?.amount || 0) ||
         (epfInput?.value ? parseFloat(epfInput.value) : 0) !== (D.epf.epf?.amount || 0) ||
+        (bondsInput?.value ? parseFloat(bondsInput.value) : 0) !== (D.bonds.bonds?.amount || 0) ||
         (esopInput?.value ? parseFloat(esopInput.value) : 0) !== (D.esop.esop?.amount || 0)) {
       // Form changed, save
     } else {
@@ -325,7 +385,7 @@ function debounceProfileSave() {
  * Save profile data from form with comprehensive validation
  * Exported for manual trigger (e.g., before leaving tab)
  */
-export function saveProfile() {
+export async function saveProfile() {
   try {
     const validationErrors: Array<{ field: string; message: string }> = [];
 
@@ -464,11 +524,13 @@ export function saveProfile() {
     // ==================== HOLDINGS SECTION ====================
     const fdInput = document.getElementById('fd') as HTMLInputElement;
     const epfInput = document.getElementById('epf') as HTMLInputElement;
+    const bondsInput = document.getElementById('bonds') as HTMLInputElement;
     const esopInput = document.getElementById('esop') as HTMLInputElement;
 
     // Ensure holdings are objects (defensive for corrupted data)
     if (typeof D.fd !== 'object' || D.fd === null) D.fd = {};
     if (typeof D.epf !== 'object' || D.epf === null) D.epf = {};
+    if (typeof D.bonds !== 'object' || D.bonds === null) D.bonds = {};
     if (typeof D.esop !== 'object' || D.esop === null) D.esop = {};
 
     // Validate FD
@@ -499,6 +561,20 @@ export function saveProfile() {
       D.epf.epf = { amount: 0, currency: 'INR' };
     }
 
+    // Validate Bonds
+    if (bondsInput?.value) {
+      const bondsError = validateFormInput(bondsInput.value, [
+        ValidationRules.positiveNumber('Bonds'),
+      ]);
+      if (bondsError) {
+        validationErrors.push({ field: 'bonds', message: bondsError });
+      } else {
+        D.bonds.bonds = { amount: parseFloat(bondsInput.value), currency: 'INR' };
+      }
+    } else {
+      D.bonds.bonds = { amount: 0, currency: 'INR' };
+    }
+
     // Validate ESOP
     if (esopInput?.value) {
       const esopError = validateFormInput(esopInput.value, [
@@ -523,15 +599,7 @@ export function saveProfile() {
 
     // ==================== SAVE DATA ====================
     saveData(D);
-
-    // Sync to Firebase if user is logged in
-    if (D.currentUser?.uid) {
-      savePortfolioToFirebase(D.currentUser.uid, D).catch((e) => {
-        console.warn('[Profile] Firebase sync failed:', e);
-      });
-    }
-
-    showToast('✓ Profile saved successfully');
+    updateDashboard();
   } catch (e) {
     console.error('Profile save error:', e);
     handleError(e, 'Failed to save profile');
@@ -625,8 +693,8 @@ function confirmPDFImport() {
 
   const container = document.getElementById('profile');
   if (container) renderProfile(container);
-  saveProfile();
-  showToast('✓ CAS imported successfully');
+  saveData(D);
+  showToast('✓ CAS imported (click Save to sync to cloud)', 4000, 'info');
 }
 
 /**
@@ -649,6 +717,7 @@ function exportPortfolioJSON() {
     sip: D.sip,
     fd: D.fd,
     epf: D.epf,
+    bonds: D.bonds,
     esop: D.esop,
     demat: D.demat,
   };
@@ -683,6 +752,7 @@ async function handleJSONImport(event: Event) {
       Object.assign(D.sip, data.sip);
       Object.assign(D.fd, data.fd);
       Object.assign(D.epf, data.epf);
+      Object.assign(D.bonds, data.bonds || {});
       Object.assign(D.esop, data.esop);
       Object.assign(D.demat, data.demat);
     } else {
@@ -691,18 +761,9 @@ async function handleJSONImport(event: Event) {
     }
 
     saveData(D);
-
-    // Sync to Firebase if user is logged in
-    if (D.currentUser?.uid) {
-      savePortfolioToFirebase(D.currentUser.uid, D).catch((e) => {
-        console.warn('[Profile] Firebase sync failed:', e);
-      });
-    }
-
-    showToast('✓ Data imported');
-
     const container = document.getElementById('profile');
     if (container) renderProfile(container);
+    showToast('✓ Data imported (click Save to sync to cloud)', 4000, 'info');
   } catch (e) {
     console.error('JSON import error:', e);
     showToast('✗ Failed to import JSON');

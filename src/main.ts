@@ -215,16 +215,6 @@ function setupAuthListener() {
 function setupTabNavigation() {
   document.querySelectorAll('.nav-tab').forEach((tab) => {
     tab.addEventListener('click', (e) => {
-      // Save profile when leaving profile tab
-      const currentTab = document.querySelector('.nav-tab.active')?.getAttribute('data-tab');
-      if (currentTab === 'profile') {
-        try {
-          saveProfile();
-        } catch (err) {
-          console.warn('[Tab] Profile save failed on tab change:', err);
-        }
-      }
-
       const target = (e.target as HTMLElement).getAttribute('data-tab');
       if (target) {
         document.querySelectorAll('.nav-tab').forEach((t) => t.classList.remove('active'));
@@ -269,13 +259,6 @@ function setupAutoSave() {
   setInterval(() => {
     D._lastSavedAt = new Date().toISOString();
     localStorage.setItem('fireOS_v2', JSON.stringify(D));
-
-    // Sync to Firebase if user is logged in
-    if (D.currentUser?.uid) {
-      savePortfolioToFirebase(D.currentUser.uid, D).catch((e) => {
-        console.warn('[Storage] Firebase sync failed:', e);
-      });
-    }
   }, 5000);
 }
 
