@@ -88,17 +88,17 @@ function renderCrashProtocol(): string {
       <div class="crash-scenarios">
         <div class="scenario">
           <span class="scenario-label">10% Crash</span>
-          <span class="scenario-value">₹${formatCurrency(totalNW - crash10)}</span>
+          <span class="scenario-value">${formatCurrency(totalNW - crash10)}</span>
           <span class="scenario-desc">Invest to average down</span>
         </div>
         <div class="scenario">
           <span class="scenario-label">15% Crash</span>
-          <span class="scenario-value">₹${formatCurrency(totalNW - crash15)}</span>
+          <span class="scenario-value">${formatCurrency(totalNW - crash15)}</span>
           <span class="scenario-desc">Aggressive buy</span>
         </div>
         <div class="scenario">
           <span class="scenario-label">25% Crash</span>
-          <span class="scenario-value">₹${formatCurrency(totalNW - crash25)}</span>
+          <span class="scenario-value">${formatCurrency(totalNW - crash25)}</span>
           <span class="scenario-desc">Max deployment</span>
         </div>
       </div>
@@ -117,8 +117,8 @@ function renderCrashProtocol(): string {
 }
 
 function renderEmergencyRunway(): string {
-  const annualExpenses = D.profile.annualExpenses || 0;
-  const monthlyExpenses = annualExpenses / 12;
+  const monthlyExpenses = D.profile.annualExpenses || 0;
+  const annualExpenses = monthlyExpenses * 12;
 
   const mfValue = Object.values(D.sip)
     .reduce((sum, sip) => sum + (sip.units * (sip.schemeCode ? D.nav[sip.schemeCode]?.nav || 0 : 0)), 0);
@@ -135,21 +135,21 @@ function renderEmergencyRunway(): string {
 
       <div class="runway-breakdown">
         <div class="runway-item">
-          <span class="label">Annual Expenses</span>
-          <span class="value">₹${formatCurrency(annualExpenses)}</span>
-          <span class="sub">Monthly: ₹${formatCurrency(monthlyExpenses)}</span>
+          <span class="label">Monthly Expenses</span>
+          <span class="value">${formatCurrency(monthlyExpenses)}</span>
+          <span class="sub">Annual: ${formatCurrency(annualExpenses)}</span>
         </div>
         <div class="runway-item">
           <span class="label">Mutual Funds</span>
-          <span class="value">₹${formatCurrency(mfValue)}</span>
+          <span class="value">${formatCurrency(mfValue)}</span>
         </div>
         <div class="runway-item">
           <span class="label">Fixed Deposits</span>
-          <span class="value">₹${formatCurrency(fdValue)}</span>
+          <span class="value">${formatCurrency(fdValue)}</span>
         </div>
         <div class="runway-item">
           <span class="label">Total Liquid</span>
-          <span class="value">₹${formatCurrency(liquidAssets)}</span>
+          <span class="value">${formatCurrency(liquidAssets)}</span>
         </div>
       </div>
 
@@ -176,7 +176,7 @@ function renderSIPPause(): string {
 
       <div class="calc-input-group">
         <label>Total Monthly SIP (₹)</label>
-        <input type="number" id="sip-monthly" value="${totalSIPMonthly}" readonly>
+        <input type="number" id="sip-monthly" value="${totalSIPMonthly}" placeholder="Enter monthly SIP total">
       </div>
 
       <div class="calc-input-group">
@@ -402,17 +402,17 @@ async function refreshNiftyData() {
           </div>
           <div class="scenario">
             <span class="scenario-label">10% Crash Deploy</span>
-            <span class="scenario-value">₹${formatCurrency(totalNW * 0.1)}</span>
+            <span class="scenario-value">${formatCurrency(totalNW * 0.1)}</span>
             <span class="scenario-desc">Average down position</span>
           </div>
           <div class="scenario">
             <span class="scenario-label">15% Crash Deploy</span>
-            <span class="scenario-value">₹${formatCurrency(totalNW * 0.15)}</span>
+            <span class="scenario-value">${formatCurrency(totalNW * 0.15)}</span>
             <span class="scenario-desc">Aggressive buy</span>
           </div>
           <div class="scenario">
             <span class="scenario-label">25% Crash Deploy</span>
-            <span class="scenario-value">₹${formatCurrency(totalNW * 0.25)}</span>
+            <span class="scenario-value">${formatCurrency(totalNW * 0.25)}</span>
             <span class="scenario-desc">Max deployment</span>
           </div>
         `;
@@ -441,9 +441,9 @@ function calculateSIPPause() {
 
   const resultDiv = document.getElementById('sip-result');
   if (resultDiv) {
-    (document.getElementById('missed-amount') as HTMLElement).textContent = `₹${formatCurrency(missedAmount)}`;
-    (document.getElementById('lost-growth') as HTMLElement).textContent = `₹${formatCurrency(lostGrowth)}`;
-    (document.getElementById('total-cost') as HTMLElement).textContent = `₹${formatCurrency(totalCost)}`;
+    (document.getElementById('missed-amount') as HTMLElement).textContent = `${formatCurrency(missedAmount)}`;
+    (document.getElementById('lost-growth') as HTMLElement).textContent = `${formatCurrency(lostGrowth)}`;
+    (document.getElementById('total-cost') as HTMLElement).textContent = `${formatCurrency(totalCost)}`;
     resultDiv.style.display = 'block';
   }
 }
@@ -480,7 +480,7 @@ function convertEUR() {
 
   const resultDiv = document.getElementById('eur-result');
   if (resultDiv) {
-    (document.getElementById('inr-converted') as HTMLElement).textContent = `₹${formatCurrency(inrValue)}`;
+    (document.getElementById('inr-converted') as HTMLElement).textContent = `${formatCurrency(inrValue)}`;
     resultDiv.style.display = 'block';
   }
 }
@@ -534,14 +534,14 @@ function calculateESOP() {
       const gainLossElement = document.getElementById('esop-gain-loss');
 
       if (investmentElement) {
-        investmentElement.textContent = `₹${formatCurrency(investmentCost)}`;
+        investmentElement.textContent = `${formatCurrency(investmentCost)}`;
       }
       if (currentValueElement) {
-        currentValueElement.textContent = `₹${formatCurrency(currentValue)}`;
+        currentValueElement.textContent = `${formatCurrency(currentValue)}`;
       }
       if (gainLossElement) {
         gainLossElement.className = gain >= 0 ? 'value positive' : 'value negative';
-        gainLossElement.textContent = `₹${formatCurrency(gain)} (${gainPercent.toFixed(2)}%)`;
+        gainLossElement.textContent = `${formatCurrency(gain)} (${gainPercent.toFixed(2)}%)`;
       }
 
       resultDiv.style.display = 'block';

@@ -143,7 +143,9 @@ export interface FIProgressKPI {
 
 export function fiProgress(state: FireOSState): FIProgressKPI {
   // FI target: 25x annual expenses (4% safe withdrawal rule)
-  const annualExpenses = state.profile.annualExpenses;
+  // Note: stored value is monthly, so multiply by 12 to get annual
+  const monthlyExpenses = state.profile.annualExpenses;
+  const annualExpenses = monthlyExpenses * 12;
   const fiTarget = annualExpenses * 25;
 
   // Current corpus from totalNetWorth
@@ -214,7 +216,7 @@ export function portfolioComposition(state: FireOSState): PortfolioCompositionKP
     { name: 'Mutual Funds', value: breakdown.mf, percentage: total > 0 ? (breakdown.mf / total) * 100 : 0 },
     { name: 'Fixed Deposits', value: breakdown.fd, percentage: total > 0 ? (breakdown.fd / total) * 100 : 0 },
     { name: 'EPF', value: breakdown.epf, percentage: total > 0 ? (breakdown.epf / total) * 100 : 0 },
-    { name: 'SIP', value: breakdown.sip, percentage: total > 0 ? (breakdown.sip / total) * 100 : 0 },
+    { name: 'Mutual Funds', value: breakdown.sip, percentage: total > 0 ? (breakdown.sip / total) * 100 : 0 },
     { name: 'ESOP', value: breakdown.esop, percentage: total > 0 ? (breakdown.esop / total) * 100 : 0 },
     { name: 'Demat', value: breakdown.demat, percentage: total > 0 ? (breakdown.demat / total) * 100 : 0 },
   ].filter(cat => cat.value > 0); // Only show non-zero categories

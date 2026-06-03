@@ -70,6 +70,7 @@ function parseTableSection(
 ): CASHolding[] {
   const holdings: CASHolding[] = [];
   let current: Partial<CASHolding> | null = null;
+  let pendingName = '';
 
   const flush = () => {
     if (current?.identifier) holdings.push(current as CASHolding);
@@ -89,19 +90,31 @@ function parseTableSection(
     const identifierItem = leftItems.find(item => FOLIO_RE.test(item.str.trim()));
 
     if (!identifierItem) {
-      // Continuation row: scheme name wraps to next line
-      if (current && leftItems.length) {
-        current.schemeName =
-          (current.schemeName + ' ' + leftItems.map(i => i.str.trim()).join(' ')).trim();
+      // Text-only row: buffer it as potential scheme name (will be used if next row is folio)
+      const txt = leftItems.map(i => i.str.trim()).join(' ').trim();
+      // Only set if non-empty and not a header/footer
+      // Headers typically have specific patterns like "Consolidated..." or date info
+      const isHeader = /^(consolidated|account|statement|summary|total|folio|nav|invested|scheme|name)\s/i.test(txt)
+        || /\(as on|as at\)/i.test(txt) // Date patterns
+        || /page\s*\d+/i.test(txt); // Page numbers
+      if (txt && !isHeader) {
+        pendingName = txt;
       }
       continue;
     }
 
     flush();
 
+    // Try to get scheme name from items to the right of identifier on same row
     const schemeItems = leftItems.filter(
       item => item !== identifierItem && item.x > identifierItem.x && !FOLIO_RE.test(item.str.trim())
     );
+
+    const nameFromRow = schemeItems.map(i => i.str.trim()).join(' ').trim();
+
+    // Combine: use nameFromRow if present (same row), otherwise use pendingName from previous row
+    const combinedName = nameFromRow || pendingName;
+    pendingName = '';
 
     // Right items: separate dates, percentages, and plain numbers
     const dateItems = rightItems.filter(i => /\d{2}-[A-Za-z]{3}-\d{4}/.test(i.str));
@@ -114,7 +127,7 @@ function parseTableSection(
     current = {
       type: sectionType,
       identifier: identifierItem.str.trim(),
-      schemeName: schemeItems.map(i => i.str.trim()).join(' ').trim(),
+      schemeName: combinedName,
       investedValue: parseAmount(valItems[0]?.str ?? ''),
       balanceUnits: parseAmount(valItems[1]?.str ?? ''),
       navDate: parseDate(dateItems[0]?.str ?? ''),
@@ -218,11 +231,24 @@ function parseCASStructured(items: PDFTextItem[]): CASParseResult {
         if (investedItem) { xSchemeEnd = investedItem.x; break; }
       }
 
-      holdings.push(...parseTableSection(rows, ri, isDemat ? 'demat' : 'soa', xSchemeEnd));
+      const sectionHoldings = parseTableSection(rows, ri, isDemat ? 'demat' : 'soa', xSchemeEnd);
+      holdings.push(...sectionHoldings);
     }
   }
 
-  return { asOnDate, investor: { pan, name, email, mobile }, holdings };
+  // Filter out zero-NAV holdings (balanceUnits and marketValue both 0)
+  let filteredHoldings = holdings.filter(h => !(h.balanceUnits === 0 && h.marketValue === 0));
+
+  // Deduplicate by (folio + scheme name) - keep last occurrence
+  // Multiple funds can exist under same folio, so we need both to uniquely identify
+  const dedupMap = new Map<string, CASHolding>();
+  filteredHoldings.forEach(h => {
+    const key = `${h.identifier}|${h.schemeName}`;
+    dedupMap.set(key, h); // Overwrites previous, keeps last occurrence
+  });
+  filteredHoldings = Array.from(dedupMap.values());
+
+  return { asOnDate, investor: { pan, name, email, mobile }, holdings: filteredHoldings };
 }
 
 export async function parseCASPDF(file: File): Promise<CASParseResult> {
