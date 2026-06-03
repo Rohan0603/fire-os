@@ -82,7 +82,7 @@ function renderCrashProtocol(): string {
 
       <div class="calc-input-group">
         <label>Current Portfolio (₹)</label>
-        <input type="number" id="crash-portfolio" value="${totalNW}" readonly>
+        <input type="number" id="crash-portfolio" value="${totalNW}">
       </div>
 
       <div class="crash-scenarios">
@@ -304,6 +304,32 @@ function renderESOP(): string {
   `;
 }
 
+function updateCrashScenarios() {
+  const portfolioInput = document.getElementById('crash-portfolio') as HTMLInputElement;
+  const portfolio = parseFloat(portfolioInput?.value || '0') || 0;
+
+  const scenarioDiv = document.querySelector('#crash .crash-scenarios');
+  if (scenarioDiv) {
+    scenarioDiv.innerHTML = `
+      <div class="scenario">
+        <span class="scenario-label">10% Crash</span>
+        <span class="scenario-value">${formatCurrency(portfolio * 0.1)}</span>
+        <span class="scenario-desc">Invest to average down</span>
+      </div>
+      <div class="scenario">
+        <span class="scenario-label">15% Crash</span>
+        <span class="scenario-value">${formatCurrency(portfolio * 0.15)}</span>
+        <span class="scenario-desc">Aggressive buy</span>
+      </div>
+      <div class="scenario">
+        <span class="scenario-label">25% Crash</span>
+        <span class="scenario-value">${formatCurrency(portfolio * 0.25)}</span>
+        <span class="scenario-desc">Max deployment</span>
+      </div>
+    `;
+  }
+}
+
 function attachCalculatorHandlers() {
   // Tab switching
   document.querySelectorAll('.calc-tab').forEach((tab) => {
@@ -325,6 +351,7 @@ function attachCalculatorHandlers() {
   });
 
   // Crash Protocol
+  document.getElementById('crash-portfolio')?.addEventListener('input', updateCrashScenarios);
   document.getElementById('refresh-nifty-btn')?.addEventListener('click', refreshNiftyData);
 
   // SIP Pause
@@ -351,6 +378,7 @@ function calculateTotalNetWorth(): number {
   total += D.fd.fd?.amount || 0;
   total += D.epf.epf?.amount || 0;
   total += D.esop.esop?.amount || 0;
+  total += D.bonds.bonds?.amount || 0;
 
   // Demat stocks
   Object.values(D.demat).forEach((stock) => {

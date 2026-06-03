@@ -199,7 +199,7 @@ function renderCompositionChart(composition: any): string {
     `;
   }
 
-  const colors = ['#0066cc', '#28a745', '#ffc107', '#dc3545', '#6f42c1', '#20c997'];
+  const colors = ['#0066cc', '#28a745', '#ffc107', '#dc3545', '#6f42c1', '#20c997', '#fd7e14'];
   const legendHtml = composition.categories
     .map(
       (cat: any, idx: number) => `
@@ -265,7 +265,7 @@ function drawPieChart(canvasId: string, data: any[]): void {
   canvas.width = rect.width;
   canvas.height = rect.height;
 
-  const colors = ['#0066cc', '#28a745', '#ffc107', '#dc3545', '#6f42c1', '#20c997'];
+  const colors = ['#0066cc', '#28a745', '#ffc107', '#dc3545', '#6f42c1', '#20c997', '#fd7e14'];
   const total = data.reduce((sum, item) => sum + item.value, 0);
 
   if (total === 0) return;

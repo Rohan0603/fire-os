@@ -5,7 +5,7 @@
 
 import { D } from '../../main';
 import { formatCurrency, formatDateISO } from '../../lib/formatters';
-import { savePortfolioToFirebase } from '../../lib/storage';
+import { savePortfolioToFirebase, saveData } from '../../lib/storage';
 import { showToast } from '../ui';
 import { parseCASPDF, CASParseResult } from './pdf-parser';
 import { validateFormInput, validateFormFields, handleError, ValidationError, ValidationRules } from '../../lib/error-handler';
@@ -613,7 +613,7 @@ export async function saveProfile(): Promise<boolean> {
     }
 
     // ==================== SAVE DATA ====================
-    updateDashboard();
+    saveData(D);
     return true;
   } catch (e) {
     console.error('Profile save error:', e);

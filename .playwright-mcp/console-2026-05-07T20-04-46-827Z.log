@@ -1,3 +1,0 @@
-[     609ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:8080/favicon.ico:0
-[     646ms] [LOG] ✓ Nifty from SBI Nifty 50 ETF (code 135106): NAV=260.2255 → ₹26023 @ http://127.0.0.1:8080/:4849
-[   49201ms] [LOG] ✓ Nifty from SBI Nifty 50 ETF (code 135106): NAV=260.2255 → ₹26023 @ http://127.0.0.1:8080/:4849

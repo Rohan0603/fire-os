@@ -192,7 +192,7 @@ function setupAuthListener() {
       if (saveCloudBtn) {
         saveCloudBtn.disabled = false;
         saveCloudBtn.classList.remove('btn-disabled');
-        const hint = document.querySelector('.save-cloud-hint');
+        const hint = document.querySelector('.save-cloud-hint') as HTMLElement;
         if (hint) hint.style.display = 'none';
       }
     } else {
@@ -206,7 +206,7 @@ function setupAuthListener() {
       if (saveCloudBtn) {
         saveCloudBtn.disabled = true;
         saveCloudBtn.classList.add('btn-disabled');
-        const hint = document.querySelector('.save-cloud-hint');
+        const hint = document.querySelector('.save-cloud-hint') as HTMLElement;
         if (hint) hint.style.display = '';
       }
     }

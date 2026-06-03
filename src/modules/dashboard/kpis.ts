@@ -18,6 +18,7 @@ export interface TotalNetWorthKPI {
     fd: number;
     epf: number;
     sip: number;
+    bonds: number;
     esop: number;
     demat: number;
   };
@@ -47,11 +48,14 @@ export function totalNetWorth(state: FireOSState): TotalNetWorthKPI {
   // ESOP holdings: simple amount
   const esop = Object.values(state.esop).reduce((sum, holding) => sum + (holding.amount || 0), 0);
 
+  // Bonds holdings: simple amount
+  const bonds = Object.values(state.bonds).reduce((sum, holding) => sum + (holding.amount || 0), 0);
+
   // Demat holdings: currentValue already in INR
   const demat = Object.values(state.demat).reduce((sum, holding) => sum + (holding.currentValue || 0), 0);
 
   // Total net worth
-  const netWorth = mf + fd + epf + sip + esop + demat;
+  const netWorth = mf + fd + epf + sip + esop + bonds + demat;
 
   return {
     netWorth: isFinite(netWorth) ? netWorth : 0,
@@ -60,6 +64,7 @@ export function totalNetWorth(state: FireOSState): TotalNetWorthKPI {
       fd: isFinite(fd) ? fd : 0,
       epf: isFinite(epf) ? epf : 0,
       sip: isFinite(sip) ? sip : 0,
+      bonds: isFinite(bonds) ? bonds : 0,
       esop: isFinite(esop) ? esop : 0,
       demat: isFinite(demat) ? demat : 0,
     },
@@ -221,13 +226,14 @@ export interface PortfolioCompositionKPI {
 
 export function portfolioComposition(state: FireOSState): PortfolioCompositionKPI {
   const breakdown = totalNetWorth(state).breakdown;
-  const total = breakdown.mf + breakdown.fd + breakdown.epf + breakdown.sip + breakdown.esop + breakdown.demat;
+  const total = breakdown.mf + breakdown.fd + breakdown.epf + breakdown.sip + breakdown.esop + breakdown.bonds + breakdown.demat;
 
   const categories: PortfolioCompositionKPI['categories'] = [
     { name: 'Mutual Funds', value: breakdown.mf, percentage: total > 0 ? (breakdown.mf / total) * 100 : 0 },
     { name: 'SIPs', value: breakdown.sip, percentage: total > 0 ? (breakdown.sip / total) * 100 : 0 },
     { name: 'Fixed Deposits', value: breakdown.fd, percentage: total > 0 ? (breakdown.fd / total) * 100 : 0 },
     { name: 'EPF', value: breakdown.epf, percentage: total > 0 ? (breakdown.epf / total) * 100 : 0 },
+    { name: 'Bonds', value: breakdown.bonds, percentage: total > 0 ? (breakdown.bonds / total) * 100 : 0 },
     { name: 'ESOP', value: breakdown.esop, percentage: total > 0 ? (breakdown.esop / total) * 100 : 0 },
     { name: 'Equity (Demat)', value: breakdown.demat, percentage: total > 0 ? (breakdown.demat / total) * 100 : 0 },
   ].filter(cat => cat.value > 0); // Only show non-zero categories

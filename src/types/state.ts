@@ -21,6 +21,7 @@ export interface FireOSState {
   epf: Holdings; // EPF balances
   sip: SIPFunds; // SIP investments (with cost basis + XIRR structure)
   esop: Holdings; // ESOP stocks
+  bonds: Holdings; // Bonds
   demat: DematHoldings; // Demat stock holdings
 
   // API Cache and Live Data
@@ -61,6 +62,7 @@ export function initializeState(): FireOSState {
     epf: {},
     sip: {},
     esop: {},
+    bonds: {},
     demat: {},
 
     // API cache and defaults
@@ -99,6 +101,7 @@ export function isFireOSState(value: unknown): value is FireOSState {
     typeof obj.fd === 'object' &&
     typeof obj.epf === 'object' &&
     typeof obj.esop === 'object' &&
+    typeof obj.bonds === 'object' &&
     typeof obj.demat === 'object' &&
     (obj.currentUser === null || typeof obj.currentUser === 'object')
   );
@@ -121,6 +124,7 @@ export function mergeState(existing: FireOSState, incoming: Partial<FireOSState>
     ...(incoming.epf && { epf: { ...existing.epf, ...incoming.epf } }),
     ...(incoming.sip && { sip: { ...existing.sip, ...incoming.sip } }),
     ...(incoming.esop && { esop: { ...existing.esop, ...incoming.esop } }),
+    ...(incoming.bonds && { bonds: { ...existing.bonds, ...incoming.bonds } }),
     ...(incoming.demat && { demat: { ...existing.demat, ...incoming.demat } }),
     ...(incoming.nav && { nav: { ...existing.nav, ...incoming.nav } }),
     ...(incoming.niftyHigh && { niftyHigh: incoming.niftyHigh }),
