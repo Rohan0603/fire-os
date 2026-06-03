@@ -6,6 +6,7 @@
 
 import type { FireOSState } from '../../types/state';
 import type { SIPFund } from '../../types/portfolio';
+import { getFundSchemeCode } from '../../lib/fundMatcher';
 
 /**
  * Total Net Worth KPI - sum of all holdings at current market value
@@ -37,7 +38,8 @@ export function totalNetWorth(state: FireOSState): TotalNetWorthKPI {
 
   // SIP holdings: units × current NAV from cache
   const sip = Object.entries(state.sip).reduce((sum, [key, fund]) => {
-    const navCacheKey = fund.schemeCode;
+    // Try to get scheme code: from fund.schemeCode or from fundMatcher
+    const navCacheKey = fund.schemeCode || getFundSchemeCode(fund.name);
     const nav = navCacheKey ? state.nav[navCacheKey]?.nav ?? 0 : 0;
     return sum + (fund.units * nav || 0);
   }, 0);
@@ -91,7 +93,9 @@ export function sipStatus(state: FireOSState): SIPStatusKPI {
   let xirrSum = 0;
 
   Object.entries(state.sip).forEach(([key, fund]) => {
-    const nav = fund.schemeCode ? state.nav[fund.schemeCode]?.nav ?? 0 : 0;
+    // Try to get scheme code: from fund.schemeCode or from fundMatcher
+    const navCacheKey = fund.schemeCode || getFundSchemeCode(fund.name);
+    const nav = navCacheKey ? state.nav[navCacheKey]?.nav ?? 0 : 0;
     const invested = fund.costBasis ?? fund.monthlyAmount * 12; // Rough estimate
     const currentValue = fund.units * nav;
     const pl = currentValue - invested;
