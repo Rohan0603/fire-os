@@ -49,10 +49,6 @@ export async function fetchNifty(): Promise<{
 } | null> {
   // Check cache first
   if (niftyCache && Date.now() - new Date(niftyCache.timestamp).getTime() < NIFTY_CACHE_TTL) {
-    logger.log('Nifty cache hit:', {
-      level: niftyCache.level,
-      source: niftyCache.source,
-    });
     return {
       level: niftyCache.level,
       high52w: niftyCache.high52w,
@@ -62,7 +58,6 @@ export async function fetchNifty(): Promise<{
 
   // ATTEMPT 1: Try Yahoo Finance via CORS proxy for real Nifty data
   try {
-    logger.log('Attempting Yahoo Finance Nifty fetch...');
     const niftyReal = await fetchNiftyFromYahoo();
     if (niftyReal) {
       niftyCache = {
@@ -71,7 +66,6 @@ export async function fetchNifty(): Promise<{
         timestamp: new Date().toISOString(),
         source: 'Yahoo Finance (NSE data)',
       };
-      logger.log('Nifty fetched from Yahoo Finance:', niftyReal);
       return {
         level: niftyReal.level,
         high52w: niftyReal.high52w,
@@ -84,9 +78,7 @@ export async function fetchNifty(): Promise<{
 
   // ATTEMPT 1.5: Fall back to Gold ETF NAV as Nifty proxy (live fallback)
   try {
-    logger.log('Attempting Gold ETF fallback for Nifty estimate...');
     const etfNav = await fetchNAV('135106');
-    logger.log('Gold ETF NAV fetched:', etfNav);
     // Gold ETF NAV is typically 40-300 (ICICI Gold ETF fluctuates with gold prices)
     if (etfNav && etfNav > 20 && etfNav < 500) {
       const niftyEst = etfNav * 95;
@@ -97,7 +89,6 @@ export async function fetchNifty(): Promise<{
         timestamp: new Date().toISOString(),
         source: 'Gold ETF Proxy (approximation)',
       };
-      logger.log('Nifty estimated from Gold ETF:', { level: niftyEst, high52w: niftyHigh });
       return {
         level: niftyEst,
         high52w: niftyHigh,

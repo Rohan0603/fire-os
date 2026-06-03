@@ -34,13 +34,11 @@ export async function fetchNAV(schemeCode: string): Promise<number | null> {
   // Check if cache is valid (not expired)
   const cached = navCache[schemeCode];
   if (cached && Date.now() - new Date(cached.timestamp).getTime() < NAV_CACHE_TTL) {
-    logger.log(`NAV cache hit for scheme ${schemeCode}:`, cached.nav);
     return cached.nav;
   }
 
   // Deduplicate: if request already in flight, wait for it
   if (inFlightRequests.has(schemeCode)) {
-    logger.log(`NAV fetch already in flight for scheme ${schemeCode}, waiting...`);
     return inFlightRequests.get(schemeCode)!;
   }
 
@@ -88,7 +86,6 @@ export async function fetchNAV(schemeCode: string): Promise<number | null> {
         ttl: NAV_CACHE_TTL,
       };
 
-      logger.log(`NAV fetched for scheme ${schemeCode}`, { nav, date: latestEntry.date });
       return nav;
     } catch (error) {
       logger.error(`fetchNAV failed for scheme ${schemeCode}`, error);
@@ -131,7 +128,6 @@ export function setCachedNAV(schemeCode: string, nav: number): void {
     timestamp: new Date().toISOString(),
     ttl: NAV_CACHE_TTL,
   };
-  logger.log(`NAV cache set for scheme ${schemeCode}`, { nav });
 }
 
 /**
@@ -139,7 +135,6 @@ export function setCachedNAV(schemeCode: string, nav: number): void {
  */
 export function clearNAVCache(): void {
   navCache = {};
-  logger.log('NAV cache cleared');
 }
 
 /**

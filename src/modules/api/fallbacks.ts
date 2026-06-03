@@ -24,12 +24,10 @@ export async function getFallbackNiftyLevel(): Promise<{
   // Try cached first
   const cached = getCachedNifty();
   if (cached) {
-    logger.log('Using cached Nifty for fallback', cached);
     return cached;
   }
 
   // Show manual entry modal
-  logger.log('No cached Nifty, showing manual entry modal');
   return await showManualNiftyModal();
 }
 
@@ -44,12 +42,10 @@ export async function getFallbackEURINRRate(): Promise<number | null> {
   // Try cached first
   const cached = getCachedEURINR();
   if (cached) {
-    logger.log('Using cached EUR/INR for fallback', { rate: cached });
     return cached;
   }
 
   // Show manual entry modal
-  logger.log('No cached EUR/INR, showing manual entry modal');
   return await showManualEURINRModal();
 }
 
@@ -62,9 +58,6 @@ export async function getFallbackEURINRRate(): Promise<number | null> {
  */
 export function getFallbackNAV(schemeCode: string): number | null {
   const cached = getCachedNAV(schemeCode);
-  if (cached) {
-    logger.log(`Using cached NAV for scheme ${schemeCode}`, { nav: cached });
-  }
   return cached;
 }
 
@@ -154,6 +147,4 @@ export function initializeAllAPICache(
   if (eurInrData) {
     initializeEURINRCache(eurInrData);
   }
-
-  logger.log('All API caches initialized from persistence');
 }

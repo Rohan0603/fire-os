@@ -35,7 +35,6 @@ const MAX_RATE = 150;
 export async function fetchEURINR(): Promise<number | null> {
   // Check if cache is still valid
   if (eurInrCache && Date.now() - new Date(eurInrCache.timestamp).getTime() < EUR_INR_CACHE_TTL) {
-    logger.log('EUR/INR cache hit:', eurInrCache.rate);
     return eurInrCache.rate;
   }
 
@@ -55,7 +54,6 @@ export async function fetchEURINR(): Promise<number | null> {
         timestamp: new Date().toISOString(),
       };
 
-      logger.log('EUR/INR fetched from Yahoo Finance:', rate);
       return rate;
     }
   } catch (error) {
@@ -108,7 +106,6 @@ async function fetchEURINRFromYahoo(): Promise<number | null> {
         continue;
       }
 
-      logger.log('EUR/INR parsed from Yahoo:', rate);
       return rate;
     } catch (error) {
       logger.warn(`EUR/INR proxy fetch failed: ${error instanceof Error ? error.message : 'unknown error'}`);
@@ -153,7 +150,6 @@ export function setCachedEURINR(rate: number): void {
     rate,
     timestamp: new Date().toISOString(),
   };
-  logger.log('EUR/INR cache set', { rate });
 }
 
 /**
@@ -161,7 +157,6 @@ export function setCachedEURINR(rate: number): void {
  */
 export function clearEURINRCache(): void {
   eurInrCache = null;
-  logger.log('EUR/INR cache cleared');
 }
 
 /**
@@ -171,7 +166,6 @@ export function clearEURINRCache(): void {
 export function initializeEURINRCache(eurInrData: EURINRData | undefined): void {
   if (eurInrData && eurInrData.rate) {
     eurInrCache = eurInrData;
-    logger.log('EUR/INR cache initialized from persistence:', eurInrData.rate);
   }
 }
 
