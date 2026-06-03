@@ -7,11 +7,31 @@
 import { totalNetWorth, sipStatus, fiProgress, floatIndicator, portfolioComposition } from './kpis';
 import { formatCurrency, formatPercentage, formatNumber } from '../../lib/formatters';
 import { D } from '../../main';
+import { fetchNAV } from '../api';
+import { getFundSchemeCode } from '../../lib/fundMatcher';
 import './styles.css';
 
 // Module state
 let containerId = 'dashboard';
 let currentChartType: 'pie' | 'line' = 'pie';
+
+/**
+ * Fetch NAVs for all SIPs with active monthly amounts
+ * Triggered when dashboard loads to populate cache
+ */
+async function fetchSIPNAVs(): Promise<void> {
+  Object.entries(D.sip).forEach(async ([key, fund]) => {
+    if (!fund.monthlyAmount || fund.monthlyAmount <= 0) return;
+    const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
+    if (schemeCode) {
+      try {
+        await fetchNAV(schemeCode);
+      } catch (e) {
+        console.warn(`[Dashboard] Failed to fetch NAV for SIP ${key}:`, e);
+      }
+    }
+  });
+}
 
 /**
  * Initialize the dashboard module
@@ -28,6 +48,9 @@ export function initDashboardModule(container: string = 'dashboard'): void {
 export function renderDashboard(): void {
   const container = document.getElementById(containerId);
   if (!container) return;
+
+  // Fetch fresh NAVs for active SIPs
+  fetchSIPNAVs();
 
   // Calculate all KPIs from current state
   const netWorth = totalNetWorth(D);

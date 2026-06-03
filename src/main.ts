@@ -25,6 +25,9 @@ import { initCalculatorsModule } from './modules/calculators';
 // Import watchdog module
 import { initWatchdogModule } from './modules/watchdog';
 
+// Import API module
+import { initAPIModule } from './modules/api';
+
 // Import error handling
 import { setupErrorHandling, handleError } from './lib/error-handler';
 import { showToast } from './modules/ui';
@@ -82,6 +85,7 @@ function initApp() {
   try {
     setupErrorHandling();
     loadFromLocalStorage();
+    initAPIModule(D);
     renderApp();
 
     // Initialize UI module with error handling
