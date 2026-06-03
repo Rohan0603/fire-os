@@ -215,11 +215,11 @@ export function portfolioComposition(state: FireOSState): PortfolioCompositionKP
 
   const categories: PortfolioCompositionKPI['categories'] = [
     { name: 'Mutual Funds', value: breakdown.mf, percentage: total > 0 ? (breakdown.mf / total) * 100 : 0 },
+    { name: 'SIPs', value: breakdown.sip, percentage: total > 0 ? (breakdown.sip / total) * 100 : 0 },
     { name: 'Fixed Deposits', value: breakdown.fd, percentage: total > 0 ? (breakdown.fd / total) * 100 : 0 },
     { name: 'EPF', value: breakdown.epf, percentage: total > 0 ? (breakdown.epf / total) * 100 : 0 },
-    { name: 'Mutual Funds', value: breakdown.sip, percentage: total > 0 ? (breakdown.sip / total) * 100 : 0 },
     { name: 'ESOP', value: breakdown.esop, percentage: total > 0 ? (breakdown.esop / total) * 100 : 0 },
-    { name: 'Demat', value: breakdown.demat, percentage: total > 0 ? (breakdown.demat / total) * 100 : 0 },
+    { name: 'Equity (Demat)', value: breakdown.demat, percentage: total > 0 ? (breakdown.demat / total) * 100 : 0 },
   ].filter(cat => cat.value > 0); // Only show non-zero categories
 
   return {
