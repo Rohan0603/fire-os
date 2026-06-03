@@ -99,9 +99,8 @@ export function renderProfile(container: HTMLElement) {
           <button id="import-json-btn" class="btn-primary">📂 Import Data</button>
         </div>
         <div class="save-cloud-row">
-          <button id="save-cloud-btn" class="btn-primary${!D.currentUser?.uid ? ' btn-disabled' : ''}"
-            ${!D.currentUser?.uid ? 'disabled' : ''}>☁ Save to Cloud</button>
-          ${!D.currentUser?.uid ? '<span class="save-cloud-hint">Log in to sync to cloud</span>' : ''}
+          <button id="save-cloud-btn" class="btn-primary">☁ Save to Cloud</button>
+          <span class="save-cloud-hint" style="display: none;">Log in to sync to cloud</span>
         </div>
         <input type="file" id="pdf-input" accept=".pdf" style="display: none;">
         <input type="file" id="json-input" accept=".json" style="display: none;">
