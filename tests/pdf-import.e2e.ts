@@ -7,6 +7,14 @@ import { test, expect } from '@playwright/test';
 
 test.describe('PDF Import Flow', () => {
   test.beforeEach(async ({ page }) => {
+    // Capture console logs from the beginning
+    const consoleLogs: string[] = [];
+    page.on('console', (msg) => {
+      consoleLogs.push(msg.text());
+    });
+    // Store logs globally for this page
+    (page as any)._consoleLogs = consoleLogs;
+
     // Navigate to app
     await page.goto('http://localhost:5173');
 
@@ -29,14 +37,11 @@ test.describe('PDF Import Flow', () => {
   });
 
   test('should log debug info on page load', async ({ page }) => {
-    // Check that console shows any Nifty-related messages during page load
-    const consoleLogs: string[] = [];
-    page.on('console', (msg) => {
-      consoleLogs.push(msg.text());
-    });
+    // Use captured logs from beforeEach
+    const consoleLogs = (page as any)._consoleLogs || [];
 
-    // Wait for app to initialize and Nifty fetch to complete
-    await page.waitForTimeout(5000);
+    // Wait a bit more for any pending logs
+    await page.waitForTimeout(2000);
 
     // Check for any Nifty-related logging
     const niftyLogs = consoleLogs.filter(
