@@ -125,9 +125,10 @@ async function fetchNiftyFromYahoo(): Promise<{
 } | null> {
   try {
     const proxyUrl = `${CORS_PROXY}?url=${encodeURIComponent(YAHOO_NIFTY_URL)}`;
+    logger.log('Nifty fetch via CORS proxy:', proxyUrl);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch(proxyUrl, {
       method: 'GET',
@@ -138,11 +139,12 @@ async function fetchNiftyFromYahoo(): Promise<{
     clearTimeout(timeoutId);
 
     if (!response.ok) {
-      logger.warn(`Nifty fetch HTTP ${response.status}`);
+      logger.warn(`Nifty CORS proxy returned HTTP ${response.status}`);
       return null;
     }
 
     const html = await response.text();
+    logger.log('CORS proxy response length:', html.length);
 
     // Parse current level: <fin-streamer data-field="regularMarketPrice">24500.5</fin-streamer>
     const levelMatch = html.match(/regularMarketPrice[^>]*>([0-9.]+)</i);
@@ -160,7 +162,7 @@ async function fetchNiftyFromYahoo(): Promise<{
     logger.warn('Nifty: Could not parse data from Yahoo HTML', { level, high52w });
     return null;
   } catch (error) {
-    logger.warn('Nifty fetch failed', error);
+    logger.warn('Nifty CORS proxy fetch failed', error);
     return null;
   }
 }
