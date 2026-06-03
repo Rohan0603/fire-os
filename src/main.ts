@@ -161,8 +161,11 @@ function renderApp() {
 
 // Firebase auth listener
 function setupAuthListener() {
+  console.log('[Auth] Setting up auth state listener');
   onAuthStateChanged(auth, async (user) => {
+    console.log('[Auth] Auth state changed, user:', user ? user.email : null);
     if (user) {
+      console.log('[Auth] User authenticated, uid:', user.uid);
       D.currentUser = user;
       hideAuthScreen();
       const logoutBtn = document.getElementById('logout-btn');
@@ -196,6 +199,7 @@ function setupAuthListener() {
         if (hint) hint.style.display = 'none';
       }
     } else {
+      console.log('[Auth] User not authenticated, showing auth screen');
       D.currentUser = null;
       showAuthScreen();
       const logoutBtn = document.getElementById('logout-btn');
