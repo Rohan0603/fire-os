@@ -68,6 +68,7 @@ function initApp() {
   try {
     setupErrorHandling();
     loadFromLocalStorage();
+    renderApp();
 
     // Initialize UI module with error handling
     try {
@@ -107,7 +108,6 @@ function initApp() {
       if (calcEl) calcEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading Calculators module. Please reload.</p>';
     }
 
-    renderApp();
     setupAuthListener();
     setupTabNavigation();
     setupAutoSave();

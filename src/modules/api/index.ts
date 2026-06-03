@@ -14,6 +14,11 @@
  * - EUR/INR: 24 hours (exchange rates stable)
  */
 
+// Import init functions
+import { initializeNAVCache } from './mfapi';
+import { initializeNiftyCache } from './nifty';
+import { initializeEURINRCache } from './eurInr';
+
 // Export all public functions
 export {
   fetchNAV,
@@ -60,10 +65,6 @@ export {
  * @param persistedState - State object from localStorage/Firebase containing cached data
  */
 export function initAPIModule(persistedState: any = {}): void {
-  const { initializeNAVCache } = require('./mfapi');
-  const { initializeNiftyCache } = require('./nifty');
-  const { initializeEURINRCache } = require('./eurInr');
-
   // Restore caches from persisted state
   if (persistedState.nav) {
     initializeNAVCache(persistedState.nav);

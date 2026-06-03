@@ -4,9 +4,9 @@
  */
 
 import { getLogger } from '../../lib/logger';
-import { showManualNiftyModal, getCachedNifty } from './nifty';
-import { showManualEURINRModal, getCachedEURINR } from './eurInr';
-import { getCachedNAV } from './mfapi';
+import { showManualNiftyModal, getCachedNifty, initializeNiftyCache } from './nifty';
+import { showManualEURINRModal, getCachedEURINR, initializeEURINRCache } from './eurInr';
+import { getCachedNAV, initializeNAVCache } from './mfapi';
 
 const logger = getLogger();
 
@@ -145,10 +145,6 @@ export function initializeAllAPICache(
   niftyData?: any,
   eurInrData?: any
 ): void {
-  const { initializeNAVCache } = require('./mfapi');
-  const { initializeNiftyCache } = require('./nifty');
-  const { initializeEURINRCache } = require('./eurInr');
-
   if (navCache) {
     initializeNAVCache(navCache);
   }

@@ -6,6 +6,10 @@
 // Import all styles
 import './styles.css';
 
+// Import init functions
+import { initModalContainer } from './Modal';
+import { initToastContainer } from './Toast';
+
 // Export all components
 export {
   createModal,
@@ -44,9 +48,6 @@ export {
  * Call this once from main.ts to set up modal and toast containers
  */
 export function initUIModule(): void {
-  const { initModalContainer } = require('./Modal');
-  const { initToastContainer } = require('./Toast');
-
   initModalContainer();
   initToastContainer();
 }
