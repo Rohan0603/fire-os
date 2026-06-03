@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
 import { getDatabase } from 'firebase/database';
+import { loadPortfolioFromFirebase, savePortfolioToFirebase } from './lib/storage';
 
 // Import types
 import type { FireOSState } from './types/state';
@@ -59,7 +60,17 @@ function loadFromLocalStorage() {
   if (stored) {
     try {
       const data = JSON.parse(stored);
-      Object.assign(D, data);
+      // Sanitize holdings fields: ensure they're objects, not primitives
+      const sanitized = {
+        ...data,
+        fd: typeof data.fd === 'object' && data.fd !== null ? data.fd : {},
+        epf: typeof data.epf === 'object' && data.epf !== null ? data.epf : {},
+        esop: typeof data.esop === 'object' && data.esop !== null ? data.esop : {},
+        mf: typeof data.mf === 'object' && data.mf !== null ? data.mf : {},
+        sip: typeof data.sip === 'object' && data.sip !== null ? data.sip : {},
+        demat: typeof data.demat === 'object' && data.demat !== null ? data.demat : {},
+      };
+      Object.assign(D, sanitized);
     } catch (e) {
       console.error('Failed to load localStorage:', e);
     }
@@ -170,12 +181,23 @@ function renderApp() {
 
 // Firebase auth listener
 function setupAuthListener() {
-  onAuthStateChanged(auth, (user) => {
+  onAuthStateChanged(auth, async (user) => {
     if (user) {
       D.currentUser = user;
       hideAuthScreen();
       const logoutBtn = document.getElementById('logout-btn');
       if (logoutBtn) logoutBtn.style.display = 'block';
+
+      // Load portfolio from Firebase on login
+      try {
+        const firebaseState = await loadPortfolioFromFirebase(user.uid);
+        if (firebaseState) {
+          Object.assign(D, firebaseState);
+          console.debug('[Auth] Loaded portfolio from Firebase');
+        }
+      } catch (e) {
+        console.warn('[Auth] Failed to load from Firebase:', e);
+      }
     } else {
       D.currentUser = null;
       showAuthScreen();
@@ -233,6 +255,13 @@ function setupAutoSave() {
   setInterval(() => {
     D._lastSavedAt = new Date().toISOString();
     localStorage.setItem('fireOS_v2', JSON.stringify(D));
+
+    // Sync to Firebase if user is logged in
+    if (D.currentUser?.uid) {
+      savePortfolioToFirebase(D.currentUser.uid, D).catch((e) => {
+        console.warn('[Storage] Firebase sync failed:', e);
+      });
+    }
   }, 5000);
 }
 

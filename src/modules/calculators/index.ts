@@ -121,7 +121,7 @@ function renderEmergencyRunway(): string {
   const monthlyExpenses = annualExpenses / 12;
 
   const mfValue = Object.values(D.sip)
-    .reduce((sum, sip) => sum + (sip.units * (D.nav[sip.schemeCode]?.nav || 0)), 0);
+    .reduce((sum, sip) => sum + (sip.units * (sip.schemeCode ? D.nav[sip.schemeCode]?.nav || 0 : 0)), 0);
   const fdValue = D.fd.fd?.amount || 0;
   const buffer = 0; // From profile if added
 
@@ -339,7 +339,7 @@ function calculateTotalNetWorth(): number {
 
   // SIP values
   Object.values(D.sip).forEach((sip) => {
-    const navData = D.nav[sip.schemeCode];
+    const navData = sip.schemeCode ? D.nav[sip.schemeCode] : undefined;
     if (navData) {
       total += sip.units * navData.nav;
     }

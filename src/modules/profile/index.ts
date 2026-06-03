@@ -5,7 +5,7 @@
 
 import { D } from '../../main';
 import { formatCurrency, formatDateISO } from '../../lib/formatters';
-import { saveData } from '../../lib/storage';
+import { saveData, savePortfolioToFirebase } from '../../lib/storage';
 import { showToast } from '../ui';
 import { parseCASPDF, CASParseResult } from './pdf-parser';
 import { validateFormInput, validateFormFields, handleError, ValidationError, ValidationRules } from '../../lib/error-handler';
@@ -411,6 +411,11 @@ function saveProfile() {
     const epfInput = document.getElementById('epf') as HTMLInputElement;
     const esopInput = document.getElementById('esop') as HTMLInputElement;
 
+    // Ensure holdings are objects (defensive for corrupted data)
+    if (typeof D.fd !== 'object' || D.fd === null) D.fd = {};
+    if (typeof D.epf !== 'object' || D.epf === null) D.epf = {};
+    if (typeof D.esop !== 'object' || D.esop === null) D.esop = {};
+
     // Validate FD
     if (fdInput?.value) {
       const fdError = validateFormInput(fdInput.value, [
@@ -463,6 +468,14 @@ function saveProfile() {
 
     // ==================== SAVE DATA ====================
     saveData(D);
+
+    // Sync to Firebase if user is logged in
+    if (D.currentUser?.uid) {
+      savePortfolioToFirebase(D.currentUser.uid, D).catch((e) => {
+        console.warn('[Profile] Firebase sync failed:', e);
+      });
+    }
+
     showToast('✓ Profile saved successfully');
   } catch (e) {
     console.error('Profile save error:', e);
@@ -603,6 +616,14 @@ async function handleJSONImport(event: Event) {
     }
 
     saveData(D);
+
+    // Sync to Firebase if user is logged in
+    if (D.currentUser?.uid) {
+      savePortfolioToFirebase(D.currentUser.uid, D).catch((e) => {
+        console.warn('[Profile] Firebase sync failed:', e);
+      });
+    }
+
     showToast('✓ Data imported');
 
     const container = document.getElementById('profile');

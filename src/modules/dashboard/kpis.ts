@@ -25,7 +25,7 @@ export interface TotalNetWorthKPI {
 export function totalNetWorth(state: FireOSState): TotalNetWorthKPI {
   // MF holdings: SIPFunds - units × NAV from cache
   const mf = Object.entries(state.mf).reduce((sum, [key, fund]) => {
-    const nav = state.nav[fund.schemeCode]?.nav ?? 0;
+    const nav = fund.schemeCode ? state.nav[fund.schemeCode]?.nav ?? 0 : 0;
     return sum + (fund.units * nav || 0);
   }, 0);
 
@@ -38,7 +38,7 @@ export function totalNetWorth(state: FireOSState): TotalNetWorthKPI {
   // SIP holdings: units × current NAV from cache
   const sip = Object.entries(state.sip).reduce((sum, [key, fund]) => {
     const navCacheKey = fund.schemeCode;
-    const nav = state.nav[navCacheKey]?.nav ?? 0;
+    const nav = navCacheKey ? state.nav[navCacheKey]?.nav ?? 0 : 0;
     return sum + (fund.units * nav || 0);
   }, 0);
 
@@ -91,7 +91,7 @@ export function sipStatus(state: FireOSState): SIPStatusKPI {
   let xirrSum = 0;
 
   Object.entries(state.sip).forEach(([key, fund]) => {
-    const nav = state.nav[fund.schemeCode]?.nav ?? 0;
+    const nav = fund.schemeCode ? state.nav[fund.schemeCode]?.nav ?? 0 : 0;
     const invested = fund.costBasis ?? fund.monthlyAmount * 12; // Rough estimate
     const currentValue = fund.units * nav;
     const pl = currentValue - invested;

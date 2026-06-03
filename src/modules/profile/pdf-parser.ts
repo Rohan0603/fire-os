@@ -100,7 +100,7 @@ function parseTableSection(
     flush();
 
     const schemeItems = leftItems.filter(
-      item => item !== identifierItem && item.x > identifierItem.x
+      item => item !== identifierItem && item.x > identifierItem.x && !FOLIO_RE.test(item.str.trim())
     );
 
     // Right items: separate dates, percentages, and plain numbers
