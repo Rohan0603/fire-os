@@ -593,15 +593,16 @@ function confirmPDFImport() {
     };
   });
 
-  saveProfile();
-
   // Hide modal
   const modal = document.getElementById('pdf-confirmation');
   if (modal) modal.style.display = 'none';
 
-  // Re-render profile
+  // Re-render profile FIRST to update form inputs with imported data
   const container = document.getElementById('profile');
   if (container) renderProfile(container);
+
+  // THEN save to persist the imported data
+  saveProfile();
 
   showToast('✓ CAS imported successfully');
 }

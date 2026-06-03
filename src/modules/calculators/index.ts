@@ -6,13 +6,39 @@
 import { D } from '../../main';
 import { formatCurrency } from '../../lib/formatters';
 import { showToast } from '../ui';
-import { fetchEURINR } from '../api';
+import { fetchEURINR, fetchNifty } from '../api';
 import './styles.css';
 
 export function initCalculatorsModule(containerId: string) {
   const container = document.getElementById(containerId);
   if (!container) return;
   renderCalculators(container);
+  autoFetchNiftyData();
+}
+
+// Auto-fetch Nifty data on init
+async function autoFetchNiftyData() {
+  try {
+    const niftyData = await fetchNifty();
+    if (niftyData) {
+      D.niftyHigh = niftyData.high52w;
+      D.niftyData = {
+        level: niftyData.level,
+        high52w: niftyData.high52w,
+        timestamp: new Date().toISOString(),
+        source: niftyData.source,
+      };
+      // Update form inputs if they exist
+      setTimeout(() => {
+        const niftyHighInput = document.getElementById('nifty-high') as HTMLInputElement;
+        const niftyCurrentInput = document.getElementById('nifty-current') as HTMLInputElement;
+        if (niftyHighInput) niftyHighInput.value = String(niftyData.high52w);
+        if (niftyCurrentInput) niftyCurrentInput.value = String(niftyData.level);
+      }, 100);
+    }
+  } catch (e) {
+    // Silently fail - user can click refresh button
+  }
 }
 
 function renderCalculators(container: HTMLElement) {
@@ -334,23 +360,33 @@ function calculateTotalNetWorth(): number {
 
 async function refreshNiftyData() {
   try {
+    showToast('⟳ Fetching Nifty data...', 2000);
+
+    // Fetch fresh Nifty data from API
+    const niftyData = await fetchNifty();
+    if (!niftyData) {
+      showToast('✗ Failed to fetch Nifty data. Enter manually.', 2000, 'error');
+      return;
+    }
+
+    // Update D state and form inputs
+    D.niftyHigh = niftyData.high52w;
+    D.niftyData = {
+      level: niftyData.level,
+      high52w: niftyData.high52w,
+      timestamp: new Date().toISOString(),
+      source: niftyData.source,
+    };
+
     const niftyHighInput = document.getElementById('nifty-high') as HTMLInputElement;
     const niftyCurrentInput = document.getElementById('nifty-current') as HTMLInputElement;
 
-    if (!niftyHighInput?.value || !niftyCurrentInput?.value) {
-      showToast('✗ Enter both Nifty values', 2000, 'error');
-      return;
-    }
+    if (niftyHighInput) niftyHighInput.value = String(niftyData.high52w);
+    if (niftyCurrentInput) niftyCurrentInput.value = String(niftyData.level);
 
-    // Recalculate crash scenarios based on user-entered values
-    const highVal = parseFloat(niftyHighInput.value);
-    const currentVal = parseFloat(niftyCurrentInput.value);
-
-    if (isNaN(highVal) || isNaN(currentVal) || highVal <= 0 || currentVal <= 0) {
-      showToast('✗ Enter valid Nifty values', 2000, 'error');
-      return;
-    }
-
+    // Recalculate crash scenarios
+    const highVal = niftyData.high52w;
+    const currentVal = niftyData.level;
     const drawdown = ((highVal - currentVal) / highVal) * 100;
     const totalNW = calculateTotalNetWorth();
 
@@ -360,7 +396,9 @@ async function refreshNiftyData() {
       if (scenarioDiv) {
         scenarioDiv.innerHTML = `
           <div class="scenario-info">
+            <p><strong>Nifty: ${currentVal} | 52W High: ${highVal}</strong></p>
             <p><strong>Current Drawdown: ${drawdown.toFixed(2)}%</strong></p>
+            <p style="font-size: 12px; color: #666;">Source: ${niftyData.source}</p>
           </div>
           <div class="scenario">
             <span class="scenario-label">10% Crash Deploy</span>
@@ -381,9 +419,9 @@ async function refreshNiftyData() {
       }
     }
 
-    showToast('✓ Crash scenarios updated', 2000, 'success');
+    showToast(`✓ Nifty fetched: ${currentVal}`, 2000, 'success');
   } catch (e) {
-    showToast('✗ Failed to update Nifty data', 2000, 'error');
+    showToast('✗ Failed to fetch Nifty data', 2000, 'error');
   }
 }
 

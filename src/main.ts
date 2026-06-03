@@ -21,6 +21,9 @@ import { initProfileModule } from './modules/profile';
 // Import calculators module
 import { initCalculatorsModule } from './modules/calculators';
 
+// Import watchdog module
+import { initWatchdogModule } from './modules/watchdog';
+
 // Import error handling
 import { setupErrorHandling, handleError } from './lib/error-handler';
 import { showToast } from './modules/ui';
@@ -108,6 +111,16 @@ function initApp() {
       if (calcEl) calcEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading Calculators module. Please reload.</p>';
     }
 
+    // Initialize watchdog module with error handling
+    try {
+      initWatchdogModule('watchdog');
+    } catch (e) {
+      console.error('Failed to initialize Watchdog module:', e);
+      handleError(e, 'Watchdog module initialization failed');
+      const watchEl = document.getElementById('watchdog');
+      if (watchEl) watchEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading Watchdog module. Please reload.</p>';
+    }
+
     setupAuthListener();
     setupTabNavigation();
     setupAutoSave();
@@ -135,7 +148,6 @@ function renderApp() {
         <button class="nav-tab active" data-tab="profile">Profile</button>
         <button class="nav-tab" data-tab="dashboard">Dashboard</button>
         <button class="nav-tab" data-tab="calculators">Calculators</button>
-        <button class="nav-tab" data-tab="esop">ESOP Tools</button>
         <button class="nav-tab" data-tab="watchdog">Watchdog</button>
       </div>
       <button id="logout-btn" class="btn-logout" style="display: none;">Logout</button>
@@ -147,7 +159,6 @@ function renderApp() {
       <div id="profile" class="tab active"></div>
       <div id="dashboard" class="tab"></div>
       <div id="calculators" class="tab"></div>
-      <div id="esop" class="tab"></div>
       <div id="watchdog" class="tab"></div>
     </div>
   `;
