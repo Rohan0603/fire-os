@@ -35,8 +35,8 @@ test.describe('PDF Import Flow', () => {
       consoleLogs.push(msg.text());
     });
 
-    // Wait a moment for app to initialize and Nifty fetch to complete
-    await page.waitForTimeout(3000);
+    // Wait for app to initialize and Nifty fetch to complete (longer for slow browsers)
+    await page.waitForTimeout(5000);
 
     // Check for debug logging from Nifty fetch
     const niftyLogs = consoleLogs.filter(
