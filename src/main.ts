@@ -22,7 +22,8 @@ import { initProfileModule } from './modules/profile';
 import { initCalculatorsModule } from './modules/calculators';
 
 // Import error handling
-import { setupErrorHandling } from './lib/error-handler';
+import { setupErrorHandling, handleError } from './lib/error-handler';
+import { showToast } from './modules/ui';
 
 // Import styles
 import './styles/global.css';
@@ -63,18 +64,62 @@ function loadFromLocalStorage() {
 
 // Initialize app on startup
 function initApp() {
-  setupErrorHandling();
-  loadFromLocalStorage();
-  initUIModule();
-  initProfileModule('profile');
-  initDashboardModule('dashboard');
-  initCalculatorsModule('calculators');
-  renderApp();
-  setupAuthListener();
-  setupTabNavigation();
-  setupAutoSave();
-  setupDashboardAutoRefresh();
-  setupOfflineNotification();
+  try {
+    setupErrorHandling();
+    loadFromLocalStorage();
+
+    // Initialize UI module with error handling
+    try {
+      initUIModule();
+    } catch (e) {
+      console.error('Failed to initialize UI module:', e);
+      handleError(e, 'UI module initialization failed');
+    }
+
+    // Initialize profile module with error handling
+    try {
+      initProfileModule('profile');
+    } catch (e) {
+      console.error('Failed to initialize Profile module:', e);
+      handleError(e, 'Profile module initialization failed');
+      const profileEl = document.getElementById('profile');
+      if (profileEl) profileEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading Profile module. Please reload.</p>';
+    }
+
+    // Initialize dashboard module with error handling
+    try {
+      initDashboardModule('dashboard');
+    } catch (e) {
+      console.error('Failed to initialize Dashboard module:', e);
+      handleError(e, 'Dashboard module initialization failed');
+      const dashEl = document.getElementById('dashboard');
+      if (dashEl) dashEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading Dashboard module. Please reload.</p>';
+    }
+
+    // Initialize calculators module with error handling
+    try {
+      initCalculatorsModule('calculators');
+    } catch (e) {
+      console.error('Failed to initialize Calculators module:', e);
+      handleError(e, 'Calculators module initialization failed');
+      const calcEl = document.getElementById('calculators');
+      if (calcEl) calcEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading Calculators module. Please reload.</p>';
+    }
+
+    renderApp();
+    setupAuthListener();
+    setupTabNavigation();
+    setupAutoSave();
+    setupDashboardAutoRefresh();
+    setupOfflineNotification();
+  } catch (e) {
+    console.error('Fatal error during app initialization:', e);
+    handleError(e, 'App initialization failed - please reload the page');
+    const app = document.getElementById('app');
+    if (app) {
+      app.innerHTML = '<div style="padding: 20px; color: #d32f2f; font-weight: bold;">Failed to initialize app. Please reload the page.</div>';
+    }
+  }
 }
 
 // Render main app container
