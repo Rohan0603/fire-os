@@ -178,11 +178,29 @@ function setupAuthListener() {
       } catch (e) {
         console.warn('[Auth] Failed to load from Firebase:', e);
       }
+
+      // Update Save button state if profile tab is visible
+      const saveCloudBtn = document.getElementById('save-cloud-btn') as HTMLButtonElement;
+      if (saveCloudBtn) {
+        saveCloudBtn.disabled = false;
+        saveCloudBtn.classList.remove('btn-disabled');
+        const hint = document.querySelector('.save-cloud-hint');
+        if (hint) hint.style.display = 'none';
+      }
     } else {
       D.currentUser = null;
       showAuthScreen();
       const logoutBtn = document.getElementById('logout-btn');
       if (logoutBtn) logoutBtn.style.display = 'none';
+
+      // Update Save button state if profile tab is visible
+      const saveCloudBtn = document.getElementById('save-cloud-btn') as HTMLButtonElement;
+      if (saveCloudBtn) {
+        saveCloudBtn.disabled = true;
+        saveCloudBtn.classList.add('btn-disabled');
+        const hint = document.querySelector('.save-cloud-hint');
+        if (hint) hint.style.display = '';
+      }
     }
   });
 }

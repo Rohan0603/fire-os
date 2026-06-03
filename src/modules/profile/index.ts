@@ -294,6 +294,19 @@ function attachProfileHandlers() {
   // Save to Cloud button
   const saveCloudBtn = document.getElementById('save-cloud-btn') as HTMLButtonElement;
   if (saveCloudBtn) {
+    const updateButtonState = () => {
+      const isAuthed = !!D.currentUser?.uid;
+      saveCloudBtn.disabled = !isAuthed;
+      saveCloudBtn.classList.toggle('btn-disabled', !isAuthed);
+
+      const hint = document.querySelector('.save-cloud-hint') as HTMLElement;
+      if (hint) {
+        hint.style.display = isAuthed ? 'none' : '';
+      }
+    };
+
+    updateButtonState();
+
     saveCloudBtn.addEventListener('click', async () => {
       if (!D.currentUser?.uid) return;
 
@@ -303,8 +316,7 @@ function attachProfileHandlers() {
       try {
         const valid = await saveProfile();
         if (!valid) {
-          saveCloudBtn.textContent = '☁ Save to Cloud';
-          saveCloudBtn.disabled = false;
+          updateButtonState();
           return;
         }
 
@@ -315,12 +327,10 @@ function attachProfileHandlers() {
       } catch (e) {
         console.error('[Profile] Save to cloud failed:', e);
         showToast('✗ Cloud sync failed', 3000, 'warning');
-        saveCloudBtn.textContent = '☁ Save to Cloud';
-        saveCloudBtn.disabled = false;
+        updateButtonState();
       } finally {
         setTimeout(() => {
-          saveCloudBtn.textContent = '☁ Save to Cloud';
-          saveCloudBtn.disabled = false;
+          updateButtonState();
         }, 2000);
       }
     });
