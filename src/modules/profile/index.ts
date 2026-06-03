@@ -308,7 +308,7 @@ function attachProfileHandlers() {
           return;
         }
 
-        const { savePortfolioToFirebase } = await import('../lib/storage');
+        const { savePortfolioToFirebase } = await import('../../lib/storage');
         await savePortfolioToFirebase(D.currentUser.uid, D);
         showToast('✓ Saved to cloud');
         saveCloudBtn.textContent = '✓ Saved';
