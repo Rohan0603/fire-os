@@ -127,49 +127,58 @@ export function renderProfile(container: HTMLElement) {
  * Render SIP form fields
  */
 function renderSIPFields(): string {
-  let html = '';
   const existingIndices = Object.keys(D.sip)
     .map(k => parseInt(k.replace('sip', '')))
     .filter(n => !isNaN(n));
   const maxSlot = Math.max(4, ...existingIndices);
+
+  let html = `
+    <div class="sip-table-wrapper" style="overflow-x: auto; margin-bottom: 1rem;">
+      <table class="sip-table" style="width: 100%; border-collapse: collapse; text-align: left; background: var(--card-bg); border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <thead style="background: var(--bg-tertiary); border-bottom: 2px solid var(--border-primary);">
+          <tr>
+            <th style="padding: 12px 16px; font-weight: 600; color: var(--text-secondary); min-width: 300px;">Fund Name</th>
+            <th style="padding: 12px 16px; font-weight: 600; color: var(--text-secondary);">Scheme Code</th>
+            <th style="padding: 12px 16px; font-weight: 600; color: var(--text-secondary);">Units</th>
+            <th style="padding: 12px 16px; font-weight: 600; color: var(--text-secondary);">Monthly (₹)</th>
+            <th style="padding: 12px 16px; font-weight: 600; color: var(--text-secondary);">Start Date</th>
+            <th style="padding: 12px 16px; font-weight: 600; color: var(--text-secondary);">Invested (₹)</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
   for (let i = 1; i <= maxSlot; i++) {
     const sip = D.sip[`sip${i}`];
     html += `
-      <fieldset class="sip-fieldset">
-        <legend>SIP ${i}</legend>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Name</label>
-            <input type="text" class="sip-name" data-index="${i}" placeholder="Fund name" value="${sip?.name || ''}">
-          </div>
-          <div class="form-group">
-            <label>Scheme Code</label>
-            <input type="text" class="sip-code" data-index="${i}" placeholder="Code" value="${sip?.schemeCode || ''}">
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Units</label>
-            <input type="number" class="sip-units" data-index="${i}" placeholder="Units" value="${sip?.units || ''}">
-          </div>
-          <div class="form-group">
-            <label>Monthly Amount (₹)</label>
-            <input type="number" class="sip-amount" data-index="${i}" placeholder="Monthly SIP" value="${sip?.monthlyAmount || ''}">
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Start Date (YYYY-MM)</label>
-            <input type="text" class="sip-start" data-index="${i}" placeholder="2023-01" value="${sip?.startDate || ''}">
-          </div>
-          <div class="form-group">
-            <label>Invested Amount (₹)</label>
-            <input type="number" class="sip-cost-basis" data-index="${i}" placeholder="Optional" value="${sip?.costBasis || ''}">
-          </div>
-        </div>
-      </fieldset>
+          <tr style="border-bottom: 1px solid var(--border-primary); transition: background-color 0.2s;">
+            <td style="padding: 8px 16px;">
+              <input type="text" class="sip-name" data-index="${i}" placeholder="Fund name" value="${sip?.name || ''}" style="width: 100%; min-width: 280px; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+            </td>
+            <td style="padding: 8px 16px;">
+              <input type="text" class="sip-code" data-index="${i}" placeholder="Code" value="${sip?.schemeCode || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+            </td>
+            <td style="padding: 8px 16px;">
+              <input type="number" class="sip-units" data-index="${i}" placeholder="Units" value="${sip?.units || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+            </td>
+            <td style="padding: 8px 16px;">
+              <input type="number" class="sip-amount" data-index="${i}" placeholder="₹0" value="${sip?.monthlyAmount || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+            </td>
+            <td style="padding: 8px 16px;">
+              <input type="text" class="sip-start" data-index="${i}" placeholder="YYYY-MM" value="${sip?.startDate || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+            </td>
+            <td style="padding: 8px 16px;">
+              <input type="number" class="sip-cost-basis" data-index="${i}" placeholder="Optional" value="${sip?.costBasis || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+            </td>
+          </tr>
     `;
   }
+  
+  html += `
+        </tbody>
+      </table>
+    </div>
+  `;
   return html;
 }
 

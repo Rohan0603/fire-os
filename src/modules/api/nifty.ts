@@ -144,6 +144,8 @@ async function fetchNiftyFromYahoo(): Promise<{
   source: string;
 } | null> {
   const proxies = [
+    { url: 'https://api.codetabs.com/v1/proxy/?quest=', name: 'codetabs' },
+    { url: 'https://corsproxy.io/?', name: 'corsproxy' },
     { url: CORS_PROXY_1, name: 'allorigins' },
     { url: CORS_PROXY_2, name: 'cors-anywhere' }
   ];
@@ -153,6 +155,8 @@ async function fetchNiftyFromYahoo(): Promise<{
       let proxyUrl: string;
       if (proxy.name === 'allorigins') {
         proxyUrl = `${proxy.url}?url=${encodeURIComponent(YAHOO_NIFTY_URL)}`;
+      } else if (proxy.url.endsWith('=') || proxy.url.endsWith('?')) {
+        proxyUrl = `${proxy.url}${YAHOO_NIFTY_URL}`;
       } else {
         proxyUrl = `${proxy.url}/${YAHOO_NIFTY_URL}`;
       }

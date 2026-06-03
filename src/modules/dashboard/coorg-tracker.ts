@@ -117,24 +117,22 @@ export function renderCoorgWidget(D: Pick<FireOSState, 'coorgCorpus' | 'coorgTar
     statusMessage = "Target reached! ✓";
   }
 
-  // Generate progress bar HTML
   const progressBarWidth = Math.min(progress.percentage, 100);
 
   return `
-    <div class="coorg-widget">
-      <div class="coorg-header">
-        <h3 class="coorg-title">Coorg Goal (₹${targetInCr}Cr by 2036)</h3>
-      </div>
-      <div class="coorg-progress-container">
-        <div class="coorg-progress-bar-bg">
-          <div class="coorg-progress-bar-fill" style="width: ${progressBarWidth}%"></div>
+    <div class="fi-progress-section" style="margin-top: 1.5rem;">
+      <div class="fi-progress-title">Coorg Goal Progress (₹${targetInCr}Cr by 2036)</div>
+      <div class="fi-progress-bar-container">
+        <div class="fi-progress-bar-fill" style="width: ${progressBarWidth}%; background: linear-gradient(90deg, var(--color-gold), #ffd700);">
+          <span class="fi-progress-percent">${progress.percentage}%</span>
         </div>
       </div>
-      <div class="coorg-status">
-        <span class="coorg-current">Current: ₹${corpusInLac}L / ₹${targetInCr}Cr (${progress.percentage}%)</span>
+      <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary);">
+        <span>₹${corpusInLac}L / ₹${targetInCr}Cr</span>
+        <span>${progress.remainingAmount > 0 ? `₹${(progress.remainingAmount / 100000).toFixed(1)}L remaining` : '✨ Target Achieved!'}</span>
       </div>
-      <div class="coorg-timeline">
-        <span class="coorg-message">${statusMessage}</span>
+      <div style="margin-top: 0.25rem; font-size: 0.8rem; color: var(--text-tertiary);">
+        ${statusMessage}
       </div>
     </div>
   `;

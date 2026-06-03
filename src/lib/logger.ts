@@ -47,25 +47,41 @@ export function initLogger(): Logger {
     log(message: string, data?: any): void {
       if (!dev) return;
       const timestamp = getTimestamp();
-      console.log(`[${timestamp}] [FIRE OS] ${message}`, data);
+      if (data !== undefined) {
+        console.log(`[${timestamp}] [FIRE OS] ${message}`, data);
+      } else {
+        console.log(`[${timestamp}] [FIRE OS] ${message}`);
+      }
     },
 
     warn(message: string, data?: any): void {
       if (!dev) return;
       const timestamp = getTimestamp();
-      console.warn(`[${timestamp}] [FIRE OS] ⚠️ ${message}`, data);
+      if (data !== undefined) {
+        console.warn(`[${timestamp}] [FIRE OS] ⚠️ ${message}`, data);
+      } else {
+        console.warn(`[${timestamp}] [FIRE OS] ⚠️ ${message}`);
+      }
     },
 
     error(message: string, error?: any): void {
       if (!dev) return;
       const timestamp = getTimestamp();
-      console.error(`[${timestamp}] [FIRE OS] ❌ ${message}`, error);
+      if (error !== undefined) {
+        console.error(`[${timestamp}] [FIRE OS] ❌ ${message}`, error);
+      } else {
+        console.error(`[${timestamp}] [FIRE OS] ❌ ${message}`);
+      }
     },
 
     debug(message: string, data?: any): void {
       if (!dev) return;
       const timestamp = getTimestamp();
-      console.debug(`[${timestamp}] [FIRE OS] 🔧 ${message}`, data);
+      if (data !== undefined) {
+        console.debug(`[${timestamp}] [FIRE OS] 🔧 ${message}`, data);
+      } else {
+        console.debug(`[${timestamp}] [FIRE OS] 🔧 ${message}`);
+      }
     },
   };
 }

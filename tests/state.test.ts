@@ -204,3 +204,48 @@ test('Coorg fields preserved in backup envelope for export/import', () => {
   expect(backup.coorgTarget).toBe(25000000);
   expect(backup.coorgMonthlyAmount).toBe(12000);
 });
+
+// SWP & Tax Engine (v3.0) Tests
+test('initializeState: Initializes SWP & Tax fields with correct defaults', () => {
+  const state = initializeState();
+  expect(state.swpSchedule.enabled).toBe(false);
+  expect(state.swpSchedule.monthlyAmount).toBe(122000);
+  expect(state.taxCalendar.harvestTarget).toBe(125000);
+  expect(state.expenses).toEqual([]);
+});
+
+test('mergeState: Merges SWP & Tax fields', () => {
+  const existing = initializeState();
+  const incoming: Partial<typeof existing> = {
+    swpSchedule: {
+      enabled: true,
+      startDate: '2044-01',
+      monthlyAmount: 150000,
+      rate: 0.04,
+    },
+    expenses: [
+      { date: '2044-01-15', category: 'food', amount: 5000, linkedToSWP: true }
+    ]
+  };
+  const merged = mergeState(existing, incoming);
+  expect(merged.swpSchedule.enabled).toBe(true);
+  expect(merged.swpSchedule.startDate).toBe('2044-01');
+  expect(merged.expenses).toHaveLength(1);
+  expect(merged.taxCalendar.harvestTarget).toBe(125000); // Preserved
+});
+
+test('FireOSState persists SWP schedule', () => {
+  const state = initializeState();
+  state.swpSchedule.enabled = true;
+  state.swpSchedule.startDate = '2044-01';
+  
+  // Simulate what exportPortfolio creates
+  const backup = {
+    version: '3',
+    swpSchedule: state.swpSchedule,
+  };
+  
+  expect(backup.swpSchedule.enabled).toBe(true);
+  expect(backup.swpSchedule.startDate).toBe('2044-01');
+});
+

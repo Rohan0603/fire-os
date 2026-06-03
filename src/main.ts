@@ -137,6 +137,7 @@ function initApp() {
     setupTabNavigation();
     setupDashboardAutoRefresh();
     setupOfflineNotification();
+    setupTheme();
   } catch (e) {
     console.error('Fatal error during app initialization:', e);
     handleError(e, 'App initialization failed - please reload the page');
@@ -162,7 +163,10 @@ function renderApp() {
         <button class="nav-tab" data-tab="watchdog">Watchdog</button>
         <button class="nav-tab" data-tab="plan">Plan</button>
       </div>
-      <button id="logout-btn" class="btn-logout" style="display: none;">Logout</button>
+      <div style="display: flex; gap: 1rem; align-items: center;">
+        <button id="theme-toggle" class="btn-theme" title="Toggle Theme">🌓</button>
+        <button id="logout-btn" class="btn-logout" style="display: none;">Logout</button>
+      </div>
     </nav>
 
     <div id="auth-screen"></div>
@@ -277,7 +281,7 @@ function setupAuthListener() {
 // Tab navigation
 function setupTabNavigation() {
   document.querySelectorAll('.nav-tab').forEach((tab) => {
-    tab.addEventListener('click', (e) => {
+    tab.addEventListener('click', async (e) => {
       const target = (e.target as HTMLElement).getAttribute('data-tab');
       if (target) {
         document.querySelectorAll('.nav-tab').forEach((t) => t.classList.remove('active'));
@@ -289,6 +293,12 @@ function setupTabNavigation() {
         // Render dashboard when tab is activated
         if (target === 'dashboard') {
           renderDashboard();
+        }
+
+        // Render calculators when tab is activated
+        if (target === 'calculators') {
+          const { renderCalculators } = await import('./modules/calculators');
+          renderCalculators(document.getElementById('calculators')!);
         }
 
         // Render plan when tab is activated
@@ -359,6 +369,31 @@ function setupOfflineNotification() {
   updateBannerStatus();
   window.addEventListener('online', updateBannerStatus);
   window.addEventListener('offline', updateBannerStatus);
+}
+
+// Theme toggle logic
+function setupTheme() {
+  const toggleBtn = document.getElementById('theme-toggle');
+  
+  const savedTheme = localStorage.getItem('fire-os-theme');
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  
+  if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+    document.documentElement.dataset.theme = 'dark';
+  } else {
+    document.documentElement.dataset.theme = 'light';
+  }
+
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      const isDark = document.documentElement.dataset.theme === 'dark';
+      const newTheme = isDark ? 'light' : 'dark';
+      document.documentElement.dataset.theme = newTheme;
+      localStorage.setItem('fire-os-theme', newTheme);
+      // Dispatch custom event for modules that need to re-render canvas elements
+      window.dispatchEvent(new Event('themeChanged'));
+    });
+  }
 }
 
 // Start app

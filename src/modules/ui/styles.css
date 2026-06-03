@@ -45,7 +45,7 @@
 .form-field-wrapper label {
   font-size: 0.9rem;
   font-weight: 500;
-  color: #e0e0e0;
+  color: var(--card-border);
 }
 
 .form-field-wrapper input,
@@ -55,7 +55,7 @@
   border: 1px solid #3a3a3a;
   border-radius: 8px;
   font-size: 1rem;
-  color: #ffffff;
+  color: var(--card-bg);
   font-family: inherit;
   transition: all 200ms ease;
   outline: none;
@@ -63,7 +63,7 @@
 
 .form-field-wrapper input:focus,
 .form-field-wrapper textarea:focus {
-  background: #333333;
+  background: var(--text-primary);
   border-color: #ffd700;
   box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.1);
 }
@@ -81,7 +81,7 @@
 
 .form-field-error {
   font-size: 0.8rem;
-  color: #dc3545;
+  color: var(--status-bad-text);
   min-height: 1.2rem;
   margin-top: -0.3rem;
   display: none;
@@ -89,7 +89,7 @@
 
 .form-field-wrapper input.error,
 .form-field-wrapper textarea.error {
-  border-color: #dc3545;
+  border-color: var(--status-bad-text);
   background: rgba(220, 53, 69, 0.05);
 }
 
@@ -154,7 +154,7 @@ button[class*='btn-'] {
 
 .btn-primary {
   padding: 0.875rem 1rem;
-  background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+  background: var(--card-bg);
   color: #1a1a1a;
 }
 
@@ -174,8 +174,8 @@ button[class*='btn-'] {
 
 .btn-secondary {
   padding: 0.75rem 1.5rem;
-  background: #333333;
-  color: #ffffff;
+  background: var(--text-primary);
+  color: var(--card-bg);
   border: 1px solid #3a3a3a;
 }
 
@@ -225,17 +225,17 @@ button:focus-visible {
 /* ========== UTILITY STYLES ========== */
 
 .text-success {
-  color: #28a745;
+  color: var(--status-good-text);
 }
 
 .text-error {
-  color: #dc3545;
+  color: var(--status-bad-text);
 }
 
 .text-warning {
-  color: #ffc107;
+  color: var(--status-warn-text);
 }
 
 .text-info {
-  color: #007bff;
+  color: var(--accent);
 }

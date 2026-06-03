@@ -7,11 +7,11 @@
 .watchdog-container h2 {
   font-size: 24px;
   margin-bottom: 8px;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .watchdog-info {
-  color: #666;
+  color: var(--text-secondary);
   margin-bottom: 24px;
   font-size: 14px;
 }
@@ -19,9 +19,9 @@
 .watchdog-empty {
   padding: 40px 20px;
   text-align: center;
-  background: #f5f5f5;
+  background: var(--bg-tertiary);
   border-radius: 8px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .alpha-grid {
@@ -33,7 +33,7 @@
 
 .alpha-card {
   background: white;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--card-border);
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
@@ -42,7 +42,7 @@
 .alpha-card h3 {
   margin: 0 0 8px 0;
   font-size: 18px;
-  color: #333;
+  color: var(--text-primary);
 }
 
 .benchmark-pair {
@@ -53,7 +53,7 @@
 
 .benchmark-label {
   font-size: 13px;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .returns-section {
@@ -71,13 +71,13 @@
 
 .return-item .label {
   font-weight: 500;
-  color: #666;
+  color: var(--text-secondary);
   min-width: 60px;
 }
 
 .return-item .fund-value {
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
   min-width: 70px;
   text-align: right;
 }
@@ -100,7 +100,7 @@
 }
 
 .alpha-result .label {
-  color: #333;
+  color: var(--text-primary);
   font-size: 13px;
 }
 

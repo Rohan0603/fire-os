@@ -53,9 +53,28 @@ export interface FireOSState {
     };
   };
 
-  // Authentication & Sync
+  // Auth
   currentUser: FirebaseUserType;
   _lastSavedAt: string; // ISO timestamp of last save
+
+  // SWP & Tax Engine (v3.0)
+  swpSchedule: {
+    enabled: boolean;
+    startDate: string;
+    monthlyAmount: number;
+    rate: number;
+  };
+  taxCalendar: {
+    lastLTCGHarvestDate: string;
+    lastHarvestedAmount: number;
+    harvestTarget: number;
+  };
+  expenses: Array<{
+    date: string;
+    category: string;
+    amount: number;
+    linkedToSWP: boolean;
+  }>;
 
   // Sync metadata (internal use)
   _syncMetadata?: SyncMetadata;
@@ -115,6 +134,20 @@ export function initializeState(): FireOSState {
     currentUser: null,
     _lastSavedAt: new Date().toISOString(),
 
+    // SWP & Tax Engine (v3.0)
+    swpSchedule: {
+      enabled: false,
+      startDate: '',
+      monthlyAmount: 122000,
+      rate: 0.03,
+    },
+    taxCalendar: {
+      lastLTCGHarvestDate: '',
+      lastHarvestedAmount: 0,
+      harvestTarget: 125000,
+    },
+    expenses: [],
+
     // Sync metadata
     _syncMetadata: {
       lastSavedAt: new Date().toISOString(),
@@ -157,6 +190,11 @@ export function isFireOSState(value: unknown): value is FireOSState {
     typeof watchdog.currentAum === 'object' &&
     typeof watchdog.blockedDays === 'object' &&
     typeof watchdog.managerExits === 'object' &&
+    typeof obj.swpSchedule === 'object' &&
+    obj.swpSchedule !== null &&
+    typeof obj.taxCalendar === 'object' &&
+    obj.taxCalendar !== null &&
+    Array.isArray(obj.expenses) &&
     (obj.currentUser === null || typeof obj.currentUser === 'object')
   );
 }
@@ -210,6 +248,10 @@ export function mergeState(existing: FireOSState, incoming: Partial<FireOSState>
         },
       },
     }),
+    // SWP & Tax Engine fields
+    ...(incoming.swpSchedule && { swpSchedule: { ...existing.swpSchedule, ...incoming.swpSchedule } }),
+    ...(incoming.taxCalendar && { taxCalendar: { ...existing.taxCalendar, ...incoming.taxCalendar } }),
+    ...(incoming.expenses && { expenses: incoming.expenses }),
     // Metadata is only set explicitly, never from incoming
     _lastSavedAt: incoming._lastSavedAt ?? existing._lastSavedAt,
   };

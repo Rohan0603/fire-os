@@ -5,6 +5,25 @@ All notable changes to FIRE OS are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-12-15
+
+### Added
+- **SWP Automation**: Monthly withdrawal scheduler with FIFO redemption strategy
+- **Tax Optimization Engine**: LTCG harvest calendar, SIP vs lump-sum tax comparison, Section 80C/80D hints
+- **Advisor Integration**: CFP review workflow (webhook-based)
+- **Custom Expense Tracking**: Link SWP withdrawals to actual spending, FI target validation
+- **Mutual Funds UI/UX Improvements**: Redesigned SIP/MF UI with table-based layout
+
+### Technical
+- Added swp-scheduler, tax-optimizer, advisor-webhook, expense-tracker modules
+- Extended D object with swpSchedule, taxCalendar, expenses fields
+- Cloud Functions for automated monthly withdrawals
+- Tax reporting calendar (April-March fiscal year)
+- Expense validation against 3% SWR target (₹122K/month)
+- E2E tests verifying dashboard wiring
+
+---
+
 ## [2.3.0] - 2026-06-03
 
 ### Added

@@ -31,7 +31,7 @@ function renderAlphaTracking(): string {
     return `
       <div class="watchdog-empty">
         <p>No benchmark data available.</p>
-        <p>Add funds in Profile tab and import CAS PDF to track performance against benchmarks.</p>
+        <p>Add funds in Profile tab to track performance against benchmarks.</p>
       </div>
     `;
   }

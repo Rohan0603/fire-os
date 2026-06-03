@@ -16,6 +16,8 @@ let eurInrCache: EURINRData | null = null;
 const EUR_INR_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 const YAHOO_URL = 'https://finance.yahoo.com/quote/EURINR=X';
 const CORS_PROXIES = [
+  `https://api.codetabs.com/v1/proxy/?quest=${YAHOO_URL}`,
+  `https://corsproxy.io/?${YAHOO_URL}`,
   `https://api.allorigins.win/raw?url=${encodeURIComponent(YAHOO_URL)}`,
   `https://cors-anywhere.herokuapp.com/${YAHOO_URL}`,
 ];

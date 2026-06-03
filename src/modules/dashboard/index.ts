@@ -10,9 +10,11 @@ import { D } from '../../main';
 import { fetchNAV, getNAVCacheMap } from '../api';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
 import { renderCoorgWidget } from './coorg-tracker';
-import { calculateAllocationDrift, type AllocationDrift } from '../calculators/portfolio-rebalancing';
+
 import type { CrashAlert } from '../api/nifty-monitor';
 import type { WatchdogAlert } from '../watchdog/fund-manager-alerts';
+import { renderAdvisorIntegrationWidget } from '../integrations/advisor-webhook';
+import { renderExpenseTracker } from '../trackers/expense-tracker';
 import './styles.css';
 
 // Module state
@@ -104,10 +106,7 @@ export async function renderDashboard(): Promise<void> {
   const nifty = floatIndicator(D);
   const composition = portfolioComposition(D);
 
-  // Calculate rebalancing drift
-  const holdings = calculatePortfolioHoldings();
-  const totalHoldingsValue = Object.values(holdings).reduce((sum, val) => sum + val, 0);
-  const drift = calculateAllocationDrift(holdings, totalHoldingsValue);
+
 
   // Build the dashboard HTML
   container.innerHTML = `
@@ -129,8 +128,19 @@ export async function renderDashboard(): Promise<void> {
       <!-- Portfolio Summary Section -->
       ${renderPortfolioSummary(netWorth.breakdown, sip.totalCurrentValue, fi)}
 
-      <!-- Rebalancing Widget (if drift exists) -->
-      ${renderRebalancingWidget(drift)}
+
+
+      <!-- SWP Schedule Widget (if SWP enabled) -->
+      ${D.swpSchedule?.enabled ? renderSWPScheduleWidget(D) : ''}
+
+      <!-- Tax Optimization Widget (if SWP enabled) -->
+      ${D.swpSchedule?.enabled ? renderTaxOptimizationWidget(D) : ''}
+
+      <!-- Advisor Integration Widget (if SWP enabled) -->
+      ${D.swpSchedule?.enabled ? renderAdvisorIntegrationWidget(D) : ''}
+
+      <!-- Expense Tracker Widget (if SWP enabled) -->
+      ${D.swpSchedule?.enabled ? renderExpenseTracker(D) : ''}
 
       <!-- Charts Section -->
       <div class="charts-section">
@@ -308,124 +318,7 @@ function renderPortfolioSummary(breakdown: any, sipValue: number, fi: any): stri
   `;
 }
 
-/**
- * Calculate portfolio holdings from D object
- * Aggregates all holdings by fund type
- * @returns Object with fund values: { PPFCF: number, NipponGrowth: number, ... }
- */
-function calculatePortfolioHoldings(): { [fundName: string]: number } {
-  const holdings: { [fundName: string]: number } = {
-    PPFCF: 0,
-    NipponGrowth: 0,
-    NipponSmallCap: 0,
-    Gold: 0,
-  };
 
-  // Sum SIP holdings
-  Object.entries(D.sip).forEach(([, fund]) => {
-    if (!fund.name) return;
-    const fundName = getFundDisplayName(fund.name);
-    const value = (fund.units || 0) * ((D.nav[fund.schemeCode || ''] as any)?.nav || 0);
-    if (fundName in holdings) {
-      holdings[fundName] = (holdings[fundName] || 0) + value;
-    }
-  });
-
-  // Sum MF holdings
-  Object.entries(D.mf).forEach(([, fund]) => {
-    if (!fund.name) return;
-    const fundName = getFundDisplayName(fund.name);
-    const value = (fund.units || 0) * ((D.nav[fund.schemeCode || ''] as any)?.nav || 0);
-    if (fundName in holdings) {
-      holdings[fundName] = (holdings[fundName] || 0) + value;
-    }
-  });
-
-  return holdings;
-}
-
-/**
- * Get display name for fund from its full name
- * Maps fund names to canonical names used in allocation targets
- */
-function getFundDisplayName(fundName: string): string {
-  if (fundName.includes('Parag') || fundName.includes('PPFCF')) {
-    return 'PPFCF';
-  }
-  if (fundName.includes('Nippon') && (fundName.includes('Growth') || fundName.includes('growth'))) {
-    return 'NipponGrowth';
-  }
-  if (fundName.includes('Nippon') && (fundName.includes('Small') || fundName.includes('small'))) {
-    return 'NipponSmallCap';
-  }
-  if (fundName.includes('Gold') || fundName.includes('gold')) {
-    return 'Gold';
-  }
-  return fundName;
-}
-
-/**
- * Render Portfolio Rebalancing Widget
- * Shows current vs target allocation and drift recommendations
- */
-function renderRebalancingWidget(drift: AllocationDrift): string {
-  // Hide widget if no significant drift
-  if (drift.recommendations.length === 0) {
-    return '';
-  }
-
-  // Build comparison table
-  const tableRows = Object.keys(drift.target)
-    .map(fund => {
-      const current = drift.current[fund] || 0;
-      const target = drift.target[fund];
-      const driftAmount = drift.driftAmount[fund] || 0;
-      const driftClass = driftAmount > 5 ? 'drift-high' : driftAmount < -5 ? 'drift-low' : 'drift-ok';
-
-      return `
-        <tr class="${driftClass}">
-          <td>${fund}</td>
-          <td>${current.toFixed(1)}%</td>
-          <td>${target}%</td>
-          <td>${driftAmount > 0 ? '+' : ''}${driftAmount.toFixed(1)}%</td>
-        </tr>
-      `;
-    })
-    .join('');
-
-  const recommendationsHtml = drift.recommendations
-    .map(rec => `<li>${rec}</li>`)
-    .join('');
-
-  return `
-    <div class="rebalancing-widget">
-      <div class="rebalancing-widget-title">📊 Portfolio Rebalancing</div>
-      <div class="rebalancing-content">
-        <div class="rebalancing-table">
-          <table>
-            <thead>
-              <tr>
-                <th>Fund</th>
-                <th>Current</th>
-                <th>Target</th>
-                <th>Drift</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${tableRows}
-            </tbody>
-          </table>
-        </div>
-        <div class="rebalancing-recommendations">
-          <div class="recommendations-title">Actions (drift > 5%):</div>
-          <ul>
-            ${recommendationsHtml}
-          </ul>
-        </div>
-      </div>
-    </div>
-  `;
-}
 
 /**
  * Render Portfolio Composition Pie Chart
@@ -442,15 +335,15 @@ function renderCompositionChart(composition: any): string {
     `;
   }
 
-  const colors = ['#0066cc', '#28a745', '#ffc107', '#dc3545', '#6f42c1', '#20c997', '#fd7e14'];
+  const colors = ['var(--accent)', 'var(--status-good-text)', 'var(--status-warn-text)', 'var(--status-bad-text)', '#6f42c1', '#20c997', '#fd7e14'];
   const legendHtml = composition.categories
     .map(
       (cat: any, idx: number) => `
     <div class="legend-item">
       <div class="legend-color" style="background-color: ${colors[idx % colors.length]}"></div>
       <div>
-        <div>${cat.name}</div>
-        <div style="font-size: 0.8rem; color: #6c757d;">${cat.percentage.toFixed(1)}% • ${formatCurrency(cat.value, 0)}</div>
+        <div style="color: var(--text-primary);">${cat.name}</div>
+        <div style="font-size: 0.8rem; color: var(--text-secondary);">${cat.percentage.toFixed(1)}% • ${formatCurrency(cat.value, 0)}</div>
       </div>
     </div>
   `
@@ -478,13 +371,13 @@ function renderFIProgressChart(fi: any): string {
 
   return `
     <div class="chart-container">
-      <div class="chart-title">📈 FI Goal Progress</div>
+      <div class="chart-title" style="color: var(--text-primary);">📈 FI Goal Progress</div>
       <div class="line-chart" id="fi-progress-chart">
         <div style="padding: 2rem; text-align: center;">
-          <div style="font-size: 3rem; font-weight: 700; color: #0066cc;">${fi.progressPercent.toFixed(1)}%</div>
-          <div style="color: #6c757d; margin-top: 1rem;">
+          <div style="font-size: 3rem; font-weight: 700; color: var(--accent);">${fi.progressPercent.toFixed(1)}%</div>
+          <div style="color: var(--text-secondary); margin-top: 1rem;">
             <div>${formatCurrency(fi.currentCorpus, 0)} / ${formatCurrency(fi.fiTarget, 0)}</div>
-            <div style="font-size: 0.9rem; margin-top: 0.5rem;">
+            <div style="font-size: 0.9rem; margin-top: 0.5rem; color: ${remaining > 0 ? 'var(--text-tertiary)' : 'var(--status-good-text)'};">
               ${remaining > 0 ? `${formatCurrency(remaining, 0)} remaining` : '✨ FI Achieved!'}
             </div>
           </div>
@@ -508,7 +401,14 @@ function drawPieChart(canvasId: string, data: any[]): void {
   canvas.width = rect.width;
   canvas.height = rect.height;
 
-  const colors = ['#0066cc', '#28a745', '#ffc107', '#dc3545', '#6f42c1', '#20c997', '#fd7e14'];
+  const computedStyle = getComputedStyle(document.documentElement);
+  const colors = [
+    computedStyle.getPropertyValue('--accent').trim() || '#007bff',
+    computedStyle.getPropertyValue('--status-good-text').trim() || '#28a745',
+    computedStyle.getPropertyValue('--status-warn-text').trim() || '#ffc107',
+    computedStyle.getPropertyValue('--status-bad-text').trim() || '#dc3545',
+    '#6f42c1', '#20c997', '#fd7e14'
+  ];
   const total = data.reduce((sum, item) => sum + item.value, 0);
 
   if (total === 0) return;
@@ -537,7 +437,7 @@ function drawPieChart(canvasId: string, data: any[]): void {
     const labelX = centerX + Math.cos(labelAngle) * (radius * 0.65);
     const labelY = centerY + Math.sin(labelAngle) * (radius * 0.65);
 
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = computedStyle.getPropertyValue('--text-inverse').trim() || '#ffffff';
     ctx.font = 'bold 12px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -564,6 +464,14 @@ function attachDashboardEventListeners(): void {
     }
   }
 }
+
+// Re-render dashboard when theme changes to update canvas colors
+window.addEventListener('themeChanged', () => {
+  const container = document.getElementById(containerId);
+  if (container && container.innerHTML.trim() !== '') {
+    renderDashboard();
+  }
+});
 
 /**
  * Teardown the dashboard module
@@ -595,4 +503,33 @@ export function observeDashboardChanges(): void {
 
   // Note: Full proxy wrapping would be done in main.ts
   // This is a helper that individual modules can call
+}
+
+/**
+ * Render SWP Schedule Widget
+ */
+function renderSWPScheduleWidget(state: any): string {
+  if (!state.swpSchedule?.enabled) return '';
+  return `
+    <div class="swp-schedule-widget">
+      <h3>SWP Schedule</h3>
+      <p>Status: Active</p>
+      <p>Monthly Amount: ₹${(state.swpSchedule.monthlyAmount / 1000).toFixed(0)}K</p>
+      <p>Start Date: ${state.swpSchedule.startDate}</p>
+    </div>
+  `;
+}
+
+/**
+ * Render Tax Optimization Widget
+ */
+function renderTaxOptimizationWidget(state: any): string {
+  if (!state.swpSchedule?.enabled) return '';
+  return `
+    <div class="tax-optimization-widget">
+      <h3>Tax Optimization</h3>
+      <p>LTCG Harvest Target: ₹${(state.taxCalendar.harvestTarget / 100000).toFixed(2)}L</p>
+      <p>Last Harvest: ${state.taxCalendar.lastLTCGHarvestDate || 'None'}</p>
+    </div>
+  `;
 }

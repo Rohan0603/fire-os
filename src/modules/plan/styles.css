@@ -70,14 +70,14 @@
 
 .plan-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, var(--accent) 0%, #0056b3 100%);
+  background: var(--card-bg);
   border-radius: 5px;
   transition: width 0.4s ease;
   min-width: 2px;
 }
 
 .plan-progress-fill--coorg {
-  background: linear-gradient(90deg, #ff9800 0%, #ff6f00 100%);
+  background: var(--card-bg);
 }
 
 .plan-progress-note {
@@ -120,9 +120,9 @@
   font-weight: 600;
 }
 
-.stress-badge--base   { background: #d4edda; color: #155724; }
-.stress-badge--likely { background: #fff3cd; color: #856404; }
-.stress-badge--stress { background: #f8d7da; color: #721c24; }
+.stress-badge--base   { background: var(--status-good-bg); color: var(--status-good-text); }
+.stress-badge--likely { background: var(--status-warn-bg); color: var(--status-warn-text); }
+.stress-badge--stress { background: var(--status-bad-bg); color: var(--status-bad-text); }
 
 /* Coorg funding */
 .plan-funding-list {

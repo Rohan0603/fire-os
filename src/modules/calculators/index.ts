@@ -41,7 +41,7 @@ async function autoFetchNiftyData() {
   }
 }
 
-function renderCalculators(container: HTMLElement) {
+export function renderCalculators(container: HTMLElement) {
   container.innerHTML = `
     <div class="calculators-container">
       <div class="calc-tabs">
@@ -81,7 +81,7 @@ function renderCrashProtocol(): string {
       <p class="calc-info">How much to deploy if market crashes?</p>
 
       <div class="calc-input-group">
-        <label>Current Portfolio (₹)</label>
+        <label>Crash Fund (₹)</label>
         <input type="number" id="crash-portfolio" value="${totalNW}">
       </div>
 

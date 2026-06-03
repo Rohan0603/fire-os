@@ -79,7 +79,7 @@ export function renderPlan() {
           </div>
           <div class="plan-kpi">
             <span class="plan-kpi-label">Progress</span>
-            <span class="plan-kpi-value plan-kpi-value--accent">${formatPercentage(fiProgressPct, 1)}</span>
+            <span class="plan-kpi-value plan-kpi-value--accent">${fiProgressPct.toFixed(1)}%</span>
           </div>
         </div>
         <div class="plan-progress-bar">
@@ -120,7 +120,7 @@ export function renderPlan() {
           </div>
           <div class="plan-kpi">
             <span class="plan-kpi-label">Progress</span>
-            <span class="plan-kpi-value">${formatPercentage(coorgProgressPct, 1)}</span>
+            <span class="plan-kpi-value">${coorgProgressPct.toFixed(1)}%</span>
           </div>
         </div>
         <div class="plan-progress-bar plan-progress-bar--coorg">

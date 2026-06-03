@@ -206,7 +206,7 @@
 }
 
 .runway-result {
-  background: linear-gradient(135deg, var(--bg-primary), var(--bg-secondary));
+  background: var(--card-bg);
   border-radius: 6px;
   padding: 20px;
   text-align: center;

@@ -10,6 +10,7 @@ A comprehensive personal finance dashboard for FIRE (Financial Independence, Ret
 - [API.md](docs/API.md) — API integrations & response formats
 - [QUICKSTART.md](QUICKSTART.md) — Quick reference for developers
 - [CLAUDE.md](CLAUDE.md) — Development guide for Claude Code
+- [ANTIGRAVITY.md](ANTIGRAVITY.md) — Development guide for Antigravity IDE
 
 ---
 
@@ -179,7 +180,8 @@ All APIs are **CORS-friendly** and work from GitHub Pages (static hosting).
 fire-os/
 ├── index.html                      # Main app (258 KB, all-in-one)
 ├── README.md                       # This file
-├── CLAUDE.md                       # Developer guide
+├── CLAUDE.md                       # Developer guide (Claude Code)
+├── ANTIGRAVITY.md                  # Developer guide (Antigravity IDE)
 ├── firebase.json                   # Firebase Hosting config
 ├── .firebaserc                     # Firebase project alias
 ├── .gitignore                      # Git ignore rules
