@@ -153,7 +153,7 @@ function renderSIPFields(): string {
             <input type="text" class="sip-start" data-index="${i}" placeholder="2023-01" value="${sip?.startDate || ''}">
           </div>
           <div class="form-group">
-            <label>Cost Basis Override (₹)</label>
+            <label>Invested Amount (₹)</label>
             <input type="number" class="sip-cost-basis" data-index="${i}" placeholder="Optional" value="${sip?.costBasis || ''}">
           </div>
         </div>
@@ -439,10 +439,10 @@ export function saveProfile() {
           }
         }
 
-        // Validate cost basis override if provided (non-negative)
+        // Validate invested amount if provided (non-negative)
         const costBasis = parseFloat(costBasisEl?.value || '0') || 0;
         if (costBasis < 0) {
-          validationErrors.push({ field: `sip${i}-cost-basis`, message: `SIP ${i}: Cost basis cannot be negative` });
+          validationErrors.push({ field: `sip${i}-cost-basis`, message: `SIP ${i}: Invested amount cannot be negative` });
           continue;
         }
 
