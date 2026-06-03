@@ -25,7 +25,6 @@ export interface DematHolding {
   quantity: number;
   currentValue: number; // INR
   name: string;
-  costBasis?: number; // Optional: cost basis for P&L calculation
 }
 
 /** Represents alpha/benchmark tracking data for a fund */

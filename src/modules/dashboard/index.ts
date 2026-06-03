@@ -4,7 +4,7 @@
  * Displays KPI cards, portfolio composition pie chart, and FI progress
  */
 
-import { totalNetWorth, sipStatus, dematPnL, fiProgress, floatIndicator, portfolioComposition } from './kpis';
+import { totalNetWorth, sipStatus, fiProgress, floatIndicator, portfolioComposition } from './kpis';
 import { formatCurrency, formatPercentage, formatNumber } from '../../lib/formatters';
 import { D } from '../../main';
 import { fetchNAV, getNAVCacheMap } from '../api';
@@ -64,16 +64,9 @@ export async function renderDashboard(): Promise<void> {
   // Calculate all KPIs from current state
   const netWorth = totalNetWorth(D);
   const sip = sipStatus(D);
-  const demat = dematPnL(D);
   const fi = fiProgress(D);
   const nifty = floatIndicator(D);
   const composition = portfolioComposition(D);
-
-  // Consolidated P&L
-  const consolidatedInvested = sip.totalInvested + demat.totalInvested;
-  const consolidatedCurrentValue = sip.totalCurrentValue + demat.totalCurrentValue;
-  const consolidatedPL = consolidatedCurrentValue - consolidatedInvested;
-  const consolidatedPercent = consolidatedInvested > 0 ? (consolidatedPL / consolidatedInvested) * 100 : 0;
 
   // Build the dashboard HTML
   container.innerHTML = `
@@ -82,8 +75,6 @@ export async function renderDashboard(): Promise<void> {
       <div class="kpi-grid">
         ${renderNetWorthCard(netWorth.netWorth)}
         ${renderSIPStatusCard(sip.totalCurrentValue, sip.totalInvested)}
-        ${renderDematStatusCard(demat.totalCurrentValue, demat.totalInvested)}
-        ${renderConsolidatedPLCard(consolidatedCurrentValue, consolidatedInvested)}
         ${renderFIProgressCard(fi.progressPercent)}
         ${renderFloatIndicatorCard(nifty.drawdownPercent)}
       </div>
@@ -124,35 +115,6 @@ function renderSIPStatusCard(currentValue: number, invested: number): string {
   return `
     <div class="kpi-card ${cardClass}">
       <div class="kpi-card-title">SIP P&L</div>
-      <div class="kpi-card-value">${formatCurrency(pl, 0)}</div>
-      <div class="kpi-card-subtitle">${formatPercentage(plPercent / 100)} gain • ${formatCurrency(currentValue, 0)} current</div>
-    </div>
-  `;
-}
-
-function renderDematStatusCard(currentValue: number, invested: number): string {
-  if (invested === 0 && currentValue === 0) return ''; // Hide if no demat holdings
-  const pl = currentValue - invested;
-  const plPercent = invested > 0 ? (pl / invested) * 100 : 0;
-  const cardClass = pl >= 0 ? 'positive' : 'negative';
-
-  return `
-    <div class="kpi-card ${cardClass}">
-      <div class="kpi-card-title">Demat P&L</div>
-      <div class="kpi-card-value">${formatCurrency(pl, 0)}</div>
-      <div class="kpi-card-subtitle">${formatPercentage(plPercent / 100)} gain • ${formatCurrency(currentValue, 0)} current</div>
-    </div>
-  `;
-}
-
-function renderConsolidatedPLCard(currentValue: number, invested: number): string {
-  const pl = currentValue - invested;
-  const plPercent = invested > 0 ? (pl / invested) * 100 : 0;
-  const cardClass = pl >= 0 ? 'positive' : 'negative';
-
-  return `
-    <div class="kpi-card ${cardClass}">
-      <div class="kpi-card-title">Consolidated P&L</div>
       <div class="kpi-card-value">${formatCurrency(pl, 0)}</div>
       <div class="kpi-card-subtitle">${formatPercentage(plPercent / 100)} gain • ${formatCurrency(currentValue, 0)} current</div>
     </div>
