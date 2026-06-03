@@ -2,14 +2,20 @@
 test-results/
 test-screenshots/
 *.log
+coverage/
+.nyc_output/
 
 # Dependencies
 node_modules/
 package-lock.json
+yarn.lock
+pnpm-lock.yaml
 
 # Firebase/Playwright artifacts
 .firebase/
 .playwright-mcp/
+.playwright/
+firebase-debug.log
 
 # IDE & Editor
 .vscode/
@@ -18,10 +24,15 @@ package-lock.json
 *.swo
 *~
 *.sublime-*
+*.iml
+.vscode-test/
+.history/
 
 # OS artifacts
 .DS_Store
 Thumbs.db
+.env
+.env.production.local
 
 # Environment & Config
 .env.local
@@ -30,8 +41,29 @@ Thumbs.db
 # Backup & Merge files
 *.orig
 *.bak
+*.backup
 
 # Build artifacts
 dist/
 build/
 out/
+*.tsbuildinfo
+
+# TypeScript
+*.d.ts
+!src/**/*.d.ts
+
+# Cache & Temp
+.cache/
+*.cache
+.parcel-cache
+.eslintcache
+.prettierignore
+.turbo/
+tmp/
+temp/
+
+# Runtime
+*.pem
+.node-gyp/
+.npm/
