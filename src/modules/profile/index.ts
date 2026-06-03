@@ -515,76 +515,59 @@ function parseCASContent(text: string): { funds: any[]; stocks: any[] } {
   const funds: any[] = [];
   const stocks: any[] = [];
 
-  const lines = text.split('\n');
-  console.log('CAS parsing: total lines:', lines.length);
-  console.log('CAS parsing: sample lines:', lines.slice(0, 20));
+  console.log('CAS parsing text length:', text.length);
 
-  // Pass 1: Find all ISIN entries (both MF and Demat)
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line) continue;
+  // Search for common fund scheme names and extract units that follow
+  const fundPatterns = [
+    { name: /Parag Parikh[^0-9]*Flexi Cap[^0-9]*Fund[^0-9]*Direct[^0-9]*Plan[^0-9]*Growth/, units: /Flexi Cap[^0-9]*Fund.*?(\d+\.\d+)\s+(?:unit|Unit)/ },
+    { name: /NIPPON.*?INDIA.*?GROWTH.*?MID.*?CAP/, units: /GROWTH.*?MID.*?CAP.*?(\d+\.\d+)\s+(?:unit|Unit)/ },
+    { name: /NIPPON.*?INDIA.*?SMALL.*?CAP/, units: /SMALL.*?CAP.*?(\d+\.\d+)\s+(?:unit|Unit)/ },
+    { name: /ICICI.*?PRUENTIAL.*?GOLD.*?ETF/, units: /GOLD.*?ETF.*?(\d+\.\d+)\s+(?:unit|Unit|balance)/ },
+  ];
 
-    // Skip header/metadata lines
-    if (line.match(/Consolidated Account|As on Date|Report|Summary|Page|Date:/i)) {
-      continue;
-    }
+  for (const pattern of fundPatterns) {
+    if (pattern.name.test(text)) {
+      const fundMatch = text.match(pattern.name);
+      const unitsMatch = text.match(pattern.units);
 
-    // Match ISIN pattern: 2 letters + 9 alphanumeric + 1 check digit = 12 chars total
-    // Example: INF123A01234X (IN + F123A01234 + X)
-    const isinMatch = line.match(/([A-Z]{2}[A-Z0-9]{9}[A-Z0-9])/);
-    if (!isinMatch) {
-      // Log lines that might contain ISINs
-      if (line.match(/[A-Z]{2}[A-Z0-9]{9,11}/)) {
-        console.log('CAS: line with potential ISIN pattern but no strict match:', line.substring(0, 100));
-      }
-      continue;
-    }
-    console.log('CAS: ISIN found:', isinMatch[1]);
+      if (fundMatch) {
+        const fundName = fundMatch[0].replace(/\s+/g, ' ').substring(0, 80).trim();
+        const units = unitsMatch ? parseFloat(unitsMatch[1]) : 0;
 
-    const isin = isinMatch[1];
-    const parts = line.split(/\s+/);
-
-    // Try to extract quantity/units from the line
-    let quantity = 0;
-    let fundName = '';
-
-    if (parts.length >= 2) {
-      // Extract all numbers from the line
-      const numbers = [];
-      for (const part of parts) {
-        const num = parseFloat(part.replace(/,/g, ''));
-        if (!isNaN(num) && num > 0) {
-          numbers.push(num);
+        if (fundName && fundName.length > 5) {
+          if (!funds.find(f => f.name.includes(fundName.substring(0, 20)))) {
+            console.log('CAS: Found fund:', fundName, 'Units:', units);
+            funds.push({
+              name: fundName,
+              units: units || 1, // default to 1 if units not found
+              date: new Date().toISOString().split('T')[0],
+            });
+          }
         }
       }
-
-      // Use the last number as quantity (usually units/shares)
-      if (numbers.length > 0) {
-        quantity = numbers[numbers.length - 1];
-        fundName = line.replace(isin, '')
-          .replace(/[\d.,\s]+$/g, '') // Remove trailing numbers
-          .trim();
-      }
     }
+  }
 
-    // Sanity checks: valid fund name and reasonable quantity
-    if (quantity > 0 && fundName && fundName.length > 2) {
-      // Classify as MF or Stock based on context
-      const isMF = line.match(/Mutual Fund|MF|NSDL|Fund|Scheme|Growth|Dividend/i) ||
-                   !line.match(/Equity|Stock|NSE|BSE|Demat|Shares/i);
+  // Also extract any blocks containing "Fund" or "Scheme" or "ETF" with associated unit numbers
+  const schemeBlocks = text.match(/[A-Z][^.!?]*(?:Fund|Scheme|ETF)[^.!?]*(?:\d+\.?\d*\s+(?:unit|Unit|balance|Balance))/gi) || [];
 
-      if (isMF) {
-        funds.push({
-          name: fundName.substring(0, 50),
-          units: quantity,
-          date: new Date().toISOString().split('T')[0],
-        });
-      } else {
-        stocks.push({
-          isin,
-          name: fundName.substring(0, 100),
-          quantity,
-        });
+  for (const block of schemeBlocks) {
+    const fundMatch = block.match(/([A-Z].*?(?:Fund|Scheme|ETF))/i);
+    const unitsMatch = block.match(/(\d+\.?\d*)\s+(?:unit|Unit|balance|Balance)/i);
+
+    if (fundMatch && unitsMatch) {
+      const fundName = fundMatch[1].replace(/\s+/g, ' ').trim().substring(0, 80);
+      const units = parseFloat(unitsMatch[1]);
+
+      if (fundName && fundName.length > 5 && units > 0) {
+        if (!funds.find(f => f.name.includes(fundName.substring(0, 20)))) {
+          console.log('CAS: Block found fund:', fundName, 'Units:', units);
+          funds.push({
+            name: fundName,
+            units,
+            date: new Date().toISOString().split('T')[0],
+          });
+        }
       }
     }
   }
