@@ -16,12 +16,12 @@ let containerId = 'dashboard';
 let currentChartType: 'pie' | 'line' = 'pie';
 
 /**
- * Fetch NAVs for all SIPs with active monthly amounts
- * Triggered when dashboard loads to populate cache
+ * Fetch NAVs for all SIPs with units (holdings)
+ * Triggered when portfolio data loads + dashboard renders
  * Fetches sequentially with 100ms delay to avoid API throttling
  */
-async function fetchSIPNAVs(): Promise<void> {
-  const sipsToFetch = Object.entries(D.sip).filter(([, fund]) => fund.monthlyAmount && fund.monthlyAmount > 0);
+export async function fetchSIPNAVs(): Promise<void> {
+  const sipsToFetch = Object.entries(D.sip).filter(([, fund]) => fund.units && fund.units > 0);
 
   for (const [key, fund] of sipsToFetch) {
     const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
@@ -273,6 +273,8 @@ function drawPieChart(canvasId: string, data: any[]): void {
   const centerX = canvas.width / 2;
   const centerY = canvas.height / 2;
   const radius = Math.min(centerX, centerY) - 20;
+
+  if (radius <= 0) return;
 
   let currentAngle = -Math.PI / 2;
 

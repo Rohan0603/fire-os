@@ -10,6 +10,7 @@ import { showToast } from '../ui';
 import { parseCASPDF, CASParseResult } from './pdf-parser';
 import { validateFormInput, validateFormFields, handleError, ValidationError, ValidationRules } from '../../lib/error-handler';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
+import { fetchSIPNAVs } from './../../modules/dashboard';
 import './styles.css';
 
 const DEBOUNCE_MS = 500;
@@ -614,6 +615,10 @@ export async function saveProfile(): Promise<boolean> {
 
     // ==================== SAVE DATA ====================
     saveData(D);
+
+    // Fetch NAVs for SIPs that now have units
+    fetchSIPNAVs().catch(e => console.warn('[Profile] Failed to fetch SIP NAVs after save:', e));
+
     return true;
   } catch (e) {
     console.error('Profile save error:', e);

@@ -14,7 +14,7 @@ import { renderAuthScreen, hideAuthScreen, showAuthScreen, initAuthModule } from
 import { initUIModule } from './modules/ui';
 
 // Import dashboard module
-import { initDashboardModule, renderDashboard } from './modules/dashboard';
+import { initDashboardModule, renderDashboard, fetchSIPNAVs } from './modules/dashboard';
 
 // Import profile module
 import { initProfileModule, saveProfile } from './modules/profile';
@@ -177,6 +177,9 @@ function setupAuthListener() {
           Object.assign(D, firebaseState);
           D.currentUser = savedUser;
           console.debug('[Auth] Loaded portfolio from Firebase, currentUser preserved');
+
+          // Fetch NAVs for all SIPs with holdings
+          fetchSIPNAVs().catch(e => console.warn('[Auth] Failed to fetch SIP NAVs:', e));
 
           // Re-render profile tab if visible to show loaded data
           const profileTab = document.getElementById('profile');
