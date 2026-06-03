@@ -46,10 +46,6 @@ export function renderProfile(container: HTMLElement) {
             <label for="expenses">Monthly Expenses (₹)</label>
             <input type="number" id="expenses" placeholder="Monthly expenses" value="${D.profile.annualExpenses || ''}">
           </div>
-          <div class="form-group">
-            <label for="fi-target">FI Target (₹)</label>
-            <input type="number" id="fi-target" placeholder="25x annual expenses" value="${D.profile.fiTarget || ''}">
-          </div>
         </form>
       </div>
 
@@ -271,13 +267,11 @@ function debounceProfileSave() {
   const nameInput = document.getElementById('name') as HTMLInputElement;
   const ageInput = document.getElementById('age') as HTMLInputElement;
   const expensesInput = document.getElementById('expenses') as HTMLInputElement;
-  const fiTargetInput = document.getElementById('fi-target') as HTMLInputElement;
 
   const isDirty =
     (nameInput?.value || '') !== (D.profile.name || '') ||
     (ageInput?.value ? parseInt(ageInput.value) : 0) !== (D.profile.age || 0) ||
-    (expensesInput?.value ? parseFloat(expensesInput.value) : 0) !== (D.profile.annualExpenses || 0) ||
-    (fiTargetInput?.value ? parseFloat(fiTargetInput.value) : 0) !== (D.profile.fiTarget || 0);
+    (expensesInput?.value ? parseFloat(expensesInput.value) : 0) !== (D.profile.annualExpenses || 0);
 
   // Check SIP fields
   if (!isDirty) {
@@ -333,7 +327,6 @@ export function saveProfile() {
     const nameInput = document.getElementById('name') as HTMLInputElement;
     const ageInput = document.getElementById('age') as HTMLInputElement;
     const expensesInput = document.getElementById('expenses') as HTMLInputElement;
-    const fiTargetInput = document.getElementById('fi-target') as HTMLInputElement;
 
     // Validate name (optional but if provided, must be 2+ chars)
     if (nameInput?.value) {
@@ -368,18 +361,6 @@ export function saveProfile() {
         validationErrors.push({ field: 'expenses', message: expensesError });
       } else {
         D.profile.annualExpenses = parseFloat(expensesInput.value);
-      }
-    }
-
-    // Validate FI target (optional but if provided, must be non-negative)
-    if (fiTargetInput?.value) {
-      const fiError = validateFormInput(fiTargetInput.value, [
-        ValidationRules.positiveNumber('FI Target'),
-      ]);
-      if (fiError) {
-        validationErrors.push({ field: 'fi-target', message: fiError });
-      } else {
-        D.profile.fiTarget = parseFloat(fiTargetInput.value);
       }
     }
 
