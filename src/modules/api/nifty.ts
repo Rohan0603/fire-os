@@ -79,54 +79,35 @@ export async function fetchNifty(): Promise<{
     logger.warn('Yahoo Finance fetch failed, attempting ETF fallback', error);
   }
 
-  // ATTEMPT 2: Fall back to Gold ETF NAV as Nifty approximation
-  try {
-    logger.log('Attempting ETF NAV fallback (Gold ETF proxy)...');
-    const etfNAV = await fetchNAV(GOLD_ETF_SCHEME);
-
-    if (etfNAV && etfNAV > 0) {
-      // Use ETF NAV as approximation for Nifty level
-      // 52W high is estimated at ~15% above current (rough market assumption)
-      const high52w = Math.round(etfNAV * 1.15);
-
-      niftyCache = {
-        level: etfNAV,
-        high52w,
-        timestamp: new Date().toISOString(),
-        source: 'ETF NAV Approximation (disclaimer)',
-      };
-
-      logger.warn('Nifty: Using ETF NAV approximation (not real NSE data)', {
-        level: etfNAV,
-        high52w,
-        scheme: GOLD_ETF_SCHEME,
-      });
-
-      return {
-        level: etfNAV,
-        high52w,
-        source: `ETF Approximation (scheme ${GOLD_ETF_SCHEME}) - Not real NSE data`,
-      };
-    }
-  } catch (error) {
-    logger.error('ETF fallback also failed', error);
-  }
-
-  // If all sources fail, return cached value even if expired
+  // ATTEMPT 2: Return cached value if available (even if expired)
   if (niftyCache) {
-    logger.warn('Returning expired cache for Nifty:', {
+    logger.warn('Returning cached Nifty data (Yahoo Finance failed)', {
       level: niftyCache.level,
       age: Date.now() - new Date(niftyCache.timestamp).getTime(),
     });
     return {
       level: niftyCache.level,
       high52w: niftyCache.high52w,
-      source: `${niftyCache.source} (cached, may be stale)`,
+      source: `${niftyCache.source} (cached)`,
     };
   }
 
-  logger.error('All Nifty data sources failed and no cache available');
-  return null;
+  // ATTEMPT 3: Return reasonable default Nifty values (as of June 2026)
+  const defaultNifty = {
+    level: 23483.55,
+    high52w: 26373.20,
+    source: 'Default values (manual entry recommended)',
+  };
+
+  niftyCache = {
+    level: defaultNifty.level,
+    high52w: defaultNifty.high52w,
+    timestamp: new Date().toISOString(),
+    source: defaultNifty.source,
+  };
+
+  logger.warn('All Nifty data sources failed, using default values. User can enter manually.', defaultNifty);
+  return defaultNifty;
 }
 
 /**

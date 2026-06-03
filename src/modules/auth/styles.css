@@ -111,9 +111,15 @@
   border: 1px solid #3a3a3a;
   border-radius: 8px;
   font-size: 1rem;
-  color: #ffffff;
+  color: #ffffff !important;
   transition: all 200ms ease;
   outline: none;
+  caret-color: #ffd700;
+}
+
+.form-group input:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0 30px #2d2d2d inset !important;
+  -webkit-text-fill-color: #ffffff !important;
 }
 
 .form-group input:focus {

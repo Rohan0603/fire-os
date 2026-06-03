@@ -515,48 +515,83 @@ function parseCASContent(text: string): { funds: any[]; stocks: any[] } {
   const funds: any[] = [];
   const stocks: any[] = [];
 
-  // Simple parser - extract scheme names, units, and demat holdings
-  // In production, would use more robust parsing
   const lines = text.split('\n');
   let inMFSection = false;
   let inDematSection = false;
+  let lastFund: any = null;
 
-  for (const line of lines) {
-    if (line.includes('Consolidated Holdings') || line.includes('Folio')) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    // Detect MF section start
+    if (line.match(/Consolidated Holdings|Mutual Fund|NSDL|CDSL/i)) {
       inMFSection = true;
+      inDematSection = false;
       continue;
     }
-    if (line.includes('Demat') || line.includes('Dematerialized')) {
+
+    // Detect Demat section start
+    if (line.match(/Demat|Dematerialized|Equity|Stock/i)) {
       inDematSection = true;
       inMFSection = false;
       continue;
     }
 
-    // Extract mutual fund data
-    if (inMFSection && line.match(/\d+\.\d+/)) {
-      const parts = line.split(/\s+/);
-      if (parts.length >= 3) {
-        funds.push({
-          name: parts[0],
-          units: parseFloat(parts[parts.length - 2]),
-          date: new Date().toISOString().split('T')[0],
-        });
+    // Extract MF data - look for scheme names + units + NAV
+    if (inMFSection && !inDematSection) {
+      const isinMatch = line.match(/([A-Z]{2}\d{9}[A-Z]{1})/);
+      if (isinMatch) {
+        const parts = line.split(/\s+/);
+        if (parts.length >= 2) {
+          const name = parts.slice(0, -2).join(' ') || 'Mutual Fund';
+          const units = parseFloat(parts[parts.length - 1]);
+          if (!isNaN(units) && units > 0) {
+            lastFund = {
+              name: name.substring(0, 50),
+              units,
+              date: new Date().toISOString().split('T')[0],
+            };
+            funds.push(lastFund);
+          }
+        }
+      } else if (line.match(/\d+\.\d+/) && line.match(/units?|units?/i)) {
+        // Alternative: parse lines with "units" keyword
+        const parts = line.split(/\s+/);
+        const fundName = parts.filter((p) => !p.match(/^\d+\.?\d*$/))[0];
+        const units = parseFloat(parts.find((p) => p.match(/^\d+\.?\d*$/)) || '0');
+        if (fundName && units > 0) {
+          funds.push({
+            name: fundName.substring(0, 50),
+            units,
+            date: new Date().toISOString().split('T')[0],
+          });
+        }
       }
     }
 
-    // Extract demat holdings (ISIN pattern)
-    if (inDematSection && line.match(/^[A-Z]{2}\d{9}[A-Z]{1}/)) {
-      const parts = line.split(/\s+/);
-      if (parts.length >= 2) {
-        stocks.push({
-          isin: parts[0],
-          name: parts.slice(1, -1).join(' '),
-          quantity: parseFloat(parts[parts.length - 1]),
-        });
+    // Extract Demat data - ISIN pattern
+    if (inDematSection && !inMFSection) {
+      const isinMatch = line.match(/([A-Z]{2}\d{9}[A-Z]{1})/);
+      if (isinMatch) {
+        const isin = isinMatch[1];
+        const parts = line.split(/\s+/);
+        if (parts.length >= 2) {
+          const quantity = parseFloat(parts[parts.length - 1]);
+          if (!isNaN(quantity) && quantity > 0) {
+            const name = parts.slice(1, -1).join(' ') || isin;
+            stocks.push({
+              isin,
+              name: name.substring(0, 100),
+              quantity,
+            });
+          }
+        }
       }
     }
   }
 
+  console.log('Parsed CAS:', { fundCount: funds.length, stockCount: stocks.length, funds, stocks });
   return { funds, stocks };
 }
 
