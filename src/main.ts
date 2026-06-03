@@ -35,13 +35,14 @@ export const D: FireOSState = initializeState();
 
 // Firebase configuration
 const firebaseConfig = {
-  apiKey: 'AIzaSyDq0d3iQqKv-FzxH-0KiD8r8YqQ7Gv5cAo',
+  apiKey: 'AIzaSyBD38ygGdv7IeAOh5V8tI5Ih0DpTk2niww',
   authDomain: 'fire-os-dd6d6.firebaseapp.com',
   databaseURL: 'https://fire-os-dd6d6-default-rtdb.asia-southeast1.firebasedatabase.app',
   projectId: 'fire-os-dd6d6',
-  storageBucket: 'fire-os-dd6d6.appspot.com',
-  messagingSenderId: '621640055556',
-  appId: '1:621640055556:web:8c6a7e9b1f4d8a2c9e3f5b',
+  storageBucket: 'fire-os-dd6d6.firebasestorage.app',
+  messagingSenderId: '824527645307',
+  appId: '1:824527645307:web:7dc209d225e8280d17d0de',
+  measurementId: 'G-8JFDMMJ8QM',
 };
 
 // Initialize Firebase
