@@ -26,6 +26,21 @@ const NAV_CACHE_TTL = 4 * 60 * 60 * 1000; // 14400000ms
 // Debounce timer for Firebase saves
 let pendingSave: ReturnType<typeof setTimeout> | null = null;
 let lastState: FireOSState | null = null;
+let lastSavedSnapshot: string | null = null;
+
+// Compare only data fields that matter (exclude timestamps/caches)
+function stateSnapshot(state: FireOSState): string {
+  return JSON.stringify({
+    profile: state.profile,
+    mf: state.mf,
+    fd: state.fd,
+    epf: state.epf,
+    sip: state.sip,
+    esop: state.esop,
+    demat: state.demat,
+    eurInr: typeof state.eurInr === 'number' ? state.eurInr : 0,
+  });
+}
 
 /**
  * Load portfolio data from localStorage
@@ -130,7 +145,24 @@ export async function loadPortfolioFromFirebase(uid: string): Promise<FireOSStat
 
     // Merge with current local state
     const currentState = loadData() || initializeState();
-    return mergeState(currentState, firebaseData);
+    const merged = mergeState(currentState, firebaseData);
+
+    // Normalize eurInr: Firebase stores { rate, timestamp }, state expects number
+    if (merged.eurInr && typeof merged.eurInr === 'object') {
+      merged.eurInr = (merged.eurInr as any).rate ?? 0;
+    }
+
+    // Cleanup 0-unit SIPs (no name or 0 units without cost basis)
+    if (merged.sip) {
+      for (const key of Object.keys(merged.sip)) {
+        const s = merged.sip[key];
+        if (!s.name || (s.units === 0 && !s.costBasis)) {
+          delete merged.sip[key];
+        }
+      }
+    }
+
+    return merged;
   } catch (error) {
     if (error instanceof Error && error.message.includes('PERMISSION_DENIED')) {
       console.debug('[Storage] Firebase permission denied (user not authenticated or uid mismatch)');
@@ -152,6 +184,15 @@ export async function loadPortfolioFromFirebase(uid: string): Promise<FireOSStat
  * @param state FireOSState to persist
  */
 export async function savePortfolioToFirebase(uid: string, state: FireOSState): Promise<void> {
+  // Check if state actually changed
+  const currentSnapshot = stateSnapshot(state);
+  if (currentSnapshot === lastSavedSnapshot) {
+    if (process.env.NODE_ENV === 'development') {
+      console.debug('[Storage] Skipping Firebase save: no changes');
+    }
+    return;
+  }
+
   // Always capture the latest state to avoid race conditions
   lastState = state;
 
@@ -182,8 +223,12 @@ export async function savePortfolioToFirebase(uid: string, state: FireOSState): 
         demat: lastState.demat,
       };
 
-      const eurInrData: EURINRData | undefined = lastState.eurInr !== undefined && lastState.eurInr !== null
-        ? { rate: lastState.eurInr, timestamp: new Date().toISOString() }
+      const rawEurInr = lastState.eurInr;
+      const eurInrRate = typeof rawEurInr === 'number' ? rawEurInr
+        : typeof rawEurInr === 'object' && rawEurInr !== null ? (rawEurInr as any).rate ?? 0
+        : 0;
+      const eurInrData: EURINRData | undefined = eurInrRate > 0
+        ? { rate: eurInrRate, timestamp: new Date().toISOString() }
         : undefined;
 
       const backup: FireOSBackup = {
@@ -199,8 +244,9 @@ export async function savePortfolioToFirebase(uid: string, state: FireOSState): 
 
       await set(portfolioRef, backup);
 
-      // Update local timestamp
+      // Update local timestamp and snapshot
       lastState._lastSavedAt = new Date().toISOString();
+      lastSavedSnapshot = stateSnapshot(lastState);
 
       if (process.env.NODE_ENV === 'development') {
         console.debug('[Storage] Saved portfolio to Firebase');

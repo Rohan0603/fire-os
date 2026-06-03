@@ -118,7 +118,11 @@ export function renderProfile(container: HTMLElement) {
  */
 function renderSIPFields(): string {
   let html = '';
-  for (let i = 1; i <= 4; i++) {
+  const existingIndices = Object.keys(D.sip)
+    .map(k => parseInt(k.replace('sip', '')))
+    .filter(n => !isNaN(n));
+  const maxSlot = Math.max(4, ...existingIndices);
+  for (let i = 1; i <= maxSlot; i++) {
     const sip = D.sip[`sip${i}`];
     html += `
       <fieldset class="sip-fieldset">
@@ -178,7 +182,7 @@ function renderDematHoldings(): string {
       </div>
       <div class="demat-details">
         <span>Qty: ${h.quantity}</span>
-        <span>Value: ₹${formatCurrency(h.currentValue)}</span>
+        <span>Value: ${formatCurrency(h.currentValue)}</span>
       </div>
     </div>
   `
@@ -229,6 +233,8 @@ function attachProfileHandlers() {
             monthlyAmount: 0,
           };
           saveProfile();
+          const container = document.getElementById('profile');
+          if (container) renderProfile(container);
           return;
         }
       }
@@ -258,9 +264,59 @@ function attachProfileHandlers() {
 }
 
 /**
- * Debounced profile save
+ * Debounced profile save - only if form changed
  */
 function debounceProfileSave() {
+  // Check if any form field differs from D (dirty detection)
+  const nameInput = document.getElementById('name') as HTMLInputElement;
+  const ageInput = document.getElementById('age') as HTMLInputElement;
+  const expensesInput = document.getElementById('expenses') as HTMLInputElement;
+  const fiTargetInput = document.getElementById('fi-target') as HTMLInputElement;
+
+  const isDirty =
+    (nameInput?.value || '') !== (D.profile.name || '') ||
+    (ageInput?.value ? parseInt(ageInput.value) : 0) !== (D.profile.age || 0) ||
+    (expensesInput?.value ? parseFloat(expensesInput.value) : 0) !== (D.profile.annualExpenses || 0) ||
+    (fiTargetInput?.value ? parseFloat(fiTargetInput.value) : 0) !== (D.profile.fiTarget || 0);
+
+  // Check SIP fields
+  if (!isDirty) {
+    for (let i = 1; i <= 10; i++) {
+      const nameEl = document.querySelector(`.sip-name[data-index="${i}"]`) as HTMLInputElement;
+      const codeEl = document.querySelector(`.sip-code[data-index="${i}"]`) as HTMLInputElement;
+      const unitsEl = document.querySelector(`.sip-units[data-index="${i}"]`) as HTMLInputElement;
+      const amountEl = document.querySelector(`.sip-amount[data-index="${i}"]`) as HTMLInputElement;
+      const startEl = document.querySelector(`.sip-start[data-index="${i}"]`) as HTMLInputElement;
+      const costBasisEl = document.querySelector(`.sip-cost-basis[data-index="${i}"]`) as HTMLInputElement;
+
+      const sip = D.sip[`sip${i}`];
+      if ((nameEl?.value || '') !== (sip?.name || '') ||
+          (codeEl?.value || '') !== (sip?.schemeCode || '') ||
+          (unitsEl?.value ? parseFloat(unitsEl.value) : 0) !== (sip?.units || 0) ||
+          (amountEl?.value ? parseFloat(amountEl.value) : 0) !== (sip?.monthlyAmount || 0) ||
+          (startEl?.value || '') !== (sip?.startDate || '') ||
+          (costBasisEl?.value ? parseFloat(costBasisEl.value) : 0) !== (sip?.costBasis || 0)) {
+        return; // Form changed, save
+      }
+    }
+  }
+
+  // Check holdings fields
+  if (!isDirty) {
+    const fdInput = document.getElementById('fd') as HTMLInputElement;
+    const epfInput = document.getElementById('epf') as HTMLInputElement;
+    const esopInput = document.getElementById('esop') as HTMLInputElement;
+
+    if ((fdInput?.value ? parseFloat(fdInput.value) : 0) !== (D.fd.fd?.amount || 0) ||
+        (epfInput?.value ? parseFloat(epfInput.value) : 0) !== (D.epf.epf?.amount || 0) ||
+        (esopInput?.value ? parseFloat(esopInput.value) : 0) !== (D.esop.esop?.amount || 0)) {
+      // Form changed, save
+    } else {
+      return; // No changes detected
+    }
+  }
+
+  // Form changed - debounce save
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(saveProfile, DEBOUNCE_MS);
 }
@@ -306,7 +362,7 @@ export function saveProfile() {
     // Validate expenses (optional but if provided, must be non-negative)
     if (expensesInput?.value) {
       const expensesError = validateFormInput(expensesInput.value, [
-        ValidationRules.positiveNumber('Annual Expenses'),
+        ValidationRules.positiveNumber('Monthly Expenses'),
       ]);
       if (expensesError) {
         validationErrors.push({ field: 'expenses', message: expensesError });
@@ -339,24 +395,22 @@ export function saveProfile() {
       const name = nameEl?.value?.trim();
       const code = codeEl?.value?.trim();
 
-      // Only validate if SIP has a name AND code (both or neither required)
+      // Only validate if SIP has a name (name required, code optional)
       if (name || code) {
         if (!name) {
           validationErrors.push({ field: `sip${i}-name`, message: `SIP ${i}: Name is required` });
           continue;
         }
-        if (!code) {
-          validationErrors.push({ field: `sip${i}-code`, message: `SIP ${i}: Scheme Code is required` });
-          continue;
-        }
 
-        // Validate scheme code format (6 digits)
-        const codeError = validateFormInput(code, [
-          ValidationRules.schemeCode(`SIP ${i} Scheme Code`),
-        ]);
-        if (codeError) {
-          validationErrors.push({ field: `sip${i}-code`, message: codeError });
-          continue;
+        // Validate scheme code format only if code is provided
+        if (code) {
+          const codeError = validateFormInput(code, [
+            ValidationRules.schemeCode(`SIP ${i} Scheme Code`),
+          ]);
+          if (codeError) {
+            validationErrors.push({ field: `sip${i}-code`, message: codeError });
+            continue;
+          }
         }
 
         // Validate units (non-negative)
@@ -399,7 +453,7 @@ export function saveProfile() {
           units,
           monthlyAmount: amount,
           startDate: start || '',
-          costBasis: costBasis > 0 ? costBasis : undefined,
+          ...(costBasis > 0 ? { costBasis } : {}),
         };
       } else {
         // Clear SIP if both name and code are empty
@@ -531,19 +585,39 @@ function confirmPDFImport() {
   const result: CASParseResult | null = (window as any)._pendingCASImport;
   if (!result) return;
 
+  // Clear existing SIPs before importing to avoid duplicates
+  D.sip = {};
+
+  let nextSipSlot = 1;
   result.holdings
     .filter(h => h.type === 'soa')
-    .forEach((h, idx) => {
-      const sipKey = `sip${idx + 1}`;
-      if (!D.sip[sipKey]) {
-        D.sip[sipKey] = {
-          name: h.schemeName,
-          units: h.balanceUnits,
-          startDate: h.navDate ? h.navDate.substring(0, 7) : new Date().toISOString().substring(0, 7),
-          monthlyAmount: 0,
-          ...(h.investedValue > 0 ? { costBasis: h.investedValue } : {}),
-        };
-      }
+    .forEach((h) => {
+      const sipKey = `sip${nextSipSlot}`;
+      D.sip[sipKey] = {
+        name: h.schemeName,
+        units: h.balanceUnits,
+        startDate: h.navDate ? h.navDate.substring(0, 7) : new Date().toISOString().substring(0, 7),
+        monthlyAmount: 0,
+        ...(h.investedValue > 0 ? { costBasis: h.investedValue } : {}),
+      };
+      nextSipSlot++;
+    });
+
+  // Clear existing demat before importing to match CAS exactly
+  D.demat = {};
+
+  result.holdings
+    .filter(h => h.type === 'demat' && h.balanceUnits > 0)
+    .forEach(h => {
+      const key = h.identifier
+        ? h.identifier.replace(/\W+/g, '_')
+        : h.schemeName.replace(/\W+/g, '_').toLowerCase().substring(0, 20);
+      D.demat[key] = {
+        isin: '',
+        name: h.schemeName,
+        quantity: h.balanceUnits,
+        currentValue: h.marketValue,
+      };
     });
 
   const modal = document.getElementById('pdf-confirmation');
