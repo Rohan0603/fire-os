@@ -151,4 +151,33 @@ test.describe('PDF Import Flow', () => {
       }
     }
   });
+
+  test('parseCASPDF extracts all SoA holdings from real CAS summary', async ({ page }) => {
+    await page.goto('http://localhost:5173');
+
+    // Wait for profile to load
+    await page.waitForSelector('#profile', { timeout: 5000 });
+
+    const filePath = 'C:\\Users\\ponna\\Downloads\\cas_summary_report_2026_05_09_103313.pdf';
+
+    // Use file input directly to avoid click issues
+    const pdfInput = page.locator('#pdf-input');
+    await pdfInput.setInputFiles(filePath);
+
+    // Wait for modal to appear
+    await page.waitForSelector('#pdf-confirmation', { state: 'visible', timeout: 15000 });
+
+    const previewText = await page.textContent('#pdf-preview');
+
+    // Verify all 3 SoA funds are detected
+    expect(previewText).toContain('Parag Parikh');
+    expect(previewText).toContain('131.49');
+    expect(previewText).toContain('NIPPON INDIA GROWTH MID CAP');
+    expect(previewText).toContain('1.882');
+    expect(previewText).toContain('NIPPON INDIA SMALL CAP');
+    expect(previewText).toContain('30.203');
+
+    // Verify investor PAN is shown
+    expect(previewText).toContain('IMBPK5236H');
+  });
 });
