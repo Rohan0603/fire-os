@@ -519,30 +519,40 @@ function parseCASContent(text: string): { funds: any[]; stocks: any[] } {
 
   // Search for common fund scheme names and extract units that follow
   const fundPatterns = [
-    { name: /Parag Parikh[^0-9]*Flexi Cap[^0-9]*Fund[^0-9]*Direct[^0-9]*Plan[^0-9]*Growth/, units: /Flexi Cap[^0-9]*Fund.*?(\d+\.\d+)\s+(?:unit|Unit)/ },
-    { name: /NIPPON.*?INDIA.*?GROWTH.*?MID.*?CAP/, units: /GROWTH.*?MID.*?CAP.*?(\d+\.\d+)\s+(?:unit|Unit)/ },
-    { name: /NIPPON.*?INDIA.*?SMALL.*?CAP/, units: /SMALL.*?CAP.*?(\d+\.\d+)\s+(?:unit|Unit)/ },
-    { name: /ICICI.*?PRUENTIAL.*?GOLD.*?ETF/, units: /GOLD.*?ETF.*?(\d+\.\d+)\s+(?:unit|Unit|balance)/ },
+    {
+      name: /Parag\s+Parikh.*?Flexi\s+Cap.*?Fund/i,
+      units: /Parag\s+Parikh.*?Flexi\s+Cap.*?Fund.*?(\d+\.\d+)/
+    },
+    {
+      name: /NIPPON.*?INDIA.*?GROWTH.*?MID.*?CAP/i,
+      units: /NIPPON.*?INDIA.*?GROWTH.*?MID.*?CAP.*?(\d+\.\d+)/
+    },
+    {
+      name: /NIPPON.*?INDIA.*?SMALL.*?CAP/i,
+      units: /NIPPON.*?INDIA.*?SMALL.*?CAP.*?(\d+\.\d+)/
+    },
+    {
+      name: /ICICI.*?PRUD.*?GOLD.*?ETF/i,
+      units: /ICICI.*?PRUD.*?GOLD.*?ETF.*?(\d+\.?\d*)/
+    },
   ];
 
   for (const pattern of fundPatterns) {
-    if (pattern.name.test(text)) {
-      const fundMatch = text.match(pattern.name);
+    const fundMatch = text.match(pattern.name);
+    if (fundMatch) {
+      const fundName = fundMatch[0].replace(/\s+/g, ' ').substring(0, 80).trim();
       const unitsMatch = text.match(pattern.units);
+      const units = unitsMatch ? parseFloat(unitsMatch[1]) : 0;
 
-      if (fundMatch) {
-        const fundName = fundMatch[0].replace(/\s+/g, ' ').substring(0, 80).trim();
-        const units = unitsMatch ? parseFloat(unitsMatch[1]) : 0;
+      console.log('CAS: Found fund:', fundName, 'Units:', units, 'Regex match:', unitsMatch?.[0]?.substring(0, 50));
 
-        if (fundName && fundName.length > 5) {
-          if (!funds.find(f => f.name.includes(fundName.substring(0, 20)))) {
-            console.log('CAS: Found fund:', fundName, 'Units:', units);
-            funds.push({
-              name: fundName,
-              units: units || 1, // default to 1 if units not found
-              date: new Date().toISOString().split('T')[0],
-            });
-          }
+      if (fundName && fundName.length > 5) {
+        if (!funds.find(f => f.name.includes(fundName.substring(0, 20)))) {
+          funds.push({
+            name: fundName,
+            units: units > 0 ? units : 1, // default to 1 if units extraction failed
+            date: new Date().toISOString().split('T')[0],
+          });
         }
       }
     }
