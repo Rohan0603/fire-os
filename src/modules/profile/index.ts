@@ -522,74 +522,59 @@ function parseCASContent(text: string): { funds: any[]; stocks: any[] } {
     const line = lines[i].trim();
     if (!line) continue;
 
-    // Match ISIN pattern: XX999999999X
+    // Skip header/metadata lines
+    if (line.match(/Consolidated Account|As on Date|Report|Summary|Page|Date:/i)) {
+      continue;
+    }
+
+    // Match ISIN pattern: XX999999999X (strict - must be exactly 12 chars)
     const isinMatch = line.match(/([A-Z]{2}\d{9}[A-Z]{1})/);
-    if (isinMatch) {
-      const isin = isinMatch[1];
-      const parts = line.split(/\s+/);
+    if (!isinMatch) continue;
 
-      // Try to extract quantity/units from the line
-      let quantity = 0;
-      let fundName = '';
+    const isin = isinMatch[1];
+    const parts = line.split(/\s+/);
 
-      if (parts.length >= 2) {
-        // Last number is usually quantity
-        const lastNum = parseFloat(parts[parts.length - 1]);
-        if (!isNaN(lastNum) && lastNum > 0) {
-          quantity = lastNum;
-          fundName = parts.slice(0, -1).join(' ').replace(isin, '').trim();
-        } else {
-          // Try second-to-last
-          const secondNum = parseFloat(parts[parts.length - 2]);
-          if (!isNaN(secondNum) && secondNum > 0) {
-            quantity = secondNum;
-            fundName = parts.slice(0, -2).join(' ').replace(isin, '').trim();
-          }
+    // Try to extract quantity/units from the line
+    let quantity = 0;
+    let fundName = '';
+
+    if (parts.length >= 2) {
+      // Extract all numbers from the line
+      const numbers = [];
+      for (const part of parts) {
+        const num = parseFloat(part.replace(/,/g, ''));
+        if (!isNaN(num) && num > 0) {
+          numbers.push(num);
         }
       }
 
-      // Classify as MF or Stock based on context
-      const isMF = line.match(/Mutual Fund|MF|NSDL|Fund|Scheme/i) ||
-                   (fundName && !line.match(/Equity|Stock|NSE|BSE|Demat/i));
-
-      if (quantity > 0) {
-        if (isMF) {
-          funds.push({
-            name: fundName.substring(0, 50) || isin,
-            units: quantity,
-            date: new Date().toISOString().split('T')[0],
-          });
-        } else {
-          stocks.push({
-            isin,
-            name: fundName.substring(0, 100) || isin,
-            quantity,
-          });
-        }
+      // Use the last number as quantity (usually units/shares)
+      if (numbers.length > 0) {
+        quantity = numbers[numbers.length - 1];
+        fundName = line.replace(isin, '')
+          .replace(/[\d.,\s]+$/g, '') // Remove trailing numbers
+          .trim();
       }
     }
-  }
 
-  // Pass 2: Look for fund entries that don't have ISIN (some CAS formats)
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (!line || line.match(/[A-Z]{2}\d{9}[A-Z]{1}/)) continue; // Skip lines with ISIN
+    // Sanity checks: valid fund name and reasonable quantity
+    if (quantity > 0 && fundName && fundName.length > 2) {
+      // Classify as MF or Stock based on context
+      const isMF = line.match(/Mutual Fund|MF|NSDL|Fund|Scheme|Growth|Dividend/i) ||
+                   !line.match(/Equity|Stock|NSE|BSE|Demat|Shares/i);
 
-    // Look for "units" keyword with numbers
-    if (line.match(/units?/i)) {
-      const numMatches = line.match(/[\d,]+\.?\d*/g);
-      if (numMatches && numMatches.length > 0) {
-        const units = parseFloat(numMatches[numMatches.length - 1].replace(/,/g, ''));
-        if (!isNaN(units) && units > 0) {
-          const name = line.replace(/units?/i, '').replace(/[\d,]+\.?\d*/g, '').trim();
-          if (name && !funds.some((f) => f.name === name)) {
-            funds.push({
-              name: name.substring(0, 50),
-              units,
-              date: new Date().toISOString().split('T')[0],
-            });
-          }
-        }
+      if (isMF) {
+        funds.push({
+          name: fundName.substring(0, 50),
+          units: quantity,
+          date: new Date().toISOString().split('T')[0],
+        });
+      } else {
+        stocks.push({
+          isin,
+          name: fundName.substring(0, 100),
+          quantity,
+        });
       }
     }
   }
