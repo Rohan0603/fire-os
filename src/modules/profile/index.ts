@@ -8,7 +8,7 @@ import { formatCurrency, formatDateISO } from '../../lib/formatters';
 import { saveData } from '../../lib/storage';
 import { showToast } from '../ui';
 import { parseCASPDF } from './pdf-parser';
-import { validateFormInput, handleError, ValidationError } from '../../lib/error-handler';
+import { validateFormInput, validateFormFields, handleError, ValidationError, ValidationRules } from '../../lib/error-handler';
 import './styles.css';
 
 const DEBOUNCE_MS = 500;
@@ -266,94 +266,207 @@ function debounceProfileSave() {
 }
 
 /**
- * Save profile data from form
+ * Save profile data from form with comprehensive validation
  */
 function saveProfile() {
   try {
-    // Profile section
+    const validationErrors: Array<{ field: string; message: string }> = [];
+
+    // ==================== PROFILE SECTION ====================
     const nameInput = document.getElementById('name') as HTMLInputElement;
     const ageInput = document.getElementById('age') as HTMLInputElement;
     const expensesInput = document.getElementById('expenses') as HTMLInputElement;
     const fiTargetInput = document.getElementById('fi-target') as HTMLInputElement;
 
-    if (nameInput) {
-      const name = nameInput.value.trim();
-      if (name && name.length > 1) {
-        D.profile.name = name;
+    // Validate name (optional but if provided, must be 2+ chars)
+    if (nameInput?.value) {
+      const nameError = validateFormInput(nameInput.value, [
+        ValidationRules.minLength('Name', 2),
+      ]);
+      if (nameError) {
+        validationErrors.push({ field: 'name', message: nameError });
+      } else {
+        D.profile.name = nameInput.value.trim();
       }
     }
 
-    if (ageInput) {
-      const age = parseInt(ageInput.value);
-      if (!isNaN(age) && age > 0 && age < 120) {
-        D.profile.age = age;
+    // Validate age (optional but if provided, must be 0-150)
+    if (ageInput?.value) {
+      const ageError = validateFormInput(parseInt(ageInput.value), [
+        ValidationRules.range('Age', 0, 150),
+      ]);
+      if (ageError) {
+        validationErrors.push({ field: 'age', message: ageError });
+      } else {
+        D.profile.age = parseInt(ageInput.value);
       }
     }
 
-    if (expensesInput) {
-      const expenses = parseFloat(expensesInput.value);
-      if (!isNaN(expenses) && expenses >= 0) {
-        D.profile.annualExpenses = expenses;
+    // Validate expenses (optional but if provided, must be non-negative)
+    if (expensesInput?.value) {
+      const expensesError = validateFormInput(expensesInput.value, [
+        ValidationRules.positiveNumber('Annual Expenses'),
+      ]);
+      if (expensesError) {
+        validationErrors.push({ field: 'expenses', message: expensesError });
+      } else {
+        D.profile.annualExpenses = parseFloat(expensesInput.value);
       }
     }
 
-    if (fiTargetInput) {
-      const fiTarget = parseFloat(fiTargetInput.value);
-      if (!isNaN(fiTarget) && fiTarget >= 0) {
-        D.profile.fiTarget = fiTarget;
+    // Validate FI target (optional but if provided, must be non-negative)
+    if (fiTargetInput?.value) {
+      const fiError = validateFormInput(fiTargetInput.value, [
+        ValidationRules.positiveNumber('FI Target'),
+      ]);
+      if (fiError) {
+        validationErrors.push({ field: 'fi-target', message: fiError });
+      } else {
+        D.profile.fiTarget = parseFloat(fiTargetInput.value);
       }
     }
 
-    // SIP section with validation
+    // ==================== SIP SECTION ====================
     for (let i = 1; i <= 10; i++) {
-      const name = (document.querySelector(`.sip-name[data-index="${i}"]`) as HTMLInputElement)?.value?.trim();
-      const code = (document.querySelector(`.sip-code[data-index="${i}"]`) as HTMLInputElement)?.value?.trim();
-      const units = parseFloat((document.querySelector(`.sip-units[data-index="${i}"]`) as HTMLInputElement)?.value || '0');
-      const amount = parseFloat((document.querySelector(`.sip-amount[data-index="${i}"]`) as HTMLInputElement)?.value || '0');
-      const start = (document.querySelector(`.sip-start[data-index="${i}"]`) as HTMLInputElement)?.value?.trim();
-      const costBasis = parseFloat((document.querySelector(`.sip-cost-basis[data-index="${i}"]`) as HTMLInputElement)?.value || '0');
+      const nameEl = document.querySelector(`.sip-name[data-index="${i}"]`) as HTMLInputElement;
+      const codeEl = document.querySelector(`.sip-code[data-index="${i}"]`) as HTMLInputElement;
+      const unitsEl = document.querySelector(`.sip-units[data-index="${i}"]`) as HTMLInputElement;
+      const amountEl = document.querySelector(`.sip-amount[data-index="${i}"]`) as HTMLInputElement;
+      const startEl = document.querySelector(`.sip-start[data-index="${i}"]`) as HTMLInputElement;
+      const costBasisEl = document.querySelector(`.sip-cost-basis[data-index="${i}"]`) as HTMLInputElement;
 
-      if (name && code) {
-        // Validate values
-        if (units < 0 || amount < 0 || costBasis < 0) {
-          throw new ValidationError(`SIP ${i}: Negative values not allowed`);
+      const name = nameEl?.value?.trim();
+      const code = codeEl?.value?.trim();
+
+      // Only validate if SIP has a name AND code (both or neither required)
+      if (name || code) {
+        if (!name) {
+          validationErrors.push({ field: `sip${i}-name`, message: `SIP ${i}: Name is required` });
+          continue;
+        }
+        if (!code) {
+          validationErrors.push({ field: `sip${i}-code`, message: `SIP ${i}: Scheme Code is required` });
+          continue;
         }
 
+        // Validate scheme code format (6 digits)
+        const codeError = validateFormInput(code, [
+          ValidationRules.schemeCode(`SIP ${i} Scheme Code`),
+        ]);
+        if (codeError) {
+          validationErrors.push({ field: `sip${i}-code`, message: codeError });
+          continue;
+        }
+
+        // Validate units (non-negative)
+        const units = parseFloat(unitsEl?.value || '0') || 0;
+        if (units < 0) {
+          validationErrors.push({ field: `sip${i}-units`, message: `SIP ${i}: Units cannot be negative` });
+          continue;
+        }
+
+        // Validate monthly amount (non-negative)
+        const amount = parseFloat(amountEl?.value || '0') || 0;
+        if (amount < 0) {
+          validationErrors.push({ field: `sip${i}-amount`, message: `SIP ${i}: Monthly amount cannot be negative` });
+          continue;
+        }
+
+        // Validate start date if provided (YYYY-MM format)
+        const start = startEl?.value?.trim();
+        if (start) {
+          const dateError = validateFormInput(start, [
+            ValidationRules.dateYYYYMM(`SIP ${i} Start Date`),
+          ]);
+          if (dateError) {
+            validationErrors.push({ field: `sip${i}-start`, message: dateError });
+            continue;
+          }
+        }
+
+        // Validate cost basis override if provided (non-negative)
+        const costBasis = parseFloat(costBasisEl?.value || '0') || 0;
+        if (costBasis < 0) {
+          validationErrors.push({ field: `sip${i}-cost-basis`, message: `SIP ${i}: Cost basis cannot be negative` });
+          continue;
+        }
+
+        // If all validations pass, save SIP
         D.sip[`sip${i}`] = {
           name,
           schemeCode: code,
-          units: isNaN(units) ? 0 : units,
-          monthlyAmount: isNaN(amount) ? 0 : amount,
+          units,
+          monthlyAmount: amount,
           startDate: start || '',
           costBasis: costBasis > 0 ? costBasis : undefined,
         };
       } else {
+        // Clear SIP if both name and code are empty
         delete D.sip[`sip${i}`];
       }
     }
 
-    // Holdings section with validation
+    // ==================== HOLDINGS SECTION ====================
     const fdInput = document.getElementById('fd') as HTMLInputElement;
     const epfInput = document.getElementById('epf') as HTMLInputElement;
     const esopInput = document.getElementById('esop') as HTMLInputElement;
 
-    const fdAmount = parseFloat(fdInput?.value || '0') || 0;
-    const epfAmount = parseFloat(epfInput?.value || '0') || 0;
-    const esopAmount = parseFloat(esopInput?.value || '0') || 0;
-
-    if (fdAmount < 0 || epfAmount < 0 || esopAmount < 0) {
-      throw new ValidationError('Holdings: Negative amounts not allowed');
+    // Validate FD
+    if (fdInput?.value) {
+      const fdError = validateFormInput(fdInput.value, [
+        ValidationRules.positiveNumber('Fixed Deposits'),
+      ]);
+      if (fdError) {
+        validationErrors.push({ field: 'fd', message: fdError });
+      } else {
+        D.fd.fd = { amount: parseFloat(fdInput.value), currency: 'INR' };
+      }
+    } else {
+      D.fd.fd = { amount: 0, currency: 'INR' };
     }
 
-    D.fd.fd = { amount: fdAmount, currency: 'INR' };
-    D.epf.epf = { amount: epfAmount, currency: 'INR' };
-    D.esop.esop = { amount: esopAmount, currency: 'INR' };
+    // Validate EPF
+    if (epfInput?.value) {
+      const epfError = validateFormInput(epfInput.value, [
+        ValidationRules.positiveNumber('EPF Balance'),
+      ]);
+      if (epfError) {
+        validationErrors.push({ field: 'epf', message: epfError });
+      } else {
+        D.epf.epf = { amount: parseFloat(epfInput.value), currency: 'INR' };
+      }
+    } else {
+      D.epf.epf = { amount: 0, currency: 'INR' };
+    }
 
+    // Validate ESOP
+    if (esopInput?.value) {
+      const esopError = validateFormInput(esopInput.value, [
+        ValidationRules.positiveNumber('ESOP Value'),
+      ]);
+      if (esopError) {
+        validationErrors.push({ field: 'esop', message: esopError });
+      } else {
+        D.esop.esop = { amount: parseFloat(esopInput.value), currency: 'INR' };
+      }
+    } else {
+      D.esop.esop = { amount: 0, currency: 'INR' };
+    }
+
+    // ==================== SHOW VALIDATION ERRORS ====================
+    if (validationErrors.length > 0) {
+      const errorMessages = validationErrors.map((e) => e.message).join('; ');
+      showToast(`⚠️ Validation failed: ${errorMessages}`, 4000, 'warning');
+      console.warn('Profile validation errors:', validationErrors);
+      return;
+    }
+
+    // ==================== SAVE DATA ====================
     saveData(D);
-    showToast('✓ Profile saved');
+    showToast('✓ Profile saved successfully');
   } catch (e) {
     console.error('Profile save error:', e);
-    showToast('✗ Failed to save profile');
+    handleError(e, 'Failed to save profile');
   }
 }
 
