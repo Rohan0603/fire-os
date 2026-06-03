@@ -116,7 +116,7 @@ function renderSIPStatusCard(currentValue: number, invested: number): string {
     <div class="kpi-card ${cardClass}">
       <div class="kpi-card-title">SIP P&L</div>
       <div class="kpi-card-value">${formatCurrency(pl, 0)}</div>
-      <div class="kpi-card-subtitle">${formatPercentage(plPercent / 100)} gain • ${formatCurrency(currentValue, 0)} current</div>
+      <div class="kpi-card-subtitle">Invested Value ₹${formatNumber(invested)} • Current ${formatCurrency(currentValue, 0)}</div>
     </div>
   `;
 }
