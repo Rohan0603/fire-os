@@ -267,8 +267,9 @@ function debounceProfileSave() {
 
 /**
  * Save profile data from form with comprehensive validation
+ * Exported for manual trigger (e.g., before leaving tab)
  */
-function saveProfile() {
+export function saveProfile() {
   try {
     const validationErrors: Array<{ field: string; message: string }> = [];
 

@@ -17,7 +17,7 @@ import { initUIModule } from './modules/ui';
 import { initDashboardModule, renderDashboard } from './modules/dashboard';
 
 // Import profile module
-import { initProfileModule } from './modules/profile';
+import { initProfileModule, saveProfile } from './modules/profile';
 
 // Import calculators module
 import { initCalculatorsModule } from './modules/calculators';
@@ -211,6 +211,16 @@ function setupAuthListener() {
 function setupTabNavigation() {
   document.querySelectorAll('.nav-tab').forEach((tab) => {
     tab.addEventListener('click', (e) => {
+      // Save profile when leaving profile tab
+      const currentTab = document.querySelector('.nav-tab.active')?.getAttribute('data-tab');
+      if (currentTab === 'profile') {
+        try {
+          saveProfile();
+        } catch (err) {
+          console.warn('[Tab] Profile save failed on tab change:', err);
+        }
+      }
+
       const target = (e.target as HTMLElement).getAttribute('data-tab');
       if (target) {
         document.querySelectorAll('.nav-tab').forEach((t) => t.classList.remove('active'));
