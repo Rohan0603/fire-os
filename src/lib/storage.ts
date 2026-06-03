@@ -95,16 +95,12 @@ export function loadData(): FireOSState | null {
  * @param state FireOSState to persist
  */
 export function saveData(state: FireOSState): void {
-  console.log('[Storage] saveData called, state has profile:', !!state.profile, 'mf keys:', Object.keys(state.mf || {}).length);
   try {
     // Update last saved timestamp
     state._lastSavedAt = new Date().toISOString();
-    console.log('[Storage] Updated _lastSavedAt to:', state._lastSavedAt);
 
     const serialized = JSON.stringify(state);
-    console.log('[Storage] Serialized state size:', serialized.length, 'bytes');
     localStorage.setItem(STORAGE_KEY, serialized);
-    console.log('[Storage] Successfully saved to localStorage');
 
     // Log success in dev mode
     if (process.env.NODE_ENV === 'development') {
@@ -193,45 +189,34 @@ export async function loadPortfolioFromFirebase(uid: string): Promise<FireOSStat
  * @param state FireOSState to persist
  */
 export async function savePortfolioToFirebase(uid: string, state: FireOSState): Promise<void> {
-  console.log('[Storage] savePortfolioToFirebase called with uid:', uid);
-
   // Check if state actually changed
   const currentSnapshot = stateSnapshot(state);
-  console.log('[Storage] Current snapshot length:', currentSnapshot.length, 'Last saved snapshot length:', lastSavedSnapshot?.length);
-
   if (currentSnapshot === lastSavedSnapshot) {
-    console.log('[Storage] Skipping Firebase save: no changes detected');
+    if (process.env.NODE_ENV === 'development') {
+      console.debug('[Storage] Skipping Firebase save: no changes');
+    }
     return;
   }
-  console.log('[Storage] State changed, will save to Firebase');
 
   // Always capture the latest state to avoid race conditions
   lastState = state;
 
   // Cancel any pending save (coalesce rapid calls)
   if (pendingSave !== null) {
-    console.log('[Storage] Cancelling pending save to coalesce');
     clearTimeout(pendingSave);
   }
 
   // Schedule save 1 second from now
-  console.log('[Storage] Scheduling Firebase save in 1 second');
   pendingSave = setTimeout(async () => {
-    console.log('[Storage] Firebase save timeout fired');
     try {
       // Use the last captured state, not the one from the closure
-      if (!lastState) {
-        console.warn('[Storage] lastState is null, aborting save');
-        return;
-      }
+      if (!lastState) return;
 
-      console.log('[Storage] Loading Firebase modules...');
       // Lazy-load Firebase to avoid circular dependencies
       const { getDatabase, ref, set } = await import('firebase/database');
 
       const db = getDatabase();
       const portfolioRef = ref(db, `users/${uid}/portfolio`);
-      console.log('[Storage] Firebase ref created for path: users/', uid, '/portfolio');
 
       // Create backup envelope
       const holdings: BackupHoldings = {
@@ -262,14 +247,15 @@ export async function savePortfolioToFirebase(uid: string, state: FireOSState): 
         alphaTrackerData: lastState.alphaTrackerData,
       };
 
-      console.log('[Storage] Backup envelope created, sending to Firebase...');
       await set(portfolioRef, backup);
-      console.log('[Storage] Firebase set() completed successfully');
 
       // Update local timestamp and snapshot
       lastState._lastSavedAt = new Date().toISOString();
       lastSavedSnapshot = stateSnapshot(lastState);
-      console.log('[Storage] Saved portfolio to Firebase at', lastState._lastSavedAt);
+
+      if (process.env.NODE_ENV === 'development') {
+        console.debug('[Storage] Saved portfolio to Firebase');
+      }
     } catch (error) {
       // Retry once on failure
       if (error instanceof Error && error.message.includes('PERMISSION_DENIED')) {
@@ -280,10 +266,9 @@ export async function savePortfolioToFirebase(uid: string, state: FireOSState): 
         console.warn('[Storage] Firebase connection error, offline mode');
         return;
       }
-      console.error('[Storage] Error saving to Firebase:', error);
+      console.warn('[Storage] Error saving to Firebase:', error);
     } finally {
       pendingSave = null;
-      console.log('[Storage] Firebase save cleanup complete');
     }
   }, 1000);
 }

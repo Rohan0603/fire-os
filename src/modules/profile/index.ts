@@ -307,29 +307,20 @@ function attachProfileHandlers() {
     updateButtonState();
 
     saveCloudBtn.addEventListener('click', async () => {
-      console.log('[Profile] Save to cloud clicked, D.currentUser:', D.currentUser?.uid);
-      if (!D.currentUser?.uid) {
-        console.warn('[Profile] Not authenticated, cannot save to cloud');
-        return;
-      }
+      if (!D.currentUser?.uid) return;
 
       saveCloudBtn.textContent = '⏳ Saving...';
       saveCloudBtn.disabled = true;
 
       try {
-        console.log('[Profile] Starting profile save...');
         const valid = await saveProfile();
-        console.log('[Profile] Profile save result:', valid);
         if (!valid) {
-          console.warn('[Profile] Profile validation failed');
           updateButtonState();
           return;
         }
 
-        console.log('[Profile] Profile saved, now saving to Firebase with uid:', D.currentUser.uid);
         const { savePortfolioToFirebase } = await import('../../lib/storage');
         await savePortfolioToFirebase(D.currentUser.uid, D);
-        console.log('[Profile] Firebase save completed');
         showToast('✓ Saved to cloud');
         saveCloudBtn.textContent = '✓ Saved';
       } catch (e) {
@@ -622,9 +613,7 @@ export async function saveProfile(): Promise<boolean> {
     }
 
     // ==================== SAVE DATA ====================
-    console.log('[Profile] Calling saveData(D) with profile:', D.profile, 'mf:', Object.keys(D.mf || {}));
     saveData(D);
-    console.log('[Profile] saveData completed, D._lastSavedAt:', D._lastSavedAt);
     return true;
   } catch (e) {
     console.error('Profile save error:', e);
