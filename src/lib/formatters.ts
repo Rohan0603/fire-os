@@ -5,7 +5,8 @@
 
 /**
  * Format a number as Indian currency (₹)
- * Uses Indian comma separation: ₹1,00,000 (not ₹100,000)
+ * Uses crore (Cr) format for values >= 10M, comma separation otherwise
+ * Examples: ₹10,00,000 (10 lakh), ₹1.25Cr (1.25 crore)
  * @param value - Numeric value to format
  * @param decimals - Number of decimal places (default: 2)
  * @returns Formatted currency string with ₹ symbol
@@ -15,6 +16,13 @@ export function formatCurrency(value: number, decimals: number = 2): string {
 
   const isNegative = value < 0;
   const absValue = Math.abs(value);
+
+  // Format in crores for large values (>= 10M)
+  if (absValue >= 10000000) {
+    const crores = absValue / 10000000;
+    const formatted = crores.toFixed(2);
+    return isNegative ? `-₹${formatted}Cr` : `₹${formatted}Cr`;
+  }
 
   // Format with specified decimal places
   let formatted = absValue.toFixed(decimals);
