@@ -479,8 +479,24 @@ async function handlePDFImport(event: Event) {
   if (!file) return;
 
   try {
-    const text = await parseCASPDF(file);
-    const { funds, stocks } = parseCASContent(text);
+    const result = await parseCASPDF(file);
+
+    // Convert structured CASParseResult to funds/stocks format for UI
+    const funds = result.holdings
+      .filter(h => h.type === 'soa')
+      .map(h => ({
+        name: h.schemeName,
+        units: h.balanceUnits,
+        date: result.asOnDate,
+      }));
+
+    const stocks = result.holdings
+      .filter(h => h.type === 'demat')
+      .map(h => ({
+        name: h.schemeName,
+        isin: h.identifier,
+        quantity: h.balanceUnits,
+      }));
 
     // Show confirmation modal
     const modal = document.getElementById('pdf-confirmation');
