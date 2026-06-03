@@ -5,6 +5,12 @@ A comprehensive personal finance dashboard for FIRE (Financial Independence, Ret
 **Live Demo:** https://fire-os-dd6d6.web.app ✨ (with cross-device data sync!)  
 **Status:** Production-ready with Firebase cloud sync & authentication
 
+**Documentation:**
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — System architecture & module design
+- [API.md](docs/API.md) — API integrations & response formats
+- [QUICKSTART.md](QUICKSTART.md) — Quick reference for developers
+- [CLAUDE.md](CLAUDE.md) — Development guide for Claude Code
+
 ---
 
 ## 🚀 Quick Start
