@@ -5,7 +5,7 @@
 
 import { D } from '../../main';
 import { formatCurrency, formatDateISO } from '../../lib/formatters';
-import { saveData, savePortfolioToFirebase } from '../../lib/storage';
+import { savePortfolioToFirebase } from '../../lib/storage';
 import { showToast } from '../ui';
 import { parseCASPDF, CASParseResult } from './pdf-parser';
 import { validateFormInput, validateFormFields, handleError, ValidationError, ValidationRules } from '../../lib/error-handler';
@@ -301,7 +301,13 @@ function attachProfileHandlers() {
       saveCloudBtn.disabled = true;
 
       try {
-        saveProfile();
+        const valid = await saveProfile();
+        if (!valid) {
+          saveCloudBtn.textContent = '☁ Save to Cloud';
+          saveCloudBtn.disabled = false;
+          return;
+        }
+
         const { savePortfolioToFirebase } = await import('../lib/storage');
         await savePortfolioToFirebase(D.currentUser.uid, D);
         showToast('✓ Saved to cloud');
@@ -385,7 +391,7 @@ function debounceProfileSave() {
  * Save profile data from form with comprehensive validation
  * Exported for manual trigger (e.g., before leaving tab)
  */
-export async function saveProfile() {
+export async function saveProfile(): Promise<boolean> {
   try {
     const validationErrors: Array<{ field: string; message: string }> = [];
 
@@ -594,15 +600,16 @@ export async function saveProfile() {
       const errorMessages = validationErrors.map((e) => e.message).join('; ');
       showToast(`⚠️ Validation failed: ${errorMessages}`, 4000, 'warning');
       console.warn('Profile validation errors:', validationErrors);
-      return;
+      return false;
     }
 
     // ==================== SAVE DATA ====================
-    saveData(D);
     updateDashboard();
+    return true;
   } catch (e) {
     console.error('Profile save error:', e);
     handleError(e, 'Failed to save profile');
+    return false;
   }
 }
 
@@ -693,7 +700,6 @@ function confirmPDFImport() {
 
   const container = document.getElementById('profile');
   if (container) renderProfile(container);
-  saveData(D);
   showToast('✓ CAS imported (click Save to sync to cloud)', 4000, 'info');
 }
 
@@ -760,7 +766,6 @@ async function handleJSONImport(event: Event) {
       console.warn('Importing legacy format');
     }
 
-    saveData(D);
     const container = document.getElementById('profile');
     if (container) renderProfile(container);
     showToast('✓ Data imported (click Save to sync to cloud)', 4000, 'info');

@@ -57,34 +57,11 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getDatabase(app);
 
-// Load data from localStorage
-function loadFromLocalStorage() {
-  const stored = localStorage.getItem('fireOS_v2');
-  if (stored) {
-    try {
-      const data = JSON.parse(stored);
-      // Sanitize holdings fields: ensure they're objects, not primitives
-      const sanitized = {
-        ...data,
-        fd: typeof data.fd === 'object' && data.fd !== null ? data.fd : {},
-        epf: typeof data.epf === 'object' && data.epf !== null ? data.epf : {},
-        esop: typeof data.esop === 'object' && data.esop !== null ? data.esop : {},
-        mf: typeof data.mf === 'object' && data.mf !== null ? data.mf : {},
-        sip: typeof data.sip === 'object' && data.sip !== null ? data.sip : {},
-        demat: typeof data.demat === 'object' && data.demat !== null ? data.demat : {},
-      };
-      Object.assign(D, sanitized);
-    } catch (e) {
-      console.error('Failed to load localStorage:', e);
-    }
-  }
-}
 
 // Initialize app on startup
 function initApp() {
   try {
     setupErrorHandling();
-    loadFromLocalStorage();
     initAPIModule(D);
     renderApp();
 
@@ -138,7 +115,6 @@ function initApp() {
 
     setupAuthListener();
     setupTabNavigation();
-    setupAutoSave();
     setupDashboardAutoRefresh();
     setupOfflineNotification();
   } catch (e) {
@@ -251,14 +227,6 @@ function setupDashboardAutoRefresh() {
     if (dashboardTab && dashboardTab.classList.contains('active')) {
       renderDashboard();
     }
-  }, 5000);
-}
-
-// Auto-save every 5 seconds
-function setupAutoSave() {
-  setInterval(() => {
-    D._lastSavedAt = new Date().toISOString();
-    localStorage.setItem('fireOS_v2', JSON.stringify(D));
   }, 5000);
 }
 
