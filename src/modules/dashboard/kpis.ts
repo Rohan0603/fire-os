@@ -96,7 +96,17 @@ export function sipStatus(state: FireOSState): SIPStatusKPI {
     // Try to get scheme code: from fund.schemeCode or from fundMatcher
     const navCacheKey = fund.schemeCode || getFundSchemeCode(fund.name);
     const nav = navCacheKey ? state.nav[navCacheKey]?.nav ?? 0 : 0;
-    const invested = fund.costBasis ?? fund.monthlyAmount * 12; // Rough estimate
+
+    // Calculate invested: use costBasis if provided, else calculate from monthlyAmount × months elapsed
+    let invested = fund.costBasis || 0;
+    if (!fund.costBasis && fund.startDate) {
+      const [year, month] = fund.startDate.split('-').map(Number);
+      const startDate = new Date(year, month - 1, 1);
+      const now = new Date();
+      const monthsElapsed = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth()) + 1;
+      invested = fund.monthlyAmount * Math.max(1, monthsElapsed);
+    }
+
     const currentValue = fund.units * nav;
     const pl = currentValue - invested;
     const xirr = null; // Would need actual cash flow calculation
