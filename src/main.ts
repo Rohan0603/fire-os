@@ -35,6 +35,9 @@ import { updateCrashAlert, updateWatchdogAlerts } from './modules/dashboard';
 // Import watchdog monitoring
 import { monitorWatchdogRules } from './modules/watchdog/fund-manager-alerts';
 
+// Import plan module
+import { initPlanModule, renderPlan } from './modules/plan';
+
 // Import error handling
 import { setupErrorHandling, handleError } from './lib/error-handler';
 import { showToast } from './modules/ui';
@@ -120,6 +123,16 @@ function initApp() {
       if (watchEl) watchEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading Watchdog module. Please reload.</p>';
     }
 
+    // Initialize plan module with error handling
+    try {
+      initPlanModule('plan');
+    } catch (e) {
+      console.error('Failed to initialize Plan module:', e);
+      handleError(e, 'Plan module initialization failed');
+      const planEl = document.getElementById('plan');
+      if (planEl) planEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading Plan module. Please reload.</p>';
+    }
+
     setupAuthListener();
     setupTabNavigation();
     setupDashboardAutoRefresh();
@@ -147,6 +160,7 @@ function renderApp() {
         <button class="nav-tab" data-tab="dashboard">Dashboard</button>
         <button class="nav-tab" data-tab="calculators">Calculators</button>
         <button class="nav-tab" data-tab="watchdog">Watchdog</button>
+        <button class="nav-tab" data-tab="plan">Plan</button>
       </div>
       <button id="logout-btn" class="btn-logout" style="display: none;">Logout</button>
     </nav>
@@ -158,6 +172,7 @@ function renderApp() {
       <div id="dashboard" class="tab"></div>
       <div id="calculators" class="tab"></div>
       <div id="watchdog" class="tab"></div>
+      <div id="plan" class="tab"></div>
     </div>
   `;
 
@@ -274,6 +289,11 @@ function setupTabNavigation() {
         // Render dashboard when tab is activated
         if (target === 'dashboard') {
           renderDashboard();
+        }
+
+        // Render plan when tab is activated
+        if (target === 'plan') {
+          renderPlan();
         }
       }
     });
