@@ -192,9 +192,44 @@ function renderESOP(): string {
       <h3>ESOP Tools & Valuation</h3>
       <p class="calc-info">Stock option analysis and foreign exchange</p>
 
+      <div class="section-divider">
+        <h4>Stock Valuation</h4>
+      </div>
+
       <div class="calc-input-group">
-        <label>ESOP Value (₹)</label>
-        <input type="number" id="esop-value" value="${esopValue}">
+        <label>Quantity</label>
+        <input type="number" id="esop-quantity" placeholder="Number of shares" min="0">
+      </div>
+
+      <div class="calc-input-group">
+        <label>Grant Price (₹)</label>
+        <input type="number" id="esop-grant-price" placeholder="Price at grant" min="0" step="0.01">
+      </div>
+
+      <div class="calc-input-group">
+        <label>Current Price (₹)</label>
+        <input type="number" id="esop-current-price" placeholder="Current market price" min="0" step="0.01">
+      </div>
+
+      <button id="esop-calculate-btn" class="btn-primary">Calculate Valuation</button>
+
+      <div id="esop-result" class="calc-result" style="display: none;">
+        <div class="result-item">
+          <span class="label">Investment Cost</span>
+          <span id="esop-investment-cost" class="value">₹0</span>
+        </div>
+        <div class="result-item">
+          <span class="label">Current Value</span>
+          <span id="esop-current-value" class="value">₹0</span>
+        </div>
+        <div class="result-item">
+          <span class="label">Gain/Loss</span>
+          <span id="esop-gain-loss" class="value">₹0</span>
+        </div>
+      </div>
+
+      <div class="section-divider">
+        <h4>Currency Conversion</h4>
       </div>
 
       <div class="calc-input-group">
@@ -253,6 +288,11 @@ function attachCalculatorHandlers() {
 
       document.querySelectorAll('.calc-panel').forEach((p) => p.classList.remove('active'));
       document.getElementById(target)?.classList.add('active');
+
+      // Trigger auto-fetch when ESOP tab opens
+      if (target === 'esop') {
+        handleESOP();
+      }
     });
   });
 
@@ -265,6 +305,7 @@ function attachCalculatorHandlers() {
   // ESOP Tools
   document.getElementById('fetch-eur-btn')?.addEventListener('click', fetchEURINRRate);
   document.getElementById('convert-eur-btn')?.addEventListener('click', convertEUR);
+  document.getElementById('esop-calculate-btn')?.addEventListener('click', calculateESOP);
 }
 
 function calculateTotalNetWorth(): number {
@@ -296,12 +337,53 @@ async function refreshNiftyData() {
     const niftyHighInput = document.getElementById('nifty-high') as HTMLInputElement;
     const niftyCurrentInput = document.getElementById('nifty-current') as HTMLInputElement;
 
-    if (niftyHighInput) niftyHighInput.value = String(D.niftyHigh);
-    if (niftyCurrentInput) niftyCurrentInput.value = String(D.niftyData?.level || '');
+    if (!niftyHighInput?.value || !niftyCurrentInput?.value) {
+      showToast('✗ Enter both Nifty values', 2000, 'error');
+      return;
+    }
 
-    showToast('✓ Nifty data refreshed');
+    // Recalculate crash scenarios based on user-entered values
+    const highVal = parseFloat(niftyHighInput.value);
+    const currentVal = parseFloat(niftyCurrentInput.value);
+
+    if (isNaN(highVal) || isNaN(currentVal) || highVal <= 0 || currentVal <= 0) {
+      showToast('✗ Enter valid Nifty values', 2000, 'error');
+      return;
+    }
+
+    const drawdown = ((highVal - currentVal) / highVal) * 100;
+    const totalNW = calculateTotalNetWorth();
+
+    const crashPanel = document.getElementById('crash');
+    if (crashPanel) {
+      const scenarioDiv = crashPanel.querySelector('.crash-scenarios');
+      if (scenarioDiv) {
+        scenarioDiv.innerHTML = `
+          <div class="scenario-info">
+            <p><strong>Current Drawdown: ${drawdown.toFixed(2)}%</strong></p>
+          </div>
+          <div class="scenario">
+            <span class="scenario-label">10% Crash Deploy</span>
+            <span class="scenario-value">₹${formatCurrency(totalNW * 0.1)}</span>
+            <span class="scenario-desc">Average down position</span>
+          </div>
+          <div class="scenario">
+            <span class="scenario-label">15% Crash Deploy</span>
+            <span class="scenario-value">₹${formatCurrency(totalNW * 0.15)}</span>
+            <span class="scenario-desc">Aggressive buy</span>
+          </div>
+          <div class="scenario">
+            <span class="scenario-label">25% Crash Deploy</span>
+            <span class="scenario-value">₹${formatCurrency(totalNW * 0.25)}</span>
+            <span class="scenario-desc">Max deployment</span>
+          </div>
+        `;
+      }
+    }
+
+    showToast('✓ Crash scenarios updated', 2000, 'success');
   } catch (e) {
-    showToast('✗ Failed to fetch Nifty data');
+    showToast('✗ Failed to update Nifty data', 2000, 'error');
   }
 }
 
@@ -362,5 +444,73 @@ function convertEUR() {
   if (resultDiv) {
     (document.getElementById('inr-converted') as HTMLElement).textContent = `₹${formatCurrency(inrValue)}`;
     resultDiv.style.display = 'block';
+  }
+}
+
+async function handleESOP() {
+  try {
+    // Auto-fetch EUR/INR when ESOP tab opens
+    const rate = await fetchEURINR();
+    if (rate) {
+      const currencyInput = document.getElementById('eur-inr-rate') as HTMLInputElement;
+      const timestamp = document.getElementById('eur-timestamp');
+
+      if (currencyInput) {
+        currencyInput.value = rate.toString();
+      }
+      if (timestamp) {
+        timestamp.textContent = `Last updated: ${new Date().toLocaleString()}`;
+      }
+
+      showToast(`✓ EUR/INR fetched: ${rate.toFixed(2)}`, 2000, 'success');
+    }
+  } catch (e) {
+    console.warn('EUR/INR fetch failed, user can enter manually');
+  }
+}
+
+function calculateESOP() {
+  try {
+    const quantityInput = document.getElementById('esop-quantity') as HTMLInputElement;
+    const grantPriceInput = document.getElementById('esop-grant-price') as HTMLInputElement;
+    const currentPriceInput = document.getElementById('esop-current-price') as HTMLInputElement;
+
+    const quantity = parseFloat(quantityInput?.value || '0') || 0;
+    const grantPrice = parseFloat(grantPriceInput?.value || '0') || 0;
+    const currentPrice = parseFloat(currentPriceInput?.value || '0') || 0;
+
+    if (quantity <= 0 || grantPrice <= 0 || currentPrice <= 0) {
+      showToast('✗ Enter valid positive values', 2000, 'error');
+      return;
+    }
+
+    const investmentCost = quantity * grantPrice;
+    const currentValue = quantity * currentPrice;
+    const gain = currentValue - investmentCost;
+    const gainPercent = investmentCost > 0 ? (gain / investmentCost) * 100 : 0;
+
+    const resultDiv = document.getElementById('esop-result');
+    if (resultDiv) {
+      const investmentElement = document.getElementById('esop-investment-cost');
+      const currentValueElement = document.getElementById('esop-current-value');
+      const gainLossElement = document.getElementById('esop-gain-loss');
+
+      if (investmentElement) {
+        investmentElement.textContent = `₹${formatCurrency(investmentCost)}`;
+      }
+      if (currentValueElement) {
+        currentValueElement.textContent = `₹${formatCurrency(currentValue)}`;
+      }
+      if (gainLossElement) {
+        gainLossElement.className = gain >= 0 ? 'value positive' : 'value negative';
+        gainLossElement.textContent = `₹${formatCurrency(gain)} (${gainPercent.toFixed(2)}%)`;
+      }
+
+      resultDiv.style.display = 'block';
+    }
+
+    showToast('✓ ESOP valuation updated', 2000, 'success');
+  } catch (e) {
+    showToast('✗ Failed to calculate ESOP value', 2000, 'error');
   }
 }
