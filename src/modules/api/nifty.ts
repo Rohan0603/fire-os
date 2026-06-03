@@ -22,7 +22,8 @@ let niftyCache: NiftyData | null = null;
 // Constants
 const NIFTY_CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
 const GOLD_ETF_SCHEME = '135106'; // ICICI Gold ETF (used as approximation fallback)
-const CORS_PROXY = 'https://api.allorigins.win/raw';
+const CORS_PROXY_1 = 'https://api.allorigins.win/raw';
+const CORS_PROXY_2 = 'https://cors-anywhere.herokuapp.com';
 const YAHOO_NIFTY_URL = 'https://finance.yahoo.com/quote/%5ENSEI';
 
 /**
@@ -123,48 +124,61 @@ async function fetchNiftyFromYahoo(): Promise<{
   high52w: number;
   source: string;
 } | null> {
-  try {
-    const proxyUrl = `${CORS_PROXY}?url=${encodeURIComponent(YAHOO_NIFTY_URL)}`;
-    logger.log('Nifty fetch via CORS proxy:', proxyUrl);
+  const proxies = [
+    { url: CORS_PROXY_1, name: 'allorigins' },
+    { url: CORS_PROXY_2, name: 'cors-anywhere' }
+  ];
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+  for (const proxy of proxies) {
+    try {
+      let proxyUrl: string;
+      if (proxy.name === 'allorigins') {
+        proxyUrl = `${proxy.url}?url=${encodeURIComponent(YAHOO_NIFTY_URL)}`;
+      } else {
+        proxyUrl = `${proxy.url}/${YAHOO_NIFTY_URL}`;
+      }
 
-    const response = await fetch(proxyUrl, {
-      method: 'GET',
-      signal: controller.signal,
-      headers: { 'Content-Type': 'application/json' },
-    });
+      logger.log(`Nifty fetch via ${proxy.name}:`, proxyUrl);
 
-    clearTimeout(timeoutId);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    if (!response.ok) {
-      logger.warn(`Nifty CORS proxy returned HTTP ${response.status}`);
-      return null;
+      const response = await fetch(proxyUrl, {
+        method: 'GET',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        logger.warn(`Nifty ${proxy.name} returned HTTP ${response.status}`);
+        continue;
+      }
+
+      const html = await response.text();
+      logger.log(`${proxy.name} response length:`, html.length);
+
+      // Parse current level: <fin-streamer data-field="regularMarketPrice">24500.5</fin-streamer>
+      const levelMatch = html.match(/regularMarketPrice[^>]*>([0-9.]+)</i);
+      const level = levelMatch ? parseFloat(levelMatch[1]) : null;
+
+      // Parse 52-week high: <fin-streamer data-field="fiftyTwoWeekHigh">26000.5</fin-streamer>
+      const highMatch = html.match(/fiftyTwoWeekHigh[^>]*>([0-9.]+)</i);
+      const high52w = highMatch ? parseFloat(highMatch[1]) : null;
+
+      if (level && high52w && level >= 10000 && level <= 50000 && high52w >= 10000 && high52w <= 50000) {
+        logger.log('Nifty fetched from Yahoo Finance:', { level, high52w });
+        return { level, high52w, source: `Yahoo Finance (${proxy.name})` };
+      }
+
+      logger.warn(`${proxy.name}: Could not parse data`, { level, high52w });
+    } catch (error) {
+      logger.warn(`${proxy.name} fetch failed:`, error);
     }
-
-    const html = await response.text();
-    logger.log('CORS proxy response length:', html.length);
-
-    // Parse current level: <fin-streamer data-field="regularMarketPrice">24500.5</fin-streamer>
-    const levelMatch = html.match(/regularMarketPrice[^>]*>([0-9.]+)</i);
-    const level = levelMatch ? parseFloat(levelMatch[1]) : null;
-
-    // Parse 52-week high: <fin-streamer data-field="fiftyTwoWeekHigh">26000.5</fin-streamer>
-    const highMatch = html.match(/fiftyTwoWeekHigh[^>]*>([0-9.]+)</i);
-    const high52w = highMatch ? parseFloat(highMatch[1]) : null;
-
-    if (level && high52w && level >= 10000 && level <= 50000 && high52w >= 10000 && high52w <= 50000) {
-      logger.log('Nifty fetched from Yahoo Finance:', { level, high52w });
-      return { level, high52w, source: 'Yahoo Finance (NSE data)' };
-    }
-
-    logger.warn('Nifty: Could not parse data from Yahoo HTML', { level, high52w });
-    return null;
-  } catch (error) {
-    logger.warn('Nifty CORS proxy fetch failed', error);
-    return null;
   }
+
+  return null;
 }
 
 /**
