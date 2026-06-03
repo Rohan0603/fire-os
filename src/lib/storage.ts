@@ -182,7 +182,7 @@ export async function savePortfolioToFirebase(uid: string, state: FireOSState): 
         demat: lastState.demat,
       };
 
-      const eurInrData: EURINRData | undefined = lastState.eurInr
+      const eurInrData: EURINRData | undefined = lastState.eurInr !== undefined && lastState.eurInr !== null
         ? { rate: lastState.eurInr, timestamp: new Date().toISOString() }
         : undefined;
 
@@ -193,7 +193,7 @@ export async function savePortfolioToFirebase(uid: string, state: FireOSState): 
         holdings,
         navCache: lastState.nav,
         niftyData: lastState.niftyData,
-        eurInr: eurInrData,
+        ...(eurInrData && { eurInr: eurInrData }),
         alphaTrackerData: lastState.alphaTrackerData,
       };
 
@@ -238,7 +238,7 @@ export function exportPortfolio(state: FireOSState): void {
       demat: state.demat,
     };
 
-    const eurInrData: EURINRData | undefined = state.eurInr
+    const eurInrData: EURINRData | undefined = state.eurInr !== undefined && state.eurInr !== null
       ? { rate: state.eurInr, timestamp: new Date().toISOString() }
       : undefined;
 
@@ -249,7 +249,7 @@ export function exportPortfolio(state: FireOSState): void {
       holdings,
       navCache: state.nav,
       niftyData: state.niftyData,
-      eurInr: eurInrData,
+      ...(eurInrData && { eurInr: eurInrData }),
       alphaTrackerData: state.alphaTrackerData,
       watchdogData: state.alphaTrackerData, // Same as alphaTrackerData for v2
     };
