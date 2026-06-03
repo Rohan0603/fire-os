@@ -136,6 +136,56 @@ export function sipStatus(state: FireOSState): SIPStatusKPI {
 }
 
 /**
+ * Demat P&L KPI - demat stock holdings with cost basis P&L
+ */
+export interface DematPnLKPI {
+  totalInvested: number;
+  totalCurrentValue: number;
+  totalPL: number;
+  holdings: Array<{
+    isin: string;
+    name: string;
+    quantity: number;
+    invested: number;
+    currentValue: number;
+    pl: number;
+  }>;
+}
+
+export function dematPnL(state: FireOSState): DematPnLKPI {
+  const holdings: DematPnLKPI['holdings'] = [];
+  let totalInvested = 0;
+  let totalCurrentValue = 0;
+
+  Object.entries(state.demat).forEach(([isin, holding]) => {
+    const invested = holding.costBasis ?? 0;
+    const currentValue = holding.currentValue || 0;
+    const pl = currentValue - invested;
+
+    holdings.push({
+      isin,
+      name: holding.name,
+      quantity: holding.quantity,
+      invested: isFinite(invested) ? invested : 0,
+      currentValue: isFinite(currentValue) ? currentValue : 0,
+      pl: isFinite(pl) ? pl : 0,
+    });
+
+    totalInvested += invested;
+    totalCurrentValue += currentValue;
+  });
+
+  const totalPL = totalCurrentValue - totalInvested;
+
+  return {
+    totalInvested: isFinite(totalInvested) ? totalInvested : 0,
+    totalCurrentValue: isFinite(totalCurrentValue) ? totalCurrentValue : 0,
+    totalPL: isFinite(totalPL) ? totalPL : 0,
+    holdings,
+  };
+}
+
+/**
  * FI Progress KPI - financial independence goal tracking
  */
 export interface FIProgressKPI {
