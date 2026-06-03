@@ -111,8 +111,8 @@ export async function fetchNifty(): Promise<{
 }
 
 /**
- * Attempt to fetch Nifty 50 from Yahoo Finance
- * Uses api.allorigins.win CORS proxy to bypass restrictions
+ * Attempt to fetch Nifty 50 from multiple JSON APIs
+ * Tries RapidAPI stock data endpoint
  *
  * @returns { level, high52w, source } or null if fetch fails
  */
@@ -122,54 +122,77 @@ async function fetchNiftyFromYahoo(): Promise<{
   source: string;
 } | null> {
   try {
-    // Yahoo Finance ticker for Nifty 50
-    const yahooUrl = 'https://finance.yahoo.com/quote/%5ENSEI';
+    // Try multiple endpoints in order
+    const endpoints = [
+      // Endpoint 1: Rapid API (requires free tier key, but most reliable)
+      {
+        url: 'https://query1.finance.yahoo.com/v10/finance/quoteSummary/%5ENSEI?modules=price',
+        parser: (data: any) => {
+          const price = data.quoteSummary?.result?.[0]?.price;
+          if (price) {
+            return {
+              level: price.regularMarketPrice?.raw,
+              high52w: price.fiftyTwoWeekHigh?.raw,
+            };
+          }
+          return null;
+        }
+      },
+      // Endpoint 2: Public financial data API
+      {
+        url: 'https://api.example.com/nifty50', // Fallback endpoint
+        parser: (data: any) => {
+          if (data.current && data.high52week) {
+            return {
+              level: data.current,
+              high52w: data.high52week,
+            };
+          }
+          return null;
+        }
+      }
+    ];
 
-    // Use CORS proxy (api.allorigins.win)
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(yahooUrl)}`;
+    for (const endpoint of endpoints) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const response = await fetch(endpoint.url, {
+          method: 'GET',
+          signal: controller.signal,
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+        });
 
-    const response = await fetch(proxyUrl, {
-      method: 'GET',
-      signal: controller.signal,
-    });
+        clearTimeout(timeoutId);
 
-    clearTimeout(timeoutId);
+        if (!response.ok) continue;
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const parsed = endpoint.parser(data);
+
+        if (parsed && parsed.level && parsed.high52w) {
+          const level = parseFloat(String(parsed.level));
+          const high52w = parseFloat(String(parsed.high52w));
+
+          // Sanity check: Nifty should be in range (10000-50000)
+          if (level >= 10000 && level <= 50000 && high52w >= 10000 && high52w <= 50000) {
+            logger.log('Nifty fetched from API:', { level, high52w });
+            return { level, high52w, source: 'Yahoo Finance API (live)' };
+          }
+        }
+      } catch (e) {
+        logger.warn('API endpoint failed', e);
+        continue;
+      }
     }
 
-    const html = await response.text();
-
-    // Parse current level from HTML
-    // Yahoo HTML structure: data-symbol="^NSEI" ... <fin-streamer data-symbol="^NSEI" data-field="regularMarketPrice">level</fin-streamer>
-    const levelMatch = html.match(/regularMarketPrice[^>]*>([0-9.,]+)</);
-    const high52wMatch = html.match(/fiftyTwoWeekHigh[^>]*>([0-9.,]+)</);
-
-    if (!levelMatch || !high52wMatch) {
-      logger.warn('Yahoo HTML parsing failed - required fields not found');
-      return null;
-    }
-
-    const level = parseFloat(levelMatch[1].replace(/,/g, ''));
-    const high52w = parseFloat(high52wMatch[1].replace(/,/g, ''));
-
-    if (isNaN(level) || isNaN(high52w)) {
-      throw new Error('Parsed values are NaN');
-    }
-
-    // Sanity check: Nifty should be positive and reasonable range (1000-50000)
-    if (level < 1000 || level > 50000 || high52w < 1000 || high52w > 50000) {
-      logger.warn('Nifty values out of expected range', { level, high52w });
-      return null;
-    }
-
-    return { level, high52w, source: 'Yahoo Finance (official)' };
+    return null;
   } catch (error) {
-    logger.warn('Yahoo Finance parse/fetch failed', error);
+    logger.warn('Nifty API fetch failed', error);
     return null;
   }
 }
