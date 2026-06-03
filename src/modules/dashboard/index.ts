@@ -18,10 +18,12 @@ let currentChartType: 'pie' | 'line' = 'pie';
 /**
  * Fetch NAVs for all SIPs with active monthly amounts
  * Triggered when dashboard loads to populate cache
+ * Fetches sequentially with 100ms delay to avoid API throttling
  */
 async function fetchSIPNAVs(): Promise<void> {
-  Object.entries(D.sip).forEach(async ([key, fund]) => {
-    if (!fund.monthlyAmount || fund.monthlyAmount <= 0) return;
+  const sipsToFetch = Object.entries(D.sip).filter(([, fund]) => fund.monthlyAmount && fund.monthlyAmount > 0);
+
+  for (const [key, fund] of sipsToFetch) {
     const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
     if (schemeCode) {
       try {
@@ -30,7 +32,9 @@ async function fetchSIPNAVs(): Promise<void> {
         console.warn(`[Dashboard] Failed to fetch NAV for SIP ${key}:`, e);
       }
     }
-  });
+    // Small delay between requests to avoid API throttling
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
 }
 
 /**
@@ -45,12 +49,12 @@ export function initDashboardModule(container: string = 'dashboard'): void {
  * Render the dashboard UI
  * Called whenever data changes or user switches to Dashboard tab
  */
-export function renderDashboard(): void {
+export async function renderDashboard(): Promise<void> {
   const container = document.getElementById(containerId);
   if (!container) return;
 
   // Fetch fresh NAVs for active SIPs
-  fetchSIPNAVs();
+  await fetchSIPNAVs();
 
   // Calculate all KPIs from current state
   const netWorth = totalNetWorth(D);
