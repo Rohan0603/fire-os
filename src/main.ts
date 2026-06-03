@@ -174,6 +174,14 @@ function setupAuthListener() {
         if (firebaseState) {
           Object.assign(D, firebaseState);
           console.debug('[Auth] Loaded portfolio from Firebase');
+
+          // Re-render profile tab if visible to show loaded data
+          const profileTab = document.getElementById('profile');
+          const profileNavTab = document.querySelector('[data-tab="profile"]');
+          if (profileTab && profileNavTab?.classList.contains('active')) {
+            const { renderProfile } = await import('./modules/profile');
+            renderProfile(profileTab);
+          }
         }
       } catch (e) {
         console.warn('[Auth] Failed to load from Firebase:', e);
