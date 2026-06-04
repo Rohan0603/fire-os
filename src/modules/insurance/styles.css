@@ -1,0 +1,113 @@
+.insurance-container {
+  padding: 1.5rem;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.insurance-container h2 {
+  font-size: 1.5rem;
+  margin-bottom: 1.5rem;
+  color: var(--text-primary);
+}
+
+.insurance-cards {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem;
+}
+
+@media (min-width: 768px) {
+  .insurance-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.insurance-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-primary);
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.insurance-card h3 {
+  font-size: 1.25rem;
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+}
+
+.adequacy-check {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+}
+
+.adequacy-check.adequate {
+  background: rgba(46, 125, 50, 0.1);
+  border: 1px solid rgba(46, 125, 50, 0.3);
+}
+
+.adequacy-check.inadequate {
+  background: rgba(211, 47, 47, 0.1);
+  border: 1px solid rgba(211, 47, 47, 0.3);
+}
+
+.adequacy-check .status-icon {
+  font-size: 1.5rem;
+}
+
+.adequacy-check .status-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.adequacy-check.adequate .status-text strong {
+  color: #2e7d32;
+}
+
+.adequacy-check.inadequate .status-text strong {
+  color: #d32f2f;
+}
+
+.adequacy-check .status-text span {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+}
+
+.insurance-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.insurance-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.insurance-form label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.insurance-form input {
+  padding: 0.75rem;
+  border: 1px solid var(--border-primary);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--input-text);
+  font-size: 1rem;
+  transition: border-color 0.2s;
+}
+
+.insurance-form input:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+}

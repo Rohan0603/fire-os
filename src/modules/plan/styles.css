@@ -124,128 +124,156 @@
 .stress-badge--likely { background: var(--status-warn-bg); color: var(--status-warn-text); }
 .stress-badge--stress { background: var(--status-bad-bg); color: var(--status-bad-text); }
 
-/* Coorg funding */
-.plan-funding-list {
-  margin-top: var(--spacing-sm);
+
+/* ADDED FOR COMMAND CENTER */
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-lg);
+}
+
+@media (max-width: 768px) {
+  .plan-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.plan-col {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--spacing-lg);
 }
 
-.plan-funding-item {
+/* Health Banner */
+.health-banner {
+  border-radius: var(--border-radius-lg);
+  margin-bottom: var(--spacing-md);
+  padding: var(--spacing-md);
+  border: 1px solid var(--border);
+}
+.health-banner--green { background: rgba(40, 167, 69, 0.1); border-color: rgba(40, 167, 69, 0.2); }
+.health-banner--yellow { background: rgba(255, 193, 7, 0.1); border-color: rgba(255, 193, 7, 0.2); }
+.health-banner--red { background: rgba(220, 53, 69, 0.1); border-color: rgba(220, 53, 69, 0.2); }
+
+.health-icon--green { color: var(--color-success); }
+.health-icon--yellow { color: var(--color-warning); }
+.health-icon--red { color: var(--color-danger); }
+
+.health-detail-row {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
+  align-items: center;
   font-size: var(--font-size-sm);
-  color: var(--text-secondary);
-  padding-left: var(--spacing-md);
-  position: relative;
 }
 
-.plan-funding-item::before {
-  content: '→';
-  position: absolute;
-  left: 0;
-  color: #ff9800;
+.indicator--green { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--color-success); }
+.indicator--yellow { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--color-warning); }
+.indicator--red { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--color-danger); }
+
+.health-detail-label { color: var(--text-secondary); width: 100px; }
+
+/* Actions */
+.action-item {
+  display: flex;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  border: 1px solid var(--border);
+  border-radius: var(--border-radius-md);
+  margin-bottom: var(--spacing-sm);
+  background: rgba(255,255,255,0.02);
+  transition: all 0.2s ease;
+  align-items: flex-start;
+}
+.action-item:hover {
+  background: rgba(255,255,255,0.05);
+}
+.action-item--completed {
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+.action-category-badge {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.1);
+  margin-right: var(--spacing-sm);
+}
+.action-item--urgent { border-left: 3px solid var(--color-danger); }
+.action-item--this-month { border-left: 3px solid var(--color-warning); }
+.action-item--upcoming { border-left: 3px solid var(--color-info); }
+
+/* NW Chart */
+.nw-chart-bar-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+  width: 14%;
+  gap: var(--spacing-xs);
+}
+.nw-chart-bar {
+  width: 100%;
+  max-width: 30px;
+  background: var(--color-primary);
+  border-radius: 4px 4px 0 0;
+  min-height: 2px;
+}
+.nw-chart-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
 }
 
 /* Milestones */
-.plan-milestones {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-.milestone {
+.milestone-item {
   display: flex;
   gap: var(--spacing-md);
-  align-items: baseline;
-  padding: var(--spacing-sm) 0;
-  border-bottom: 1px solid var(--border);
+  align-items: center;
 }
-
-.milestone:last-child {
-  border-bottom: none;
-}
-
-.milestone-year {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
+.milestone-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
   color: var(--text-secondary);
-  min-width: 130px;
-  flex-shrink: 0;
 }
-
-.milestone-desc {
-  font-size: var(--font-size-sm);
+.milestone-item--achieved .milestone-icon {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: #000;
+}
+.milestone-item--achieved .milestone-title {
   color: var(--text-primary);
+  font-weight: 500;
+}
+.milestone-item--pending .milestone-title {
+  color: var(--text-secondary);
+}
+.milestone-date {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+.milestone-progress-bar {
+  height: 4px;
+  background: var(--color-gray-800);
+  border-radius: 2px;
+  margin-top: 4px;
+  width: 100px;
+}
+.milestone-progress-fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 2px;
 }
 
-.milestone--fi .milestone-year {
-  color: var(--accent);
-}
-
-.milestone--fi .milestone-desc {
-  font-weight: 600;
-  color: var(--accent);
-}
-
-/* Next Actions */
-.plan-actions {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-.action {
-  display: flex;
-  gap: var(--spacing-md);
-  align-items: baseline;
-  padding: var(--spacing-sm) 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.action:last-child {
-  border-bottom: none;
-}
-
-.action-timing {
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  min-width: 110px;
-  flex-shrink: 0;
-}
-
-.action-desc {
-  font-size: var(--font-size-sm);
-  color: var(--text-primary);
-}
-
-.action--now    .action-timing { color: var(--color-success); }
-.action--now::before { content: '✓ '; color: var(--color-success); }
-.action--upcoming .action-timing { color: var(--color-warning); }
-.action--upcoming::before { content: '⏰ '; }
-.action--future .action-timing { color: var(--text-secondary); }
-.action--future::before { content: '⏰ '; }
-
-/* Responsive */
-@media (max-width: 768px) {
-  .plan-container {
-    padding: var(--spacing-md);
-  }
-
-  .plan-kpi-row {
-    gap: var(--spacing-md);
-  }
-
-  .plan-kpi-value {
-    font-size: var(--font-size-lg);
-  }
-
-  .milestone-year {
-    min-width: 100px;
-  }
-}
+/* Text Colors */
+.text-green { color: var(--color-success); }
+.text-red { color: var(--color-danger); }
+.text-primary { color: var(--color-primary); }
+.text-secondary { color: var(--text-secondary); }

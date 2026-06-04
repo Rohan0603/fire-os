@@ -1,6 +1,5 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
-import { getDatabase } from 'firebase/database';
 import { loadPortfolioFromFirebase, savePortfolioToFirebase } from './lib/storage';
 
 // Import types
@@ -13,30 +12,16 @@ import { renderAuthScreen, hideAuthScreen, showAuthScreen, initAuthModule } from
 // Import UI module
 import { initUIModule } from './modules/ui';
 
-// Import dashboard module
-import { initDashboardModule, renderDashboard, fetchSIPNAVs } from './modules/dashboard';
-
 // Import profile module
 import { initProfileModule, saveProfile } from './modules/profile';
-
-// Import calculators module
-import { initCalculatorsModule } from './modules/calculators';
-
-// Import watchdog module
-import { initWatchdogModule } from './modules/watchdog';
 
 // Import API module
 import { initAPIModule } from './modules/api';
 
 // Import Nifty monitoring
 import { monitorNiftyLevel } from './modules/api/nifty-monitor';
-import { updateCrashAlert, updateWatchdogAlerts } from './modules/dashboard';
 
-// Import watchdog monitoring
-import { monitorWatchdogRules } from './modules/watchdog/fund-manager-alerts';
 
-// Import plan module
-import { initPlanModule, renderPlan } from './modules/plan';
 
 // Import error handling
 import { setupErrorHandling, handleError } from './lib/error-handler';
@@ -65,7 +50,6 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getDatabase(app);
 
 
 // Initialize app on startup
@@ -91,46 +75,6 @@ function initApp() {
       handleError(e, 'Profile module initialization failed');
       const profileEl = document.getElementById('profile');
       if (profileEl) profileEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading Profile module. Please reload.</p>';
-    }
-
-    // Initialize dashboard module with error handling
-    try {
-      initDashboardModule('dashboard');
-    } catch (e) {
-      console.error('Failed to initialize Dashboard module:', e);
-      handleError(e, 'Dashboard module initialization failed');
-      const dashEl = document.getElementById('dashboard');
-      if (dashEl) dashEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading Dashboard module. Please reload.</p>';
-    }
-
-    // Initialize calculators module with error handling
-    try {
-      initCalculatorsModule('calculators');
-    } catch (e) {
-      console.error('Failed to initialize Calculators module:', e);
-      handleError(e, 'Calculators module initialization failed');
-      const calcEl = document.getElementById('calculators');
-      if (calcEl) calcEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading Calculators module. Please reload.</p>';
-    }
-
-    // Initialize watchdog module with error handling
-    try {
-      initWatchdogModule('watchdog');
-    } catch (e) {
-      console.error('Failed to initialize Watchdog module:', e);
-      handleError(e, 'Watchdog module initialization failed');
-      const watchEl = document.getElementById('watchdog');
-      if (watchEl) watchEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading Watchdog module. Please reload.</p>';
-    }
-
-    // Initialize plan module with error handling
-    try {
-      initPlanModule('plan');
-    } catch (e) {
-      console.error('Failed to initialize Plan module:', e);
-      handleError(e, 'Plan module initialization failed');
-      const planEl = document.getElementById('plan');
-      if (planEl) planEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading Plan module. Please reload.</p>';
     }
 
     setupAuthListener();
@@ -160,11 +104,15 @@ function renderApp() {
         <button class="nav-tab active" data-tab="profile">Profile</button>
         <button class="nav-tab" data-tab="dashboard">Dashboard</button>
         <button class="nav-tab" data-tab="calculators">Calculators</button>
-        <button class="nav-tab" data-tab="watchdog">Watchdog</button>
+        <button class="nav-tab" data-tab="insurance">Insurance</button>
         <button class="nav-tab" data-tab="plan">Plan</button>
+        <button class="nav-tab" data-tab="esop">ESOP Tools</button>
       </div>
       <div style="display: flex; gap: 1rem; align-items: center;">
-        <button id="theme-toggle" class="btn-theme" title="Toggle Theme">🌓</button>
+        <label class="theme-switch" title="Toggle Theme">
+          <input type="checkbox" id="theme-toggle">
+          <span class="slider round"></span>
+        </label>
         <button id="logout-btn" class="btn-logout" style="display: none;">Logout</button>
       </div>
     </nav>
@@ -175,8 +123,9 @@ function renderApp() {
       <div id="profile" class="tab active"></div>
       <div id="dashboard" class="tab"></div>
       <div id="calculators" class="tab"></div>
-      <div id="watchdog" class="tab"></div>
+      <div id="insurance" class="tab"></div>
       <div id="plan" class="tab"></div>
+      <div id="esop" class="tab"></div>
     </div>
   `;
 
@@ -205,7 +154,9 @@ function setupAuthListener() {
           console.debug('[Auth] Loaded portfolio from Firebase, currentUser preserved');
 
           // Fetch NAVs for all SIPs with holdings
-          fetchSIPNAVs().catch(e => console.warn('[Auth] Failed to fetch SIP NAVs:', e));
+          import('./modules/dashboard').then(({ fetchSIPNAVs }) => {
+            fetchSIPNAVs().catch(e => console.warn('[Auth] Failed to fetch SIP NAVs:', e));
+          });
 
           // Re-render profile tab if visible to show loaded data
           const profileTab = document.getElementById('profile');
@@ -214,6 +165,9 @@ function setupAuthListener() {
             const { renderProfile } = await import('./modules/profile');
             renderProfile(profileTab);
           }
+
+          // Run daily tasks after data load
+          checkDailyTasks(D);
         }
       } catch (e) {
         console.warn('[Auth] Failed to load from Firebase:', e);
@@ -232,34 +186,28 @@ function setupAuthListener() {
       try {
         monitorNiftyLevel((alert) => {
           if (alert) {
-            console.warn('Crash alert detected:', {
+            // Calculate dynamic deploy amount based on Bonds
+            const totalBonds = Object.values(D.bonds || {}).reduce((sum, b) => sum + b.amount, 0);
+            if (alert.severity === 'medium') alert.deployAmount = totalBonds * 0.10;
+            else if (alert.severity === 'high') alert.deployAmount = totalBonds * 0.15;
+            else if (alert.severity === 'critical') alert.deployAmount = totalBonds * 0.25;
+
+            console.info('Crash alert detected:', {
               crashPercentage: alert.crashPercentage,
               severity: alert.severity,
               deployAmount: alert.deployAmount,
             });
             // Update dashboard with alert (dashboard will re-render if visible)
-            updateCrashAlert(alert);
+            import('./modules/dashboard').then(({ updateCrashAlert }) => updateCrashAlert(alert));
           } else {
             // Alert cleared
-            updateCrashAlert(null);
+            import('./modules/dashboard').then(({ updateCrashAlert }) => updateCrashAlert(null));
           }
         });
       } catch (e) {
         console.warn('Failed to start Nifty monitoring:', e);
       }
 
-      // Start watchdog monitoring when user logs in
-      try {
-        monitorWatchdogRules(D, (alerts) => {
-          if (alerts.length > 0) {
-            console.warn('Watchdog alerts detected:', alerts);
-          }
-          // Update dashboard with alerts (dashboard will re-render if visible)
-          updateWatchdogAlerts(alerts);
-        });
-      } catch (e) {
-        console.warn('Failed to start watchdog monitoring:', e);
-      }
     } else {
       D.currentUser = null;
       showAuthScreen();
@@ -279,6 +227,8 @@ function setupAuthListener() {
 }
 
 // Tab navigation
+const initializedModules = new Set<string>(['profile']);
+
 function setupTabNavigation() {
   document.querySelectorAll('.nav-tab').forEach((tab) => {
     tab.addEventListener('click', async (e) => {
@@ -290,20 +240,61 @@ function setupTabNavigation() {
         const tabEl = document.getElementById(target);
         if (tabEl) tabEl.classList.add('active');
 
-        // Render dashboard when tab is activated
-        if (target === 'dashboard') {
-          renderDashboard();
-        }
+        try {
+          // Render dashboard when tab is activated
+          if (target === 'dashboard') {
+            const { initDashboardModule, renderDashboard } = await import('./modules/dashboard');
+            if (!initializedModules.has('dashboard')) {
+              initDashboardModule('dashboard');
+              initializedModules.add('dashboard');
+            }
+            renderDashboard();
+          }
 
-        // Render calculators when tab is activated
-        if (target === 'calculators') {
-          const { renderCalculators } = await import('./modules/calculators');
-          renderCalculators(document.getElementById('calculators')!);
-        }
+          // Render calculators when tab is activated
+          if (target === 'calculators') {
+            const { initCalculatorsModule, renderCalculators } = await import('./modules/calculators');
+            if (!initializedModules.has('calculators')) {
+              initCalculatorsModule('calculators');
+              initializedModules.add('calculators');
+            }
+            renderCalculators(document.getElementById('calculators')!);
+          }
 
-        // Render plan when tab is activated
-        if (target === 'plan') {
-          renderPlan();
+          // Render insurance when tab is activated
+          if (target === 'insurance') {
+            const { initInsuranceModule, renderInsurance } = await import('./modules/insurance');
+            if (!initializedModules.has('insurance')) {
+              initInsuranceModule('insurance');
+              initializedModules.add('insurance');
+            }
+            renderInsurance();
+          }
+
+          // Render plan when tab is activated
+          if (target === 'plan') {
+            const { initPlanModule, renderPlan } = await import('./modules/plan');
+            if (!initializedModules.has('plan')) {
+              initPlanModule('plan');
+              initializedModules.add('plan');
+            }
+            renderPlan();
+          }
+
+          // Render esop when tab is activated
+          if (target === 'esop') {
+            const { initEsopModule, renderEsop } = await import('./modules/esop');
+            if (!initializedModules.has('esop')) {
+              initEsopModule('esop');
+              initializedModules.add('esop');
+            }
+            renderEsop(document.getElementById('esop')!);
+          }
+        } catch (error) {
+          console.error(`Failed to load module for tab ${target}:`, error);
+          if (tabEl) {
+            tabEl.innerHTML = `<p style="padding: 20px; color: #d32f2f;">Error loading module. Please check your connection.</p>`;
+          }
         }
       }
     });
@@ -327,7 +318,7 @@ function setupDashboardAutoRefresh() {
   setInterval(() => {
     const dashboardTab = document.querySelector('[data-tab="dashboard"]');
     if (dashboardTab && dashboardTab.classList.contains('active')) {
-      renderDashboard();
+      import('./modules/dashboard').then(({ renderDashboard }) => renderDashboard());
     }
   }, 5000);
 }
@@ -373,28 +364,77 @@ function setupOfflineNotification() {
 
 // Theme toggle logic
 function setupTheme() {
-  const toggleBtn = document.getElementById('theme-toggle');
-  
+  const toggleInput = document.getElementById('theme-toggle') as HTMLInputElement;
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const savedTheme = localStorage.getItem('fire-os-theme');
-  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-  
+
+  const setDarkTheme = (isDark: boolean) => {
+    document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+    localStorage.setItem('fire-os-theme', isDark ? 'dark' : 'light');
+    if (toggleInput) toggleInput.checked = isDark;
+    window.dispatchEvent(new Event('themeChanged'));
+  };
+
+  // Initial setup
   if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
-    document.documentElement.dataset.theme = 'dark';
+    setDarkTheme(true);
   } else {
-    document.documentElement.dataset.theme = 'light';
+    setDarkTheme(false);
   }
 
-  if (toggleBtn) {
-    toggleBtn.addEventListener('click', () => {
-      const isDark = document.documentElement.dataset.theme === 'dark';
-      const newTheme = isDark ? 'light' : 'dark';
-      document.documentElement.dataset.theme = newTheme;
-      localStorage.setItem('fire-os-theme', newTheme);
-      // Dispatch custom event for modules that need to re-render canvas elements
-      window.dispatchEvent(new Event('themeChanged'));
+  if (toggleInput) {
+    toggleInput.addEventListener('change', (e) => {
+      setDarkTheme((e.target as HTMLInputElement).checked);
     });
   }
 }
 
 // Start app
 document.addEventListener('DOMContentLoaded', initApp);
+
+// Daily background tasks (snapshots, milestones)
+async function checkDailyTasks(state: FireOSState) {
+  try {
+    const { totalNetWorth } = await import('./modules/dashboard/kpis');
+    const { checkNewMilestones } = await import('./modules/plan/milestones');
+    const { showToast } = await import('./modules/ui');
+    const { saveData } = await import('./lib/storage');
+
+    const nw = totalNetWorth(state);
+    const today = new Date().toISOString().substring(0, 10);
+    let stateChanged = false;
+    
+    // Net worth history snapshot (only if we actually have data to record)
+    if (nw.netWorth > 0) {
+      const hasToday = state.netWorthHistory.some(s => s.date === today);
+      if (!hasToday) {
+        const breakdown = nw.breakdown;
+        const liquid = breakdown.fd + breakdown.epf + breakdown.bonds;
+        const invested = breakdown.mf + breakdown.sip + breakdown.esop + breakdown.demat;
+        
+        state.netWorthHistory.push({ date: today, value: nw.netWorth });
+        state.netWorthHistory.sort((a, b) => a.date.localeCompare(b.date));
+        stateChanged = true;
+      }
+    }
+    
+    // Milestones check
+    const newMilestones = checkNewMilestones(state);
+    const newIds = Object.keys(newMilestones);
+    if (newIds.length > 0) {
+      newIds.forEach(id => {
+        if (!state.achievedMilestones.includes(id)) {
+          state.achievedMilestones.push(id);
+          stateChanged = true;
+        }
+      });
+      showToast('🏆 Milestone Reached!', 5000, 'success');
+    }
+
+    if (stateChanged) {
+      saveData(state);
+    }
+  } catch (e) {
+    console.warn('[main] Failed to run daily tasks:', e);
+  }
+}

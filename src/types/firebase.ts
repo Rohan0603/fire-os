@@ -31,6 +31,7 @@ export interface BackupHoldings {
   epf?: Holdings;
   sip?: Record<string, SIPFund>;
   esop?: Holdings;
+  bonds?: Holdings;
   demat?: DematHoldings;
 }
 
@@ -43,6 +44,7 @@ export interface FireOSBackup {
     age: number;
     annualExpenses: number;
     fiTarget: number;
+    monthlyIncome?: number;
   };
   holdings?: BackupHoldings;
   navCache?: NAVCacheMap;
@@ -50,10 +52,14 @@ export interface FireOSBackup {
   eurInr?: EURINRData;
   alphaTrackerData?: Record<string, AlphaTrackerData>;
   watchdogData?: Record<string, AlphaTrackerData>;
+  watchdogRules?: FireOSState['watchdogRules'];
   coorgCorpus?: number;
   coorgStartDate?: string;
   coorgTarget?: number;
   coorgMonthlyAmount?: number;
+  insurance?: FireOSState['insurance'];
+  netWorthHistory?: FireOSState['netWorthHistory'];
+  achievedMilestones?: FireOSState['achievedMilestones'];
 }
 
 /** Firebase Realtime Database user portfolio entry */

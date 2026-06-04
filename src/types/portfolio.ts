@@ -42,6 +42,7 @@ export interface PortfolioProfile {
   age: number;
   annualExpenses: number;
   fiTarget: number; // FI corpus target
+  monthlyIncome: number;
 }
 
 /** Collection of SIP funds indexed by key (e.g., "sip1", "sip2") */

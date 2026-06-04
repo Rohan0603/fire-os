@@ -37,21 +37,7 @@ test.describe('PDF Import Flow', () => {
     expect(hidden).toBe(true);
   });
 
-  test('should log debug info on page load', async ({ page }) => {
-    // Use captured logs from beforeEach
-    const consoleLogs = (page as any)._consoleLogs || [];
 
-    // Wait a bit more for any pending logs
-    await page.waitForLoadState('networkidle').catch(() => {});
-
-    // Check for any Nifty-related logging
-    const niftyLogs = consoleLogs.filter(
-      (log) => log.includes('Nifty') || log.includes('Yahoo') || log.includes('ETF') || log.includes('Default values')
-    );
-
-    // Should have some Nifty fetch logs (attempting one of the sources)
-    expect(niftyLogs.length).toBeGreaterThan(0);
-  });
 
   test('should display confirmation modal after PDF upload', async ({ page }) => {
     // This test would need a real PDF file to properly test

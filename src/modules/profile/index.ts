@@ -10,7 +10,6 @@ import { showToast } from '../ui';
 import { parseCASPDF, CASParseResult } from './pdf-parser';
 import { validateFormInput, validateFormFields, handleError, ValidationError, ValidationRules } from '../../lib/error-handler';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
-import { fetchSIPNAVs } from './../../modules/dashboard';
 import './styles.css';
 
 const DEBOUNCE_MS = 500;
@@ -51,6 +50,10 @@ export function renderProfile(container: HTMLElement) {
           <div class="form-group">
             <label for="fi-target">FI Target (₹)</label>
             <input type="number" id="fi-target" placeholder="e.g., 550000000 for ₹5.5Cr" value="${D.profile.fiTarget || ''}">
+          </div>
+          <div class="form-group">
+            <label for="monthly-income">Monthly Income (₹)</label>
+            <input type="number" id="monthly-income" placeholder="Monthly income" value="${D.profile.monthlyIncome || ''}">
           </div>
         </form>
       </div>
@@ -94,17 +97,12 @@ export function renderProfile(container: HTMLElement) {
 
       <div class="profile-section">
         <h3>Data Management</h3>
-        <div class="data-actions">
+        <div class="data-actions" style="display: flex; gap: 1rem; align-items: center; margin-top: 0.5rem;">
           <button id="import-pdf-btn" class="btn-primary">📄 Import CAS PDF</button>
-          <button id="export-json-btn" class="btn-primary">💾 Export Data</button>
-          <button id="import-json-btn" class="btn-primary">📂 Import Data</button>
-        </div>
-        <div class="save-cloud-row">
           <button id="save-cloud-btn" class="btn-primary">☁ Save to Cloud</button>
-          <span class="save-cloud-hint" style="display: none;">Log in to sync to cloud</span>
+          <span class="save-cloud-hint" style="display: none; color: var(--text-secondary); font-size: 0.875rem;">Log in to sync to cloud</span>
         </div>
         <input type="file" id="pdf-input" accept=".pdf" style="display: none;">
-        <input type="file" id="json-input" accept=".json" style="display: none;">
       </div>
 
       <div id="pdf-confirmation" style="display: none;" class="modal-overlay">
@@ -130,7 +128,14 @@ function renderSIPFields(): string {
   const existingIndices = Object.keys(D.sip)
     .map(k => parseInt(k.replace('sip', '')))
     .filter(n => !isNaN(n));
-  const maxSlot = Math.max(4, ...existingIndices);
+  
+  // If no SIPs, provide at least one empty slot
+  if (existingIndices.length === 0) {
+    existingIndices.push(1);
+  }
+
+  // Sort indices to display them in order
+  existingIndices.sort((a, b) => a - b);
 
   let html = `
     <div class="sip-table-wrapper" style="overflow-x: auto; margin-bottom: 1rem;">
@@ -148,7 +153,7 @@ function renderSIPFields(): string {
         <tbody>
   `;
 
-  for (let i = 1; i <= maxSlot; i++) {
+  for (const i of existingIndices) {
     const sip = D.sip[`sip${i}`];
     html += `
           <tr style="border-bottom: 1px solid var(--border-primary); transition: background-color 0.2s;">
@@ -261,7 +266,7 @@ function attachProfileHandlers() {
   if (addSipBtn) {
     addSipBtn.addEventListener('click', () => {
       // Find next available SIP slot
-      for (let i = 5; i <= 10; i++) {
+      for (let i = 1; i <= 50; i++) {
         if (!D.sip[`sip${i}`]) {
           D.sip[`sip${i}`] = {
             name: '',
@@ -285,16 +290,6 @@ function attachProfileHandlers() {
   });
 
   document.getElementById('pdf-input')?.addEventListener('change', handlePDFImport);
-
-  // JSON export
-  document.getElementById('export-json-btn')?.addEventListener('click', exportPortfolioJSON);
-
-  // JSON import
-  document.getElementById('import-json-btn')?.addEventListener('click', () => {
-    document.getElementById('json-input')?.click();
-  });
-
-  document.getElementById('json-input')?.addEventListener('change', handleJSONImport);
 
   // Confirmation modal
   document.getElementById('pdf-confirm-btn')?.addEventListener('click', confirmPDFImport);
@@ -355,12 +350,14 @@ function debounceProfileSave() {
   const ageInput = document.getElementById('age') as HTMLInputElement;
   const expensesInput = document.getElementById('expenses') as HTMLInputElement;
   const fiTargetInput = document.getElementById('fi-target') as HTMLInputElement;
+  const monthlyIncomeInput = document.getElementById('monthly-income') as HTMLInputElement;
 
   const isDirty =
     (nameInput?.value || '') !== (D.profile.name || '') ||
     (ageInput?.value ? parseInt(ageInput.value) : 0) !== (D.profile.age || 0) ||
     (expensesInput?.value ? parseFloat(expensesInput.value) : 0) !== (D.profile.annualExpenses || 0) ||
-    (fiTargetInput?.value ? parseFloat(fiTargetInput.value) : 0) !== (D.profile.fiTarget || 0);
+    (fiTargetInput?.value ? parseFloat(fiTargetInput.value) : 0) !== (D.profile.fiTarget || 0) ||
+    (monthlyIncomeInput?.value ? parseFloat(monthlyIncomeInput.value) : 0) !== (D.profile.monthlyIncome || 0);
 
   // Check SIP fields
   if (!isDirty) {
@@ -419,6 +416,7 @@ export async function saveProfile(): Promise<boolean> {
     const ageInput = document.getElementById('age') as HTMLInputElement;
     const expensesInput = document.getElementById('expenses') as HTMLInputElement;
     const fiTargetInput = document.getElementById('fi-target') as HTMLInputElement;
+    const monthlyIncomeInput = document.getElementById('monthly-income') as HTMLInputElement;
 
     // Validate name (optional but if provided, must be 2+ chars)
     if (nameInput?.value) {
@@ -465,6 +463,18 @@ export async function saveProfile(): Promise<boolean> {
         validationErrors.push({ field: 'fi-target', message: fiError });
       } else {
         D.profile.fiTarget = parseFloat(fiTargetInput.value);
+      }
+    }
+
+    // Validate Monthly Income (optional but if provided, must be non-negative)
+    if (monthlyIncomeInput?.value) {
+      const incomeError = validateFormInput(monthlyIncomeInput.value, [
+        ValidationRules.positiveNumber('Monthly Income'),
+      ]);
+      if (incomeError) {
+        validationErrors.push({ field: 'monthly-income', message: incomeError });
+      } else {
+        D.profile.monthlyIncome = parseFloat(monthlyIncomeInput.value);
       }
     }
 
@@ -626,7 +636,9 @@ export async function saveProfile(): Promise<boolean> {
     saveData(D);
 
     // Fetch NAVs for SIPs that now have units
-    fetchSIPNAVs().catch(e => console.warn('[Profile] Failed to fetch SIP NAVs after save:', e));
+    import('./../../modules/dashboard').then(({ fetchSIPNAVs }) => {
+      fetchSIPNAVs().catch(e => console.warn('[Profile] Failed to fetch SIP NAVs after save:', e));
+    });
 
     return true;
   } catch (e) {
@@ -735,65 +747,4 @@ function cancelPDFImport() {
   (window as any)._pendingCASImport = null;
 }
 
-/**
- * Export portfolio as JSON
- */
-function exportPortfolioJSON() {
-  const data = {
-    version: 'fireOS_v2',
-    exportedAt: new Date().toISOString(),
-    profile: D.profile,
-    sip: D.sip,
-    fd: D.fd,
-    epf: D.epf,
-    bonds: D.bonds,
-    esop: D.esop,
-    demat: D.demat,
-  };
 
-  const json = JSON.stringify(data, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `fireOS_backup_${new Date().toISOString().split('T')[0]}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
-
-  showToast('✓ Data exported');
-}
-
-/**
- * Handle JSON import
- */
-async function handleJSONImport(event: Event) {
-  const input = event.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) return;
-
-  try {
-    const text = await file.text();
-    const data = JSON.parse(text);
-
-    if (data.version === 'fireOS_v2') {
-      // Merge imported data
-      Object.assign(D.profile, data.profile);
-      Object.assign(D.sip, data.sip);
-      Object.assign(D.fd, data.fd);
-      Object.assign(D.epf, data.epf);
-      Object.assign(D.bonds, data.bonds || {});
-      Object.assign(D.esop, data.esop);
-      Object.assign(D.demat, data.demat);
-    } else {
-      // Legacy v1 format
-      console.warn('Importing legacy format');
-    }
-
-    const container = document.getElementById('profile');
-    if (container) renderProfile(container);
-    showToast('✓ Data imported (click Save to sync to cloud)', 4000, 'info');
-  } catch (e) {
-    console.error('JSON import error:', e);
-    showToast('✗ Failed to import JSON');
-  }
-}

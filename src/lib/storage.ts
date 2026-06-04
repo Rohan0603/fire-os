@@ -229,6 +229,7 @@ export async function savePortfolioToFirebase(uid: string, state: FireOSState): 
         epf: lastState.epf,
         sip: lastState.sip,
         esop: lastState.esop,
+        bonds: lastState.bonds,
         demat: lastState.demat,
       };
 
@@ -249,10 +250,14 @@ export async function savePortfolioToFirebase(uid: string, state: FireOSState): 
         niftyData: lastState.niftyData,
         ...(eurInrData && { eurInr: eurInrData }),
         alphaTrackerData: lastState.alphaTrackerData,
+        watchdogRules: lastState.watchdogRules,
         coorgCorpus: lastState.coorgCorpus,
         coorgStartDate: lastState.coorgStartDate,
         coorgTarget: lastState.coorgTarget,
         coorgMonthlyAmount: lastState.coorgMonthlyAmount,
+        insurance: lastState.insurance,
+        netWorthHistory: lastState.netWorthHistory,
+        achievedMilestones: lastState.achievedMilestones,
       };
 
       await set(portfolioRef, backup);
@@ -294,11 +299,12 @@ export function exportPortfolio(state: FireOSState): void {
       epf: state.epf,
       sip: state.sip,
       esop: state.esop,
+      bonds: state.bonds,
       demat: state.demat,
     };
 
     const eurInrData: EURINRData | undefined = state.eurInr !== undefined && state.eurInr !== null
-      ? { rate: state.eurInr, timestamp: new Date().toISOString() }
+      ? { rate: typeof state.eurInr === 'number' ? state.eurInr : (state.eurInr as any).rate ?? 0, timestamp: new Date().toISOString() }
       : undefined;
 
     const backup: FireOSBackup = {
@@ -310,11 +316,14 @@ export function exportPortfolio(state: FireOSState): void {
       niftyData: state.niftyData,
       ...(eurInrData && { eurInr: eurInrData }),
       alphaTrackerData: state.alphaTrackerData,
-      watchdogData: state.alphaTrackerData, // Same as alphaTrackerData for v2
+      watchdogRules: state.watchdogRules,
       coorgCorpus: state.coorgCorpus,
       coorgStartDate: state.coorgStartDate,
       coorgTarget: state.coorgTarget,
       coorgMonthlyAmount: state.coorgMonthlyAmount,
+      insurance: state.insurance,
+      netWorthHistory: state.netWorthHistory,
+      achievedMilestones: state.achievedMilestones,
     };
 
     // Generate filename: fireOS_backup_YYYY-MM-DD.json

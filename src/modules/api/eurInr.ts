@@ -14,12 +14,8 @@ let eurInrCache: EURINRData | null = null;
 
 // Constants
 const EUR_INR_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
-const YAHOO_URL = 'https://finance.yahoo.com/quote/EURINR=X';
 const CORS_PROXIES = [
-  `https://api.codetabs.com/v1/proxy/?quest=${YAHOO_URL}`,
-  `https://corsproxy.io/?${YAHOO_URL}`,
-  `https://api.allorigins.win/raw?url=${encodeURIComponent(YAHOO_URL)}`,
-  `https://cors-anywhere.herokuapp.com/${YAHOO_URL}`,
+  { url: 'https://corsproxy.io/?', name: 'corsproxy' }
 ];
 
 // Valid exchange rate range (sanity check)
@@ -73,10 +69,13 @@ export async function fetchEURINR(): Promise<number | null> {
  * @returns Exchange rate or null if fetch/parse fails
  */
 async function fetchEURINRFromYahoo(): Promise<number | null> {
-  for (const proxyUrl of CORS_PROXIES) {
+  const yahooApiUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/EURINR=X?interval=1d&range=1y';
+
+  for (const proxy of CORS_PROXIES) {
     try {
+      const proxyUrl = `${proxy.url}${encodeURIComponent(yahooApiUrl)}`;
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
 
       const response = await fetch(proxyUrl, {
         signal: controller.signal,
@@ -85,30 +84,25 @@ async function fetchEURINRFromYahoo(): Promise<number | null> {
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        logger.warn(`EUR/INR proxy failed: HTTP ${response.status}`);
+        logger.warn(`EUR/INR ${proxy.name} proxy failed: HTTP ${response.status}`);
         continue;
       }
 
-      const html = await response.text();
+      let data: any;
+      if (proxy.name === 'allorigins') {
+        const alloriginsResponse = await response.json();
+        data = JSON.parse(alloriginsResponse.contents);
+      } else {
+        data = await response.json();
+      }
 
-      // Parse exchange rate from Yahoo Finance HTML
-      // Look for pattern: regularMarketPrice>rate<
-      // Yahoo structure: <fin-streamer data-field="regularMarketPrice">88.5</fin-streamer>
-      const match = html.match(/regularMarketPrice[^>]*>([0-9.]+)</i);
-
-      if (!match || !match[1]) {
-        logger.warn('EUR/INR: Could not parse rate from Yahoo HTML');
+      const meta = data?.chart?.result?.[0]?.meta;
+      if (!meta || typeof meta.regularMarketPrice !== 'number') {
+        logger.warn('EUR/INR: Could not parse rate from Yahoo JSON');
         continue;
       }
 
-      const rate = parseFloat(match[1]);
-
-      if (isNaN(rate)) {
-        logger.warn('EUR/INR: Parsed value is NaN');
-        continue;
-      }
-
-      return rate;
+      return meta.regularMarketPrice;
     } catch (error) {
       logger.warn(`EUR/INR proxy fetch failed: ${error instanceof Error ? error.message : 'unknown error'}`);
       continue;

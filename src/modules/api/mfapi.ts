@@ -45,9 +45,9 @@ export async function fetchNAV(schemeCode: string): Promise<number | null> {
   // Create fetch promise and track it
   const fetchPromise = (async () => {
     try {
-      // Create a timeout abort controller (mfapi.in response is large, needs 15s timeout)
+      // Create a timeout abort controller (mfapi.in response is large, needs longer timeout)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
 
       const response = await fetch(`${MFAPI_BASE_URL}/${schemeCode}`, {
         method: 'GET',

@@ -70,10 +70,13 @@ export function renderCalculators(container: HTMLElement) {
 }
 
 function renderCrashProtocol(): string {
-  const totalNW = calculateTotalNetWorth();
-  const crash10 = totalNW * 0.9;
-  const crash15 = totalNW * 0.85;
-  const crash25 = totalNW * 0.75;
+  const totalBonds = Object.values(D.bonds || {}).reduce((sum, b) => sum + b.amount, 0);
+  const defaultCrashFund = totalBonds;
+  
+  // Amounts to deploy based on the crash fund
+  const deploy10 = defaultCrashFund * 0.10;
+  const deploy15 = defaultCrashFund * 0.15;
+  const deploy25 = defaultCrashFund * 0.25;
 
   return `
     <div class="calc-card">
@@ -81,24 +84,24 @@ function renderCrashProtocol(): string {
       <p class="calc-info">How much to deploy if market crashes?</p>
 
       <div class="calc-input-group">
-        <label>Crash Fund (₹)</label>
-        <input type="number" id="crash-portfolio" value="${totalNW}">
+        <label>Crash Fund (₹) - Bonds Default</label>
+        <input type="number" id="crash-portfolio" value="${defaultCrashFund}">
       </div>
 
       <div class="crash-scenarios">
         <div class="scenario">
           <span class="scenario-label">10% Crash</span>
-          <span class="scenario-value">${formatCurrency(totalNW - crash10)}</span>
+          <span class="scenario-value">${formatCurrency(deploy10)}</span>
           <span class="scenario-desc">Invest to average down</span>
         </div>
         <div class="scenario">
           <span class="scenario-label">15% Crash</span>
-          <span class="scenario-value">${formatCurrency(totalNW - crash15)}</span>
+          <span class="scenario-value">${formatCurrency(deploy15)}</span>
           <span class="scenario-desc">Aggressive buy</span>
         </div>
         <div class="scenario">
           <span class="scenario-label">25% Crash</span>
-          <span class="scenario-value">${formatCurrency(totalNW - crash25)}</span>
+          <span class="scenario-value">${formatCurrency(deploy25)}</span>
           <span class="scenario-desc">Max deployment</span>
         </div>
       </div>

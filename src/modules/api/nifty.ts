@@ -22,7 +22,7 @@ let niftyCache: NiftyData | null = null;
 // Constants
 const NIFTY_CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
 const GOLD_ETF_SCHEME = '135106'; // ICICI Gold ETF (used as approximation fallback)
-const CORS_PROXY_1 = 'https://api.allorigins.win/raw';
+const CORS_PROXY_1 = 'https://api.allorigins.win/get';
 const CORS_PROXY_2 = 'https://cors-anywhere.herokuapp.com';
 const YAHOO_NIFTY_URL = 'https://finance.yahoo.com/quote/%5ENSEI';
 
@@ -134,7 +134,7 @@ export async function fetchNifty(): Promise<{
 
 /**
  * Fetch Nifty 50 from Yahoo Finance via CORS proxy
- * Parses HTML for current level and 52-week high
+ * Parses JSON data for current level and 52-week high
  *
  * @returns { level, high52w, source } or null if fetch fails
  */
@@ -144,32 +144,25 @@ async function fetchNiftyFromYahoo(): Promise<{
   source: string;
 } | null> {
   const proxies = [
-    { url: 'https://api.codetabs.com/v1/proxy/?quest=', name: 'codetabs' },
-    { url: 'https://corsproxy.io/?', name: 'corsproxy' },
-    { url: CORS_PROXY_1, name: 'allorigins' },
-    { url: CORS_PROXY_2, name: 'cors-anywhere' }
+    { url: 'https://api.allorigins.win/get?url=', name: 'allorigins' },
+    { url: 'https://corsproxy.io/?', name: 'corsproxy' }
   ];
+
+  // Yahoo Finance Chart API gives exact JSON data for Nifty 50
+  const yahooApiUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI?interval=1d&range=1y';
 
   for (const proxy of proxies) {
     try {
-      let proxyUrl: string;
-      if (proxy.name === 'allorigins') {
-        proxyUrl = `${proxy.url}?url=${encodeURIComponent(YAHOO_NIFTY_URL)}`;
-      } else if (proxy.url.endsWith('=') || proxy.url.endsWith('?')) {
-        proxyUrl = `${proxy.url}${YAHOO_NIFTY_URL}`;
-      } else {
-        proxyUrl = `${proxy.url}/${YAHOO_NIFTY_URL}`;
-      }
+      let proxyUrl = `${proxy.url}${encodeURIComponent(yahooApiUrl)}`;
 
       logger.log(`Nifty fetch via ${proxy.name}:`, proxyUrl);
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
 
       const response = await fetch(proxyUrl, {
         method: 'GET',
         signal: controller.signal,
-        headers: { 'Content-Type': 'application/json' },
       });
 
       clearTimeout(timeoutId);
@@ -179,23 +172,39 @@ async function fetchNiftyFromYahoo(): Promise<{
         continue;
       }
 
-      const html = await response.text();
-      logger.log(`${proxy.name} response length:`, html.length);
-
-      // Parse current level: <fin-streamer data-field="regularMarketPrice">24500.5</fin-streamer>
-      const levelMatch = html.match(/regularMarketPrice[^>]*>([0-9.]+)</i);
-      const level = levelMatch ? parseFloat(levelMatch[1]) : null;
-
-      // Parse 52-week high: <fin-streamer data-field="fiftyTwoWeekHigh">26000.5</fin-streamer>
-      const highMatch = html.match(/fiftyTwoWeekHigh[^>]*>([0-9.]+)</i);
-      const high52w = highMatch ? parseFloat(highMatch[1]) : null;
-
-      if (level && high52w && level >= 10000 && level <= 50000 && high52w >= 10000 && high52w <= 50000) {
-        logger.log('Nifty fetched from Yahoo Finance:', { level, high52w });
-        return { level, high52w, source: `Yahoo Finance (${proxy.name})` };
+      let data: any;
+      if (proxy.name === 'allorigins') {
+        // allorigins /get returns JSON with a contents string
+        const alloriginsResponse = await response.json();
+        data = JSON.parse(alloriginsResponse.contents);
+      } else {
+        data = await response.json();
       }
 
-      logger.warn(`${proxy.name}: Could not parse data`, { level, high52w });
+      if (data?.chart?.result?.[0]) {
+        const result = data.chart.result[0];
+        const meta = result.meta;
+        const currentPrice = meta.regularMarketPrice;
+        
+        let fiftyTwoWeekHigh = meta.fiftyTwoWeekHigh;
+        
+        // Fallback: Calculate from 1-year history data if not in meta
+        if (!fiftyTwoWeekHigh && result.indicators?.quote?.[0]?.high) {
+          const highs = result.indicators.quote[0].high.filter((h: any) => typeof h === 'number');
+          if (highs.length > 0) {
+            fiftyTwoWeekHigh = Math.max(...highs);
+          }
+        }
+        
+        if (!fiftyTwoWeekHigh) fiftyTwoWeekHigh = currentPrice;
+
+        if (currentPrice && fiftyTwoWeekHigh) {
+          logger.log('Nifty fetched from Yahoo Finance JSON API:', { level: currentPrice, high52w: fiftyTwoWeekHigh });
+          return { level: currentPrice, high52w: fiftyTwoWeekHigh, source: `Yahoo Finance API (${proxy.name})` };
+        }
+      }
+
+      logger.warn(`${proxy.name}: Could not parse Yahoo Finance JSON data`);
     } catch (error) {
       logger.warn(`${proxy.name} fetch failed:`, error);
     }

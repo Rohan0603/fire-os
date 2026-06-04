@@ -12,7 +12,6 @@ import { getFundSchemeCode } from '../../lib/fundMatcher';
 import { renderCoorgWidget } from './coorg-tracker';
 
 import type { CrashAlert } from '../api/nifty-monitor';
-import type { WatchdogAlert } from '../watchdog/fund-manager-alerts';
 import { renderAdvisorIntegrationWidget } from '../integrations/advisor-webhook';
 import { renderExpenseTracker } from '../trackers/expense-tracker';
 import './styles.css';
@@ -21,7 +20,6 @@ import './styles.css';
 let containerId = 'dashboard';
 let currentChartType: 'pie' | 'line' = 'pie';
 let currentCrashAlert: CrashAlert | null = null;
-let currentWatchdogAlerts: WatchdogAlert[] = [];
 
 /**
  * Fetch NAVs for all SIPs with units (holdings)
@@ -65,20 +63,6 @@ export function updateCrashAlert(alert: CrashAlert | null): void {
   }
 }
 
-/**
- * Update watchdog alerts (fund health monitoring)
- * Called by watchdog monitoring when alerts are generated
- * @param alerts - Array of WatchdogAlert objects
- */
-export function updateWatchdogAlerts(alerts: WatchdogAlert[]): void {
-  currentWatchdogAlerts = alerts;
-  // Re-render dashboard if it's visible
-  const container = document.getElementById(containerId);
-  if (container && container.offsetParent !== null) {
-    // Container is visible, re-render to show alerts
-    renderDashboard();
-  }
-}
 
 /**
  * Initialize the dashboard module
@@ -114,8 +98,6 @@ export async function renderDashboard(): Promise<void> {
       <!-- Crash Alert (if present) -->
       ${currentCrashAlert ? renderCrashAlertBanner(currentCrashAlert) : ''}
 
-      <!-- Watchdog Alerts (if present) -->
-      ${currentWatchdogAlerts.length > 0 ? renderWatchdogAlertsBanner(currentWatchdogAlerts) : ''}
 
       <!-- KPI Cards Grid -->
       <div class="kpi-grid">
@@ -233,49 +215,6 @@ function renderCrashAlertBanner(alert: CrashAlert): string {
   `;
 }
 
-/**
- * Render watchdog alerts banner
- * Displays fund health alerts (AUM breach, block threshold, manager exit)
- */
-function renderWatchdogAlertsBanner(alerts: WatchdogAlert[]): string {
-  // Helper to escape HTML special characters
-  const escapeHtml = (text: string): string => {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  };
-
-  const iconMap: { [key: string]: string } = {
-    'manager-exit': '🔴',
-    'aum-breach': '⚠️',
-    'block-threshold': '⚡',
-  };
-
-  const alertItems = alerts.map(alert => {
-    const icon = iconMap[alert.type] || '⚠️';
-    const alertClass = `watchdog-alert-item alert-${alert.severity}`;
-
-    return `
-      <div class="${alertClass}">
-        <div class="watchdog-alert-header">
-          <span class="watchdog-alert-icon">${icon}</span>
-          <div class="watchdog-alert-title">${escapeHtml(alert.fund)}: ${alert.type.replace('-', ' ').toUpperCase()}</div>
-        </div>
-        <div class="watchdog-alert-message">${escapeHtml(alert.message)}</div>
-        <div class="watchdog-alert-action">Action: ${escapeHtml(alert.action)}</div>
-      </div>
-    `;
-  }).join('');
-
-  return `
-    <div class="watchdog-alerts-banner">
-      <div class="watchdog-alerts-title">📊 Fund Health Alerts</div>
-      <div class="watchdog-alerts-list">
-        ${alertItems}
-      </div>
-    </div>
-  `;
-}
 
 /**
  * Render Portfolio Summary Section
@@ -294,11 +233,11 @@ function renderPortfolioSummary(breakdown: any, sipValue: number, fi: any): stri
         </div>
         <div class="portfolio-summary-item">
           <div class="portfolio-summary-label">Annual Expenses</div>
-          <div class="portfolio-summary-value">${formatCurrency(D.profile.annualExpenses, 0)}</div>
+          <div class="portfolio-summary-value">${formatCurrency((D.profile.annualExpenses || 0) * 12, 0)}</div>
         </div>
         <div class="portfolio-summary-item">
           <div class="portfolio-summary-label">Monthly Buffer</div>
-          <div class="portfolio-summary-value">${formatCurrency(D.profile.annualExpenses / 12, 0)}</div>
+          <div class="portfolio-summary-value">${formatCurrency(D.profile.annualExpenses || 0, 0)}</div>
         </div>
       </div>
 

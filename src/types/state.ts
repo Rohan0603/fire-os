@@ -10,6 +10,25 @@ import type { SyncMetadata, FirebaseUser } from './firebase';
 // Firebase User type - Firebase authenticated user or null
 export type FirebaseUserType = FirebaseUser | null;
 
+export interface EsopVestingItem {
+  date: string;
+  shares: number;
+}
+
+export interface EsopTriggers {
+  marriage: boolean;
+  childBirth: boolean;
+  jobChange: boolean;
+  coorgConstruction: boolean;
+}
+
+export interface EsopDetails {
+  shares: number;
+  grantPrice: number;
+  vestingSchedule: EsopVestingItem[];
+  triggers: EsopTriggers;
+}
+
 /** Complete global application state */
 export interface FireOSState {
   // User Profile
@@ -76,8 +95,23 @@ export interface FireOSState {
     linkedToSWP: boolean;
   }>;
 
+  // Plan Tab (v3.1)
+  netWorthHistory: Array<{ date: string; value: number }>;
+  completedActions: Record<string, { completedAt: string }>;
+  achievedMilestones: string[];
+
+  // Insurance Coverage (v3.1)
+  insurance: {
+    termLife: { currentCover: number; annualPremium: number; expiryDate: string; provider: string };
+    health: { currentCover: number; annualPremium: number; familySize: number; provider: string };
+    vehicle: { covered: boolean; annualPremium: number };
+  };
+
   // Sync metadata (internal use)
   _syncMetadata?: SyncMetadata;
+
+  // ESOP Details
+  esopDetails: EsopDetails;
 }
 
 /**
@@ -92,6 +126,7 @@ export function initializeState(): FireOSState {
       age: 0,
       annualExpenses: 0,
       fiTarget: 0,
+      monthlyIncome: 0,
     },
 
     // Empty holdings
@@ -148,10 +183,41 @@ export function initializeState(): FireOSState {
     },
     expenses: [],
 
+    // Plan Tab (v3.1)
+    netWorthHistory: [],
+    completedActions: {},
+    achievedMilestones: [],
+
+    // Insurance Coverage (v3.1)
+    insurance: {
+      termLife: { currentCover: 0, annualPremium: 0, expiryDate: '', provider: '' },
+      health: { currentCover: 0, annualPremium: 0, familySize: 1, provider: '' },
+      vehicle: { covered: false, annualPremium: 0 },
+    },
+
     // Sync metadata
     _syncMetadata: {
       lastSavedAt: new Date().toISOString(),
       isDirty: false,
+    },
+
+    // ESOP details
+    esopDetails: {
+      shares: 95,
+      grantPrice: 45,
+      vestingSchedule: [
+        { date: '2026-06', shares: 20 },
+        { date: '2027-06', shares: 20 },
+        { date: '2028-06', shares: 20 },
+        { date: '2029-06', shares: 20 },
+        { date: '2030-06', shares: 15 },
+      ],
+      triggers: {
+        marriage: false,
+        childBirth: false,
+        jobChange: false,
+        coorgConstruction: false,
+      },
     },
   };
 }
@@ -174,6 +240,8 @@ export function isFireOSState(value: unknown): value is FireOSState {
   return (
     typeof obj.profile === 'object' &&
     obj.profile !== null &&
+    typeof obj.esopDetails === 'object' &&
+    obj.esopDetails !== null &&
     typeof obj.mf === 'object' &&
     typeof obj.fd === 'object' &&
     typeof obj.epf === 'object' &&
@@ -195,6 +263,12 @@ export function isFireOSState(value: unknown): value is FireOSState {
     typeof obj.taxCalendar === 'object' &&
     obj.taxCalendar !== null &&
     Array.isArray(obj.expenses) &&
+    Array.isArray(obj.netWorthHistory) &&
+    typeof obj.completedActions === 'object' &&
+    obj.completedActions !== null &&
+    Array.isArray(obj.achievedMilestones) &&
+    typeof obj.insurance === 'object' &&
+    obj.insurance !== null &&
     (obj.currentUser === null || typeof obj.currentUser === 'object')
   );
 }
@@ -252,6 +326,34 @@ export function mergeState(existing: FireOSState, incoming: Partial<FireOSState>
     ...(incoming.swpSchedule && { swpSchedule: { ...existing.swpSchedule, ...incoming.swpSchedule } }),
     ...(incoming.taxCalendar && { taxCalendar: { ...existing.taxCalendar, ...incoming.taxCalendar } }),
     ...(incoming.expenses && { expenses: incoming.expenses }),
+    // Plan Tab fields
+    ...(incoming.netWorthHistory && { 
+      netWorthHistory: [
+        ...existing.netWorthHistory, 
+        ...incoming.netWorthHistory.filter(newSnap => !existing.netWorthHistory.some(oldSnap => oldSnap.date === newSnap.date))
+      ].sort((a, b) => a.date.localeCompare(b.date))
+    }),
+    ...(incoming.completedActions && { completedActions: { ...existing.completedActions, ...incoming.completedActions } }),
+    ...(incoming.achievedMilestones && { achievedMilestones: Array.from(new Set([...existing.achievedMilestones, ...incoming.achievedMilestones])) }),
+    // Insurance Coverage
+    ...(incoming.insurance && { 
+      insurance: { 
+        termLife: { ...existing.insurance.termLife, ...(incoming.insurance.termLife || {}) },
+        health: { ...existing.insurance.health, ...(incoming.insurance.health || {}) },
+        vehicle: { ...existing.insurance.vehicle, ...(incoming.insurance.vehicle || {}) },
+      } 
+    }),
+    // ESOP Details
+    ...(incoming.esopDetails && {
+      esopDetails: {
+        ...existing.esopDetails,
+        ...incoming.esopDetails,
+        triggers: {
+          ...existing.esopDetails.triggers,
+          ...(incoming.esopDetails.triggers || {}),
+        },
+      },
+    }),
     // Metadata is only set explicitly, never from incoming
     _lastSavedAt: incoming._lastSavedAt ?? existing._lastSavedAt,
   };

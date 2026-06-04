@@ -135,7 +135,7 @@ export function monitorNiftyLevel(callback: (alert: CrashAlert | null) => void):
 
         // Only trigger callback if alert status changed (to avoid duplicate notifications)
         if (alert.shouldAlert && (!lastAlert || lastAlert.severity !== alert.severity)) {
-          logger.warn('Nifty crash alert detected:', {
+          logger.log('Nifty crash alert detected:', {
             level: niftyData.level,
             high52w: niftyData.high52w,
             crashPercentage: alert.crashPercentage,
