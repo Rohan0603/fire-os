@@ -336,24 +336,37 @@ export function mergeState(existing: FireOSState, incoming: Partial<FireOSState>
     ...(incoming.completedActions && { completedActions: { ...existing.completedActions, ...incoming.completedActions } }),
     ...(incoming.achievedMilestones && { achievedMilestones: Array.from(new Set([...existing.achievedMilestones, ...incoming.achievedMilestones])) }),
     // Insurance Coverage
-    ...(incoming.insurance && { 
-      insurance: { 
-        termLife: { ...existing.insurance.termLife, ...(incoming.insurance.termLife || {}) },
-        health: { ...existing.insurance.health, ...(incoming.insurance.health || {}) },
-        vehicle: { ...existing.insurance.vehicle, ...(incoming.insurance.vehicle || {}) },
-      } 
-    }),
-    // ESOP Details
-    ...(incoming.esopDetails && {
-      esopDetails: {
-        ...existing.esopDetails,
-        ...incoming.esopDetails,
-        triggers: {
-          ...existing.esopDetails.triggers,
-          ...(incoming.esopDetails.triggers || {}),
-        },
+    insurance: {
+      ...initializeState().insurance,
+      ...existing.insurance,
+      ...incoming.insurance,
+      termLife: {
+        ...initializeState().insurance.termLife,
+        ...existing.insurance?.termLife,
+        ...incoming.insurance?.termLife,
       },
-    }),
+      health: {
+        ...initializeState().insurance.health,
+        ...existing.insurance?.health,
+        ...incoming.insurance?.health,
+      },
+      vehicle: {
+        ...initializeState().insurance.vehicle,
+        ...existing.insurance?.vehicle,
+        ...incoming.insurance?.vehicle,
+      },
+    },
+    // ESOP Details
+    esopDetails: {
+      ...initializeState().esopDetails,
+      ...existing.esopDetails,
+      ...incoming.esopDetails,
+      triggers: {
+        ...initializeState().esopDetails.triggers,
+        ...existing.esopDetails?.triggers,
+        ...incoming.esopDetails?.triggers,
+      },
+    },
     // Metadata is only set explicitly, never from incoming
     _lastSavedAt: incoming._lastSavedAt ?? existing._lastSavedAt,
   };

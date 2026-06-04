@@ -256,6 +256,7 @@ export async function savePortfolioToFirebase(uid: string, state: FireOSState): 
         coorgTarget: lastState.coorgTarget,
         coorgMonthlyAmount: lastState.coorgMonthlyAmount,
         insurance: lastState.insurance,
+        esopDetails: lastState.esopDetails,
         netWorthHistory: lastState.netWorthHistory,
         achievedMilestones: lastState.achievedMilestones,
       };
@@ -322,6 +323,7 @@ export function exportPortfolio(state: FireOSState): void {
       coorgTarget: state.coorgTarget,
       coorgMonthlyAmount: state.coorgMonthlyAmount,
       insurance: state.insurance,
+      esopDetails: state.esopDetails,
       netWorthHistory: state.netWorthHistory,
       achievedMilestones: state.achievedMilestones,
     };
@@ -425,6 +427,14 @@ export async function importPortfolio(file: File): Promise<FireOSState> {
     }
     if (typeof backup.coorgMonthlyAmount === 'number') {
       state.coorgMonthlyAmount = backup.coorgMonthlyAmount;
+    }
+
+    // Restore esopDetails and insurance if they exist in backup
+    if (backup.esopDetails) {
+      state.esopDetails = backup.esopDetails as any;
+    }
+    if (backup.insurance) {
+      state.insurance = backup.insurance as any;
     }
 
     state._lastSavedAt = (backup.timestamp as string) || new Date().toISOString();

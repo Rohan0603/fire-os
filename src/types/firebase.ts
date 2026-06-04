@@ -58,6 +58,7 @@ export interface FireOSBackup {
   coorgTarget?: number;
   coorgMonthlyAmount?: number;
   insurance?: FireOSState['insurance'];
+  esopDetails?: FireOSState['esopDetails'];
   netWorthHistory?: FireOSState['netWorthHistory'];
   achievedMilestones?: FireOSState['achievedMilestones'];
 }
