@@ -69,23 +69,89 @@ export function generateSWPSchedule(
 }
 
 export async function executeMonthlyWithdrawal(state: any): Promise<void> {
-  if (!state.swpSchedule.enabled) return;
+  if (!state.swpSchedule || !state.swpSchedule.enabled) return;
+
+  // Gather current holdings with NAV from mf and sip
+  const holdings: Record<string, { units: number; nav: number }> = {
+    PPFCF: { units: 0, nav: 0 },
+    NipponGrowth: { units: 0, nav: 0 },
+    NipponSmallCap: { units: 0, nav: 0 },
+    Gold: { units: 0, nav: 0 },
+  };
+
+  const processFund = (fund: any) => {
+    const name = fund.name || '';
+    let category = '';
+    if (name.includes('Parag') || fund.schemeCode === '122639') category = 'PPFCF';
+    else if (name.includes('GROWTH') || name.includes('Growth') || fund.schemeCode === '118668') category = 'NipponGrowth';
+    else if (name.includes('SMALL') || name.includes('Small') || fund.schemeCode === '118778') category = 'NipponSmallCap';
+    else if (name.includes('Gold') || fund.schemeCode === '135106') category = 'Gold';
+
+    if (category) {
+      const schemeCode = fund.schemeCode || (category === 'PPFCF' ? '122639' : category === 'NipponGrowth' ? '118668' : category === 'NipponSmallCap' ? '118778' : '135106');
+      const nav = state.nav[schemeCode]?.nav ?? 0;
+      holdings[category].units += fund.units || 0;
+      holdings[category].nav = nav;
+    }
+  };
+
+  if (state.sip) Object.values(state.sip).forEach(processFund);
+  if (state.mf) Object.values(state.mf).forEach(processFund);
 
   const redemption = calculateFIFORedemption(
-    state.mf || {}, // Assuming state.mf acts as holdings in this context
+    holdings,
     state.swpSchedule.monthlyAmount
   );
 
-  // Execute FIFO redemptions
-  for (const [fund, units] of Object.entries(redemption)) {
-    if (units > 0) {
-      // Call API to redeem from fund
-      // await redeemUnits(fund, units);
-      console.log(`Redeemed ${units} units from ${fund}`);
+  // Execute FIFO redemptions and update state.sip / state.mf
+  for (const [fundName, unitsToRedeem] of Object.entries(redemption)) {
+    if (unitsToRedeem > 0) {
+      let remainingToRedeem = unitsToRedeem;
+      
+      if (state.sip) {
+        for (const key of Object.keys(state.sip)) {
+          const fund = state.sip[key];
+          const name = fund.name || '';
+          let match = false;
+          if (fundName === 'PPFCF' && (name.includes('Parag') || fund.schemeCode === '122639')) match = true;
+          else if (fundName === 'NipponGrowth' && (name.includes('GROWTH') || name.includes('Growth') || fund.schemeCode === '118668')) match = true;
+          else if (fundName === 'NipponSmallCap' && (name.includes('SMALL') || name.includes('Small') || fund.schemeCode === '118778')) match = true;
+          else if (fundName === 'Gold' && (name.includes('Gold') || fund.schemeCode === '135106')) match = true;
+
+          if (match && fund.units > 0) {
+            const deduct = Math.min(fund.units, remainingToRedeem);
+            fund.units -= deduct;
+            remainingToRedeem -= deduct;
+            if (remainingToRedeem <= 0) break;
+          }
+        }
+      }
+
+      if (remainingToRedeem > 0 && state.mf) {
+        for (const key of Object.keys(state.mf)) {
+          const fund = state.mf[key];
+          const name = fund.name || '';
+          let match = false;
+          if (fundName === 'PPFCF' && (name.includes('Parag') || fund.schemeCode === '122639')) match = true;
+          else if (fundName === 'NipponGrowth' && (name.includes('GROWTH') || name.includes('Growth') || fund.schemeCode === '118668')) match = true;
+          else if (fundName === 'NipponSmallCap' && (name.includes('SMALL') || name.includes('Small') || fund.schemeCode === '118778')) match = true;
+          else if (fundName === 'Gold' && (name.includes('Gold') || fund.schemeCode === '135106')) match = true;
+
+          if (match && fund.units > 0) {
+            const deduct = Math.min(fund.units, remainingToRedeem);
+            fund.units -= deduct;
+            remainingToRedeem -= deduct;
+            if (remainingToRedeem <= 0) break;
+          }
+        }
+      }
     }
   }
 
   // Add withdrawal to expense tracker
+  if (!state.expenses) {
+    state.expenses = [];
+  }
   state.expenses.push({
     date: new Date().toISOString().split("T")[0],
     category: "SWP",
@@ -93,3 +159,5 @@ export async function executeMonthlyWithdrawal(state: any): Promise<void> {
     linkedToSWP: true,
   });
 }
+
+

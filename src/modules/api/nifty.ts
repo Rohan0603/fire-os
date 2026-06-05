@@ -13,6 +13,7 @@
 import { getLogger } from '../../lib/logger';
 import { fetchNAV } from './mfapi';
 import type { NiftyData } from '../../types/api';
+import { CONFIG } from '../../lib/config';
 
 const logger = getLogger();
 
@@ -20,11 +21,11 @@ const logger = getLogger();
 let niftyCache: NiftyData | null = null;
 
 // Constants
-const NIFTY_CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
-const GOLD_ETF_SCHEME = '135106'; // ICICI Gold ETF (used as approximation fallback)
-const CORS_PROXY_1 = 'https://api.allorigins.win/get';
+const NIFTY_CACHE_TTL = CONFIG.cacheTtl.nifty;
+const GOLD_ETF_SCHEME = CONFIG.schemes.goldEtf;
+const CORS_PROXY_1 = CONFIG.api.alloriginsBaseUrl.endsWith('?url=') ? CONFIG.api.alloriginsBaseUrl.slice(0, -5) : CONFIG.api.alloriginsBaseUrl;
 const CORS_PROXY_2 = 'https://cors-anywhere.herokuapp.com';
-const YAHOO_NIFTY_URL = 'https://finance.yahoo.com/quote/%5ENSEI';
+const YAHOO_NIFTY_URL = CONFIG.api.yahooFinanceNifty;
 
 /**
  * NSE API Endpoints (potential sources)

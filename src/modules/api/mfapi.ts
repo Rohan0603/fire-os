@@ -5,6 +5,7 @@
 
 import { getLogger } from '../../lib/logger';
 import type { NAVCache, NAVCacheMap, MFAPIResponse } from '../../types/api';
+import { CONFIG } from '../../lib/config';
 
 const logger = getLogger();
 
@@ -15,8 +16,8 @@ let navCache: NAVCacheMap = {};
 const inFlightRequests: Map<string, Promise<number | null>> = new Map();
 
 // Constants
-const MFAPI_BASE_URL = 'https://api.mfapi.in/mf';
-const NAV_CACHE_TTL = 4 * 60 * 60 * 1000; // 4 hours in milliseconds
+const MFAPI_BASE_URL = CONFIG.api.mfapiBaseUrl;
+const NAV_CACHE_TTL = CONFIG.cacheTtl.nav;
 
 /**
  * Fetch latest NAV for a given scheme code

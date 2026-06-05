@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
 import { loadPortfolioFromFirebase, savePortfolioToFirebase, saveData } from './lib/storage';
+import { CONFIG } from './lib/config';
 
 // Import types
 import type { FireOSState } from './types/state';
@@ -29,6 +30,9 @@ import { initPlanModule, renderPlan } from './modules/plan';
 import { initEsopModule, renderEsop } from './modules/esop';
 import { totalNetWorth } from './modules/dashboard/kpis';
 import { checkNewMilestones } from './modules/plan/milestones';
+import { executeMonthlyWithdrawal } from './modules/calculators/swp-scheduler';
+import { getFundSchemeCode } from './lib/fundMatcher';
+import { fetchNAV } from './modules/api';
 
 
 
@@ -45,16 +49,7 @@ import './styles/tokens.css';
 export const D: FireOSState = initializeState();
 
 // Firebase configuration
-const firebaseConfig = {
-  apiKey: 'AIzaSyBD38ygGdv7IeAOh5V8tI5Ih0DpTk2niww',
-  authDomain: 'fire-os-dd6d6.firebaseapp.com',
-  databaseURL: 'https://fire-os-dd6d6-default-rtdb.asia-southeast1.firebasedatabase.app',
-  projectId: 'fire-os-dd6d6',
-  storageBucket: 'fire-os-dd6d6.firebasestorage.app',
-  messagingSenderId: '824527645307',
-  appId: '1:824527645307:web:7dc209d225e8280d17d0de',
-  measurementId: 'G-8JFDMMJ8QM',
-};
+const firebaseConfig = CONFIG.firebaseConfig;
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -89,6 +84,7 @@ function initApp() {
     setupAuthListener();
     setupTabNavigation();
     setupDashboardAutoRefresh();
+    setupBackgroundNAVRefresh();
     setupOfflineNotification();
     setupTheme();
   } catch (e) {
@@ -443,10 +439,76 @@ function checkDailyTasks(state: FireOSState) {
       showToast('🏆 Milestone Reached!', 5000, 'success');
     }
 
+    // SWP monthly execution check
+    if (state.swpSchedule && state.swpSchedule.enabled) {
+      const currentYearMonth = today.substring(0, 7);
+      const startYearMonth = state.swpSchedule.startDate ? state.swpSchedule.startDate.substring(0, 7) : '';
+      
+      if (startYearMonth && currentYearMonth >= startYearMonth) {
+        const hasSwpThisMonth = state.expenses?.some(e => e.category === 'SWP' && e.date.substring(0, 7) === currentYearMonth);
+        if (!hasSwpThisMonth) {
+          stateChanged = true;
+          executeMonthlyWithdrawal(state).then(() => {
+            saveData(state);
+            if (state.currentUser?.uid) {
+              savePortfolioToFirebase(state.currentUser.uid, state).catch(e => console.warn('Firebase save failed:', e));
+            }
+            showToast('✓ Automatic monthly SWP executed', 4000, 'success');
+            const dashboardTab = document.querySelector('[data-tab="dashboard"]');
+            if (dashboardTab && dashboardTab.classList.contains('active')) {
+              renderDashboard();
+            }
+          }).catch(e => {
+            console.error('[SWP Auto] Failed to execute withdrawal:', e);
+          });
+        }
+      }
+    }
+
     if (stateChanged) {
       saveData(state);
     }
   } catch (e) {
     console.warn('[main] Failed to run daily tasks:', e);
   }
+}
+
+// Background NAV Auto-Refresh (Runs periodically)
+function setupBackgroundNAVRefresh() {
+  setInterval(async () => {
+    console.debug('[API] Background auto-refreshing NAVs...');
+    const sipsToFetch = Object.entries(D.sip).filter(([, fund]) => fund.units && fund.units > 0);
+    let updated = false;
+    for (const [key, fund] of sipsToFetch) {
+      const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
+      if (schemeCode) {
+        try {
+          const oldNav = D.nav[schemeCode]?.nav;
+          const newNav = await fetchNAV(schemeCode);
+          if (newNav !== oldNav && newNav !== null) {
+            D.nav[schemeCode] = {
+              schemeCode,
+              nav: newNav,
+              timestamp: new Date().toISOString(),
+              ttl: CONFIG.cacheTtl.nav,
+            };
+            updated = true;
+          }
+        } catch (e) {
+          console.warn(`[Background Refresh] Failed for scheme ${schemeCode}:`, e);
+        }
+      }
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    if (updated) {
+      saveData(D);
+      if (D.currentUser?.uid) {
+        savePortfolioToFirebase(D.currentUser.uid, D).catch(e => console.warn('Firebase save failed:', e));
+      }
+      const dashboardTab = document.querySelector('[data-tab="dashboard"]');
+      if (dashboardTab && dashboardTab.classList.contains('active')) {
+        renderDashboard();
+      }
+    }
+  }, CONFIG.cacheTtl.nav); // run at NAV cache TTL interval
 }

@@ -84,6 +84,25 @@ export async function renderDashboard(): Promise<void> {
   const container = document.getElementById(containerId);
   if (!container) return;
 
+  // Render a loading spinner if cache is missing or stale
+  const sipsToFetch = Object.entries(D.sip).filter(([, fund]) => fund.units && fund.units > 0);
+  const hasStaleCache = sipsToFetch.some(([, fund]) => {
+    const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
+    if (!schemeCode) return false;
+    const cached = D.nav[schemeCode];
+    // Cache TTL is 4 hours (14400000ms)
+    return !cached || (Date.now() - new Date(cached.timestamp).getTime() > 4 * 60 * 60 * 1000);
+  });
+
+  if (hasStaleCache) {
+    container.innerHTML = `
+      <div class="flex-col flex-align-center flex-justify-center gap-1 text-center" style="padding: 6rem 2rem;">
+        <div class="loading-spinner"></div>
+        <div style="color: var(--text-secondary); font-weight: 500; font-size: 1.1rem;">Updating portfolio NAVs and rates...</div>
+      </div>
+    `;
+  }
+
   // Fetch fresh NAVs for active SIPs
   await fetchSIPNAVs();
 

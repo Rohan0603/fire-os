@@ -9,6 +9,8 @@ import { showToast } from '../ui';
 import { fetchNifty } from '../api';
 import './styles.css';
 import { initTaxModule } from '../tax';
+import { executeMonthlyWithdrawal } from './swp-scheduler';
+import { saveData, savePortfolioToFirebase } from '../../lib/storage';
 
 export function initCalculatorsModule(containerId: string) {
   const container = document.getElementById(containerId);
@@ -50,6 +52,7 @@ export function renderCalculators(container: HTMLElement) {
         <button class="calc-tab" data-calc="emergency">💧 Emergency Runway</button>
         <button class="calc-tab" data-calc="sip-pause">⏸️ SIP Pause</button>
         <button class="calc-tab" data-calc="tax-planner">Tax Planner</button>
+        <button class="calc-tab" data-calc="swp-scheduler">⏸️ SWP Scheduler</button>
       </div>
 
       <div id="crash" class="calc-panel active">
@@ -62,6 +65,9 @@ export function renderCalculators(container: HTMLElement) {
         ${renderSIPPause()}
       </div>
       <div id="tax-planner" class="calc-panel"></div>
+      <div id="swp-scheduler" class="calc-panel">
+        ${renderSWPScheduler()}
+      </div>
     </div>
   `;
 
@@ -263,6 +269,64 @@ function attachCalculatorHandlers() {
 
   // SIP Pause
   document.getElementById('calculate-sip-btn')?.addEventListener('click', calculateSIPPause);
+
+  // SWP Scheduler handlers
+  document.getElementById('save-swp-btn')?.addEventListener('click', () => {
+    const enabledInput = document.getElementById('swp-enabled') as HTMLInputElement;
+    const amountInput = document.getElementById('swp-amount') as HTMLInputElement;
+    const startDateInput = document.getElementById('swp-start-date') as HTMLInputElement;
+
+    const enabled = enabledInput?.checked ?? false;
+    const amount = parseFloat(amountInput?.value || '0') || 0;
+    const startDate = startDateInput?.value ? `${startDateInput.value}-01` : '';
+
+    if (amount <= 0) {
+      showToast('Please enter a valid positive monthly amount', 3000, 'warning');
+      return;
+    }
+
+    if (!D.swpSchedule) {
+      D.swpSchedule = { enabled: false, startDate: '', monthlyAmount: 122000, rate: 3 };
+    }
+
+    D.swpSchedule.enabled = enabled;
+    D.swpSchedule.monthlyAmount = amount;
+    D.swpSchedule.startDate = startDate;
+
+    saveData(D);
+    if (D.currentUser?.uid) {
+      savePortfolioToFirebase(D.currentUser.uid, D).catch(e => console.warn('Firebase save failed:', e));
+    }
+
+    showToast('✓ SWP config saved successfully', 3000, 'success');
+  });
+
+  document.getElementById('trigger-swp-btn')?.addEventListener('click', async () => {
+    const triggerBtn = document.getElementById('trigger-swp-btn') as HTMLButtonElement;
+    if (triggerBtn) {
+      triggerBtn.disabled = true;
+      triggerBtn.textContent = '⏳ Executing...';
+    }
+    try {
+      if (!D.swpSchedule || !D.swpSchedule.enabled) {
+        showToast('Please enable SWP and save config first', 3000, 'warning');
+        return;
+      }
+      await executeMonthlyWithdrawal(D);
+      saveData(D);
+      if (D.currentUser?.uid) {
+        await savePortfolioToFirebase(D.currentUser.uid, D);
+      }
+      showToast('✓ Simulated withdrawal executed successfully', 3000, 'success');
+    } catch (e) {
+      showToast('✗ Withdrawal execution failed', 3000, 'error');
+    } finally {
+      if (triggerBtn) {
+        triggerBtn.disabled = false;
+        triggerBtn.textContent = 'Simulate Withdrawal';
+      }
+    }
+  });
 }
 
 function calculateTotalNetWorth(): number {
@@ -378,6 +442,38 @@ function calculateSIPPause() {
     (document.getElementById('total-cost') as HTMLElement).textContent = `${formatCurrency(totalCost)}`;
     resultDiv.style.display = 'block';
   }
+}
+
+function renderSWPScheduler(): string {
+  const swp = D.swpSchedule || { enabled: false, startDate: '', monthlyAmount: 122000, rate: 3 };
+  return `
+    <div class="calc-card">
+      <h3>SWP Scheduler</h3>
+      <p class="calc-info">Schedule your post-retirement withdrawals using FIFO redemption strategy.</p>
+
+      <div class="form-group margin-bottom-1-5">
+        <label class="flex-align-center gap-0-5 cursor-pointer">
+          <input type="checkbox" id="swp-enabled" ${swp.enabled ? 'checked' : ''}>
+          <span class="font-medium text-white">Enable SWP Automation</span>
+        </label>
+      </div>
+
+      <div class="calc-input-group margin-bottom-1-5">
+        <label for="swp-amount">Monthly Withdrawal Amount (₹)</label>
+        <input type="number" id="swp-amount" value="${swp.monthlyAmount || 122000}">
+      </div>
+
+      <div class="calc-input-group margin-bottom-1-5">
+        <label for="swp-start-date">SWP Start Date (Month)</label>
+        <input type="month" id="swp-start-date" value="${swp.startDate ? swp.startDate.substring(0, 7) : ''}">
+      </div>
+
+      <div class="flex-row gap-1">
+        <button id="save-swp-btn" class="btn btn-primary">Save SWP Config</button>
+        <button id="trigger-swp-btn" class="btn btn-secondary">Simulate Withdrawal</button>
+      </div>
+    </div>
+  `;
 }
 
 

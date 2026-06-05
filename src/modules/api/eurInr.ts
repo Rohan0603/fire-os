@@ -6,6 +6,7 @@
 
 import { getLogger } from '../../lib/logger';
 import type { EURINRData } from '../../types/api';
+import { CONFIG } from '../../lib/config';
 
 const logger = getLogger();
 
@@ -13,7 +14,7 @@ const logger = getLogger();
 let eurInrCache: EURINRData | null = null;
 
 // Constants
-const EUR_INR_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+const EUR_INR_CACHE_TTL = CONFIG.cacheTtl.eurInr;
 const CORS_PROXIES = [
   { url: 'https://corsproxy.io/?', name: 'corsproxy' }
 ];
