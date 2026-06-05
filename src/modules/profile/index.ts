@@ -8,6 +8,7 @@ import { formatCurrency, formatDateISO } from '../../lib/formatters';
 import { savePortfolioToFirebase, saveData } from '../../lib/storage';
 import { showToast } from '../ui';
 import { parseCASPDF, CASParseResult } from './pdf-parser';
+import { fetchSIPNAVs } from '../dashboard';
 import { validateFormInput, validateFormFields, handleError, ValidationError, ValidationRules } from '../../lib/error-handler';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
 import './styles.css';
@@ -324,7 +325,6 @@ function attachProfileHandlers() {
           return;
         }
 
-        const { savePortfolioToFirebase } = await import('../../lib/storage');
         await savePortfolioToFirebase(D.currentUser.uid, D);
         showToast('✓ Saved to cloud');
         saveCloudBtn.textContent = '✓ Saved';
@@ -636,9 +636,7 @@ export async function saveProfile(): Promise<boolean> {
     saveData(D);
 
     // Fetch NAVs for SIPs that now have units
-    import('./../../modules/dashboard').then(({ fetchSIPNAVs }) => {
-      fetchSIPNAVs().catch(e => console.warn('[Profile] Failed to fetch SIP NAVs after save:', e));
-    });
+    fetchSIPNAVs().catch(e => console.warn('[Profile] Failed to fetch SIP NAVs after save:', e));
 
     return true;
   } catch (e) {

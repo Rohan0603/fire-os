@@ -10,6 +10,7 @@ import { D } from '../../main';
 import { fetchNAV, getNAVCacheMap } from '../api';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
 import { renderCoorgWidget } from './coorg-tracker';
+import { renderCashflowSummary } from '../plan/cashflow-summary';
 
 import type { CrashAlert } from '../api/nifty-monitor';
 import { renderAdvisorIntegrationWidget } from '../integrations/advisor-webhook';
@@ -106,6 +107,9 @@ export async function renderDashboard(): Promise<void> {
         ${renderFIProgressCard(fi.progressPercent)}
         ${renderFloatIndicatorCard(nifty.drawdownPercent)}
       </div>
+
+      <!-- Cashflow Summary Card -->
+      ${renderCashflowSummary(D)}
 
       <!-- Portfolio Summary Section -->
       ${renderPortfolioSummary(netWorth.breakdown, sip.totalCurrentValue, fi)}

@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, onAuthStateChanged, signOut } from 'firebase/auth';
-import { loadPortfolioFromFirebase, savePortfolioToFirebase } from './lib/storage';
+import { loadPortfolioFromFirebase, savePortfolioToFirebase, saveData } from './lib/storage';
 
 // Import types
 import type { FireOSState } from './types/state';
@@ -13,13 +13,22 @@ import { renderAuthScreen, hideAuthScreen, showAuthScreen, initAuthModule } from
 import { initUIModule } from './modules/ui';
 
 // Import profile module
-import { initProfileModule, saveProfile } from './modules/profile';
+import { initProfileModule, saveProfile, renderProfile } from './modules/profile';
 
 // Import API module
 import { initAPIModule } from './modules/api';
 
 // Import Nifty monitoring
 import { monitorNiftyLevel } from './modules/api/nifty-monitor';
+
+// Static imports for tab modules and other deferred modules to prevent dynamic import warnings
+import { initDashboardModule, renderDashboard, fetchSIPNAVs, updateCrashAlert } from './modules/dashboard';
+import { initCalculatorsModule, renderCalculators } from './modules/calculators';
+import { initInsuranceModule, renderInsurance } from './modules/insurance';
+import { initPlanModule, renderPlan } from './modules/plan';
+import { initEsopModule, renderEsop } from './modules/esop';
+import { totalNetWorth } from './modules/dashboard/kpis';
+import { checkNewMilestones } from './modules/plan/milestones';
 
 
 
@@ -100,6 +109,7 @@ function renderApp() {
   app.innerHTML = `
     <nav class="nav">
       <div class="nav-brand">FIRE OS</div>
+      <button id="hamburger-btn" class="hamburger-btn" aria-label="Toggle Menu">☰</button>
       <div class="nav-tabs">
         <button class="nav-tab active" data-tab="profile">Profile</button>
         <button class="nav-tab" data-tab="dashboard">Dashboard</button>
@@ -154,15 +164,12 @@ function setupAuthListener() {
           console.debug('[Auth] Loaded portfolio from Firebase, currentUser preserved');
 
           // Fetch NAVs for all SIPs with holdings
-          import('./modules/dashboard').then(({ fetchSIPNAVs }) => {
-            fetchSIPNAVs().catch(e => console.warn('[Auth] Failed to fetch SIP NAVs:', e));
-          });
+          fetchSIPNAVs().catch(e => console.warn('[Auth] Failed to fetch SIP NAVs:', e));
 
           // Re-render profile tab if visible to show loaded data
           const profileTab = document.getElementById('profile');
           const profileNavTab = document.querySelector('[data-tab="profile"]');
           if (profileTab && profileNavTab?.classList.contains('active')) {
-            const { renderProfile } = await import('./modules/profile');
             renderProfile(profileTab);
           }
 
@@ -198,10 +205,10 @@ function setupAuthListener() {
               deployAmount: alert.deployAmount,
             });
             // Update dashboard with alert (dashboard will re-render if visible)
-            import('./modules/dashboard').then(({ updateCrashAlert }) => updateCrashAlert(alert));
+            updateCrashAlert(alert);
           } else {
             // Alert cleared
-            import('./modules/dashboard').then(({ updateCrashAlert }) => updateCrashAlert(null));
+            updateCrashAlert(null);
           }
         });
       } catch (e) {
@@ -230,8 +237,23 @@ function setupAuthListener() {
 const initializedModules = new Set<string>(['profile']);
 
 function setupTabNavigation() {
+  const hamburgerBtn = document.getElementById('hamburger-btn');
+  const navTabs = document.querySelector('.nav-tabs');
+
+  if (hamburgerBtn && navTabs) {
+    hamburgerBtn.addEventListener('click', () => {
+      hamburgerBtn.classList.toggle('open');
+      navTabs.classList.toggle('open');
+    });
+  }
+
   document.querySelectorAll('.nav-tab').forEach((tab) => {
-    tab.addEventListener('click', async (e) => {
+    tab.addEventListener('click', (e) => {
+      if (hamburgerBtn && navTabs) {
+        hamburgerBtn.classList.remove('open');
+        navTabs.classList.remove('open');
+      }
+
       const target = (e.target as HTMLElement).getAttribute('data-tab');
       if (target) {
         document.querySelectorAll('.nav-tab').forEach((t) => t.classList.remove('active'));
@@ -243,7 +265,6 @@ function setupTabNavigation() {
         try {
           // Render dashboard when tab is activated
           if (target === 'dashboard') {
-            const { initDashboardModule, renderDashboard } = await import('./modules/dashboard');
             if (!initializedModules.has('dashboard')) {
               initDashboardModule('dashboard');
               initializedModules.add('dashboard');
@@ -253,7 +274,6 @@ function setupTabNavigation() {
 
           // Render calculators when tab is activated
           if (target === 'calculators') {
-            const { initCalculatorsModule, renderCalculators } = await import('./modules/calculators');
             if (!initializedModules.has('calculators')) {
               initCalculatorsModule('calculators');
               initializedModules.add('calculators');
@@ -263,7 +283,6 @@ function setupTabNavigation() {
 
           // Render insurance when tab is activated
           if (target === 'insurance') {
-            const { initInsuranceModule, renderInsurance } = await import('./modules/insurance');
             if (!initializedModules.has('insurance')) {
               initInsuranceModule('insurance');
               initializedModules.add('insurance');
@@ -273,7 +292,6 @@ function setupTabNavigation() {
 
           // Render plan when tab is activated
           if (target === 'plan') {
-            const { initPlanModule, renderPlan } = await import('./modules/plan');
             if (!initializedModules.has('plan')) {
               initPlanModule('plan');
               initializedModules.add('plan');
@@ -283,7 +301,6 @@ function setupTabNavigation() {
 
           // Render esop when tab is activated
           if (target === 'esop') {
-            const { initEsopModule, renderEsop } = await import('./modules/esop');
             if (!initializedModules.has('esop')) {
               initEsopModule('esop');
               initializedModules.add('esop');
@@ -318,7 +335,7 @@ function setupDashboardAutoRefresh() {
   setInterval(() => {
     const dashboardTab = document.querySelector('[data-tab="dashboard"]');
     if (dashboardTab && dashboardTab.classList.contains('active')) {
-      import('./modules/dashboard').then(({ renderDashboard }) => renderDashboard());
+      renderDashboard();
     }
   }, 5000);
 }
@@ -393,13 +410,8 @@ function setupTheme() {
 document.addEventListener('DOMContentLoaded', initApp);
 
 // Daily background tasks (snapshots, milestones)
-async function checkDailyTasks(state: FireOSState) {
+function checkDailyTasks(state: FireOSState) {
   try {
-    const { totalNetWorth } = await import('./modules/dashboard/kpis');
-    const { checkNewMilestones } = await import('./modules/plan/milestones');
-    const { showToast } = await import('./modules/ui');
-    const { saveData } = await import('./lib/storage');
-
     const nw = totalNetWorth(state);
     const today = new Date().toISOString().substring(0, 10);
     let stateChanged = false;

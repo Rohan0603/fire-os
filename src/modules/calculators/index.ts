@@ -8,6 +8,7 @@ import { formatCurrency } from '../../lib/formatters';
 import { showToast } from '../ui';
 import { fetchNifty } from '../api';
 import './styles.css';
+import { initTaxModule } from '../tax';
 
 export function initCalculatorsModule(containerId: string) {
   const container = document.getElementById(containerId);
@@ -48,6 +49,7 @@ export function renderCalculators(container: HTMLElement) {
         <button class="calc-tab active" data-calc="crash">🔴 Crash Protocol</button>
         <button class="calc-tab" data-calc="emergency">💧 Emergency Runway</button>
         <button class="calc-tab" data-calc="sip-pause">⏸️ SIP Pause</button>
+        <button class="calc-tab" data-calc="tax-planner">Tax Planner</button>
       </div>
 
       <div id="crash" class="calc-panel active">
@@ -59,10 +61,12 @@ export function renderCalculators(container: HTMLElement) {
       <div id="sip-pause" class="calc-panel">
         ${renderSIPPause()}
       </div>
+      <div id="tax-planner" class="calc-panel"></div>
     </div>
   `;
 
   attachCalculatorHandlers();
+  initTaxModule('tax-planner');
 }
 
 function renderCrashProtocol(): string {
