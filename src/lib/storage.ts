@@ -70,7 +70,7 @@ export function loadData(): FireOSState | null {
           // Flag if older than 4 hours, but keep the data
           if (age > NAV_CACHE_TTL) {
             // Log in dev mode for debugging
-            if (process.env.NODE_ENV === 'development') {
+            if (import.meta.env.DEV) {
               console.debug(`[Storage] NAV cache stale for scheme ${cacheObj.schemeCode}: ${Math.round(age / 1000 / 60)} minutes old`);
             }
           }
@@ -107,7 +107,7 @@ export function saveData(state: FireOSState): void {
     localStorage.setItem(STORAGE_KEY, serialized);
 
     // Log success in dev mode
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.debug(`[Storage] Saved to localStorage (${serialized.length} bytes)`);
     }
   } catch (error) {
@@ -135,7 +135,7 @@ export async function loadPortfolioFromFirebase(uid: string): Promise<FireOSStat
     const snapshot = await get(portfolioRef);
 
     if (!snapshot.exists()) {
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
         console.debug('[Storage] No Firebase portfolio found for user');
       }
       return null;
@@ -143,7 +143,7 @@ export async function loadPortfolioFromFirebase(uid: string): Promise<FireOSStat
 
     const rawData = snapshot.val() as any;
 
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.debug('[Storage] Loaded portfolio from Firebase');
     }
 
@@ -196,7 +196,7 @@ export async function savePortfolioToFirebase(uid: string, state: FireOSState): 
   // Check if state actually changed
   const currentSnapshot = stateSnapshot(state);
   if (currentSnapshot === lastSavedSnapshot) {
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.debug('[Storage] Skipping Firebase save: no changes');
     }
     return;
@@ -267,7 +267,7 @@ export async function savePortfolioToFirebase(uid: string, state: FireOSState): 
       lastState._lastSavedAt = new Date().toISOString();
       lastSavedSnapshot = stateSnapshot(lastState);
 
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
         console.debug('[Storage] Saved portfolio to Firebase');
       }
     } catch (error) {
@@ -344,7 +344,7 @@ export function exportPortfolio(state: FireOSState): void {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.debug(`[Storage] Exported portfolio as ${filename}`);
     }
   } catch (error) {
@@ -439,7 +439,7 @@ export async function importPortfolio(file: File): Promise<FireOSState> {
 
     state._lastSavedAt = (backup.timestamp as string) || new Date().toISOString();
 
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.debug(`[Storage] Imported portfolio from file: ${file.name}`);
     }
 

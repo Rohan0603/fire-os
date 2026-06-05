@@ -1,5 +1,5 @@
-import type { FireOSState } from '../../types/state';
-import { getFundSchemeCode } from '../../lib/fundMatcher';
+import type { FireOSState } from '../../../types/state';
+import { getFundSchemeCode } from '../../../lib/fundMatcher';
 
 export interface FundHarvestRecommendation {
   fundKey: string;

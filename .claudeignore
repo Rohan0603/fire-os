@@ -1,0 +1,99 @@
+# ==============================================================================
+# .claudeignore - BASELINE DE FINOPS E ARQUITETURA
+# ==============================================================================
+
+# 1. SISTEMA OPERACIONAL E IDEs
+.DS_Store
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea/
+*.iml
+.gradle/
+local.properties
+.history/
+
+# 2. DEPENDÊNCIAS (ECONOMIA DE TOKENS EM LOCK FILES)
+node_modules/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+vendor/
+composer.lock
+venv/
+.venv/
+env/
+.env
+.env.*
+!.env.example
+poetry.lock
+Cargo.lock
+pubspec.lock
+
+# 3. BUILDS E EXPORTAÇÕES
+dist/
+build/
+out/
+target/
+.next/
+.nuxt/
+.output/
+bin/
+obj/
+.firebase/
+
+# 4. CACHES DE FRAMEWORKS
+.vite/
+.parcel-cache/
+.eslintcache
+.babel-cache/
+.tsbuildinfo
+.turbo/
+.pytest_cache/
+.ruff_cache/
+storage/framework/
+storage/logs/
+
+# 5. ASSETS BINÁRIOS E MULTIMÍDIA EXTREMOS
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.svg
+*.ico
+*.psd
+*.fig
+*.pdf
+*.zip
+*.tar.gz
+*.woff
+*.woff2
+*.ttf
+
+# 6. BANCOS DE DADOS E LOGS
+*.log
+*.db
+*.sqlite
+*.sqlite3
+*.sql
+*.sql.gz
+
+# 7. ARQUIVOS COMPILADOS
+*.apk
+*.aab
+*.ipa
+*.jar
+*.class
+*.pyc
+__pycache__/
+*.so
+*.dylib
+*.dll
+*.exe
+*.js.map
+*.css.map

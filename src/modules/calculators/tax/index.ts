@@ -1,8 +1,8 @@
-import { D } from '../../main';
+import { D } from '../../../main';
 import { calculateLTCGHarvestPlan } from './ltcg-planner';
-import { formatCurrency, formatNumber } from '../../lib/formatters';
-import { saveData } from '../../lib/storage';
-import { showToast } from '../ui';
+import { formatCurrency, formatNumber } from '../../../lib/formatters';
+import { saveData } from '../../../lib/storage';
+import { showToast } from '../../ui';
 import './styles.css';
 
 let moduleContainerId = 'tax';

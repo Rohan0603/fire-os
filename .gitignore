@@ -31,7 +31,7 @@ firebase-debug.log
 # OS artifacts
 .DS_Store
 Thumbs.db
-.env
+# .env is tracked intentionally - contains public Firebase client config
 .env.production.local
 
 # Environment & Config
@@ -67,3 +67,7 @@ temp/
 *.pem
 .node-gyp/
 .npm/
+
+# Local machine-specific files
+.gemini/settings.json
+fire-os-cleanup.md

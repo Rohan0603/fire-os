@@ -8,7 +8,7 @@ import { formatCurrency } from '../../lib/formatters';
 import { showToast } from '../ui';
 import { fetchNifty } from '../api';
 import './styles.css';
-import { initTaxModule } from '../tax';
+import { initTaxModule } from './tax';
 import { executeMonthlyWithdrawal } from './swp-scheduler';
 import { saveData, savePortfolioToFirebase } from '../../lib/storage';
 
