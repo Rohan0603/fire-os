@@ -46,7 +46,7 @@ export function renderAdvisorIntegrationWidget(state: any): string {
     <div class="advisor-widget">
       <h3>Certified Financial Planner Review</h3>
       <p>Get an expert review of your portfolio allocation and SWP strategy.</p>
-      <button onclick="registerAdvisorReview()">Request Review</button>
+      <button id="request-advisor-review-btn" class="btn btn-secondary">Request Review</button>
       <p><small>Optional. Your portfolio summary will be shared with the CFP.</small></p>
     </div>
   `;

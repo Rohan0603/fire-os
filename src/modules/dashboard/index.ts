@@ -13,8 +13,11 @@ import { renderCoorgWidget } from './coorg-tracker';
 import { renderCashflowSummary } from '../plan/cashflow-summary';
 
 import type { CrashAlert } from '../api/nifty-monitor';
-import { renderAdvisorIntegrationWidget } from '../integrations/advisor-webhook';
+import { renderAdvisorIntegrationWidget, registerAdvisorReview } from '../integrations/advisor-webhook';
 import { renderExpenseTracker } from '../trackers/expense-tracker';
+import { calculateAllocationDrift } from '../calculators/portfolio-rebalancing';
+import { createModal, closeModal, showToast } from '../ui';
+import { saveData, savePortfolioToFirebase } from '../../lib/storage';
 import './styles.css';
 
 // Module state
@@ -405,6 +408,136 @@ function attachDashboardEventListeners(): void {
     if (composition.categories.length > 0) {
       drawPieChart('composition-chart', composition.categories);
     }
+  }
+
+  // Advisor review button event listener
+  const advisorBtn = document.getElementById('request-advisor-review-btn');
+  if (advisorBtn) {
+    advisorBtn.addEventListener('click', async () => {
+      advisorBtn.setAttribute('disabled', 'true');
+      advisorBtn.textContent = '⏳ Requesting...';
+      try {
+        const { netWorth } = totalNetWorth(D);
+        const holdings: Record<string, number> = {
+          PPFCF: 0,
+          NipponGrowth: 0,
+          NipponSmallCap: 0,
+          Gold: 0,
+        };
+
+        const processFund = (fund: any) => {
+          const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
+          const nav = schemeCode ? D.nav[schemeCode]?.nav ?? 0 : 0;
+          const value = fund.units * nav;
+          if (value > 0) {
+            if (schemeCode === '122639') holdings.PPFCF += value;
+            else if (schemeCode === '118668') holdings.NipponGrowth += value;
+            else if (schemeCode === '118778') holdings.NipponSmallCap += value;
+            else if (schemeCode === '135106') holdings.Gold += value;
+          }
+        };
+
+        if (D.sip) Object.values(D.sip).forEach(processFund);
+        if (D.mf) Object.values(D.mf).forEach(processFund);
+
+        const drift = calculateAllocationDrift(holdings, netWorth);
+
+        const result = await registerAdvisorReview({
+          userEmail: D.currentUser?.email || 'user@example.com',
+          portfolioSummary: {
+            totalCorpus: netWorth,
+            allocation: drift.current,
+          },
+        });
+
+        if (result.status === 'review_request_sent' && result.reviewUrl) {
+          showToast('✓ Review request sent! Opening link...', 3000, 'success');
+          window.open(result.reviewUrl, '_blank');
+        } else {
+          showToast(result.error || 'Failed to request review', 4000, 'warning');
+        }
+      } catch (err) {
+        showToast('Error requesting review', 4000, 'warning');
+      } finally {
+        advisorBtn.removeAttribute('disabled');
+        advisorBtn.textContent = 'Request Review';
+      }
+    });
+  }
+
+  // Add Expense button event listener
+  const addExpenseBtn = document.getElementById('add-expense-btn');
+  if (addExpenseBtn) {
+    addExpenseBtn.addEventListener('click', () => {
+      const modalContent = `
+        <div class="form-container" style="display: flex; flex-direction: column; gap: 1.25rem;">
+          <div class="form-group" style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <label for="expense-amount" style="font-size: 0.9rem; font-weight: 500; color: #e0e0e0;">Amount (₹)</label>
+            <input type="number" id="expense-amount" placeholder="e.g. 5000" style="padding: 0.875rem 1rem; background: #2d2d2d; border: 1px solid #3a3a3a; border-radius: 8px; font-size: 1rem; color: #ffffff; outline: none; box-sizing: border-box; width: 100%;">
+          </div>
+          <div class="form-group" style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <label for="expense-category" style="font-size: 0.9rem; font-weight: 500; color: #e0e0e0;">Category</label>
+            <select id="expense-category" style="padding: 0.875rem 1rem; background: #2d2d2d; border: 1px solid #3a3a3a; border-radius: 8px; font-size: 1rem; color: #ffffff; outline: none; cursor: pointer; box-sizing: border-box; width: 100%;">
+              <option value="SWP">SWP</option>
+              <option value="Rent">Rent</option>
+              <option value="Food">Food</option>
+              <option value="Travel">Travel</option>
+              <option value="Utilities">Utilities</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+          <div class="form-group" style="display: flex; flex-direction: column; gap: 0.5rem;">
+            <label for="expense-date" style="font-size: 0.9rem; font-weight: 500; color: #e0e0e0;">Date</label>
+            <input type="date" id="expense-date" value="${new Date().toISOString().split('T')[0]}" style="padding: 0.875rem 1rem; background: #2d2d2d; border: 1px solid #3a3a3a; border-radius: 8px; font-size: 1rem; color: #ffffff; outline: none; box-sizing: border-box; width: 100%;">
+          </div>
+        </div>
+      `;
+
+      createModal('Add Expense', modalContent, [
+        {
+          label: 'Cancel',
+          onClick: () => closeModal(),
+        },
+        {
+          label: 'Add',
+          isPrimary: true,
+          onClick: () => {
+            const amountInput = document.getElementById('expense-amount') as HTMLInputElement;
+            const categorySelect = document.getElementById('expense-category') as HTMLSelectElement;
+            const dateInput = document.getElementById('expense-date') as HTMLInputElement;
+
+            const amount = parseFloat(amountInput.value);
+            const category = categorySelect.value;
+            const date = dateInput.value;
+
+            if (!amount || amount <= 0) {
+              showToast('Please enter a valid positive amount', 4000, 'warning');
+              return;
+            }
+
+            if (!D.expenses) {
+              D.expenses = [];
+            }
+
+            D.expenses.push({
+              date,
+              category,
+              amount,
+              linkedToSWP: category === 'SWP',
+            });
+
+            saveData(D);
+            if (D.currentUser?.uid) {
+              savePortfolioToFirebase(D.currentUser.uid, D).catch(e => console.warn('Firebase save failed:', e));
+            }
+
+            showToast('✓ Expense added successfully', 3000, 'success');
+            closeModal();
+            renderDashboard();
+          },
+        },
+      ]);
+    });
   }
 }
 

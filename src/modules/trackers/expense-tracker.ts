@@ -49,13 +49,10 @@ export function calculateExpenseRate(
 }
 
 export function renderExpenseTracker(state: any): string {
-  if (!state.expenses || state.expenses.length === 0) {
-    return "<p>No expenses tracked yet.</p>";
-  }
-
+  const expenses = state.expenses || [];
   const rate = calculateExpenseRate(
-    state.expenses,
-    state.swpSchedule.startDate || new Date().toISOString().split("T")[0]
+    expenses,
+    state.swpSchedule?.startDate || new Date().toISOString().split("T")[0]
   );
 
   const status =
@@ -63,14 +60,20 @@ export function renderExpenseTracker(state: any): string {
       ? "✅ On Target"
       : `⚠️ ${rate.validation.variance > 0 ? "Over" : "Under"} target by ${Math.abs(rate.validation.variance)}%`;
 
-  return `
-    <div class="expense-tracker">
-      <h3>SWP Expense Tracking</h3>
+  const contentHtml = expenses.length === 0
+    ? "<p style='margin-bottom: 1.5rem; color: var(--text-secondary);'>No expenses tracked yet.</p>"
+    : `
       <p>Monthly Average: ₹${(rate.monthlyAverage / 1000).toFixed(0)}K</p>
       <p>Target: ₹122K (3% SWR)</p>
       <p>${status}</p>
       <p>Total SWP withdrawals: ${rate.totalMonths} months</p>
-      <button onclick="addExpense()">+ Add Expense</button>
+    `;
+
+  return `
+    <div class="expense-tracker">
+      <h3>SWP Expense Tracking</h3>
+      ${contentHtml}
+      <button id="add-expense-btn" class="btn btn-primary">+ Add Expense</button>
     </div>
   `;
 }

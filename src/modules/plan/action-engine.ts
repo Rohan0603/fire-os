@@ -2,6 +2,7 @@ import type { FireOSState } from '../../types/state';
 import { checkWatchdogRules } from '../watchdog/fund-manager-alerts';
 import { floatIndicator } from '../dashboard/kpis';
 import { calculateAllocationDrift } from '../calculators/portfolio-rebalancing';
+import { getFundSchemeCode } from '../../lib/fundMatcher';
 
 export interface ActionItem {
   id: string;              // Unique key for checkbox persistence
@@ -96,8 +97,33 @@ export function generateActionItems(state: FireOSState): ActionItem[] {
   }
 
   // 5. Portfolio drift > 5% (this-month)
-  const holdings: Record<string, number> = {};
-  const totalValue = 0; // TODO: Calculate from state
+  const holdings: Record<string, number> = {
+    PPFCF: 0,
+    NipponGrowth: 0,
+    NipponSmallCap: 0,
+    Gold: 0,
+  };
+
+  const processFund = (fund: any) => {
+    const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
+    const nav = schemeCode ? state.nav[schemeCode]?.nav ?? 0 : 0;
+    const value = fund.units * nav;
+    if (value > 0) {
+      if (schemeCode === '122639') holdings.PPFCF += value;
+      else if (schemeCode === '118668') holdings.NipponGrowth += value;
+      else if (schemeCode === '118778') holdings.NipponSmallCap += value;
+      else if (schemeCode === '135106') holdings.Gold += value;
+    }
+  };
+
+  if (state.sip) {
+    Object.values(state.sip).forEach(processFund);
+  }
+  if (state.mf) {
+    Object.values(state.mf).forEach(processFund);
+  }
+
+  const totalValue = holdings.PPFCF + holdings.NipponGrowth + holdings.NipponSmallCap + holdings.Gold;
   const drift = calculateAllocationDrift(holdings, totalValue);
   if (drift.recommendations.length > 0) {
     addAction({
