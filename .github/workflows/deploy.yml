@@ -8,6 +8,9 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    concurrency:
+      group: firebase-hosting-production
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
 
@@ -23,6 +26,6 @@ jobs:
         run: npm run build
 
       - name: Deploy to Firebase
-        run: npx firebase-tools deploy --only hosting --token "$FIREBASE_TOKEN"
+        run: npx firebase-tools deploy --only hosting --project fire-os-dd6d6 --token "$FIREBASE_TOKEN"
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
