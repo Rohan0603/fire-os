@@ -41,9 +41,3 @@ export function getFundSchemeCode(fundName: string): string {
   return '';
 }
 
-/**
- * Get all available fund mappings (for debugging/admin purposes)
- */
-export function getFundMappings(): Record<string, string> {
-  return { ...FUND_SCHEME_MAP };
-}

@@ -90,19 +90,3 @@ export function calculateFIAge(params: ScenarioParams): ScenarioResult {
   };
 }
 
-/**
- * Generate multiple scenarios for comparison
- * Creates scenarios at different CAGR levels (13%, 14%, 15%, 17%)
- *
- * @param baseParams - Base scenario parameters
- * @returns Array of ScenarioResult for different CAGR values
- */
-export function generateScenarios(baseParams: Omit<ScenarioParams, 'cagr'>): ScenarioResult[] {
-  const cagrValues = [0.13, 0.14, 0.15, 0.17]; // Conservative to optimistic
-  return cagrValues.map((cagr) =>
-    calculateFIAge({
-      ...baseParams,
-      cagr,
-    })
-  );
-}

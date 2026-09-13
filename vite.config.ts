@@ -17,7 +17,6 @@ export default defineConfig({
           if (id.includes('firebase/firestore')) return 'firebase-firestore';
           if (id.includes('firebase/app')) return 'firebase-core';
           if (id.includes('firebase')) return 'firebase-shared';
-          if (id.includes('chart.js')) return 'charts';
           return 'vendor';
         },
       },

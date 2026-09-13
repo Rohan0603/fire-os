@@ -4,8 +4,6 @@
  * Generates actionable alerts with severity levels and recommendations
  */
 
-import type { FireOSState } from '../../types/state';
-
 /**
  * Input parameters for watchdog rule checking
  */
@@ -96,50 +94,3 @@ export function checkWatchdogRules(params: WatchdogCheckParams): WatchdogAlert[]
   return alerts;
 }
 
-/**
- * Continuously monitor watchdog rules at 24-hour intervals
- * @param D FireOSState object
- * @param callback Function called with alerts whenever check runs
- * @returns Function to stop monitoring
- */
-export function monitorWatchdogRules(
-  D: FireOSState,
-  callback: (alerts: WatchdogAlert[]) => void,
-): () => void {
-  // Run check immediately on start
-  runCheck();
-
-  // Schedule daily check (24 hours = 86400000 ms)
-  const intervalId = setInterval(() => {
-    runCheck();
-  }, 24 * 60 * 60 * 1000);
-
-  function runCheck(): void {
-    try {
-      // Extract fund AUM and block data from D (source: external monitoring system)
-      // For now, placeholder values - actual implementation would fetch from API/monitoring system
-      const ppfcfAum = D.watchdogRules?.currentAum?.PPFCF || 0;
-      const nipponGrowthBlockedDays = D.watchdogRules?.blockedDays?.NipponGrowth || 0;
-      const nipponSmallCapBlockedDays = D.watchdogRules?.blockedDays?.NipponSmallCap || 0;
-
-      const alerts = checkWatchdogRules({
-        ppfcfAum,
-        ppfcfAumLimit: D.watchdogRules.ppfcfAumLimit,
-        nipponGrowthBlockedDays,
-        nipponSmallCapBlockedDays,
-        ppfcfManagerExit: D.watchdogRules.managerExits.PPFCF,
-        nipponSmallCapManagerExit: D.watchdogRules.managerExits.NipponSmallCap,
-      });
-
-      callback(alerts);
-    } catch (error) {
-      console.error('[Watchdog] Error during monitoring check:', error);
-      // Continue monitoring even if check fails
-    }
-  }
-
-  // Return stop function
-  return () => {
-    clearInterval(intervalId);
-  };
-}

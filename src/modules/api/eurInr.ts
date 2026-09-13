@@ -150,13 +150,6 @@ export function setCachedEURINR(rate: number): void {
 }
 
 /**
- * Clear EUR/INR cache
- */
-export function clearEURINRCache(): void {
-  eurInrCache = null;
-}
-
-/**
  * Initialize EUR/INR cache from persisted state
  * @param eurInrData - Cached EUR/INR data from localStorage/Firebase
  */

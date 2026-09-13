@@ -157,15 +157,6 @@ export function dismissToast(toastId: string): void {
 }
 
 /**
- * Clear all active toasts
- */
-export function clearAllToasts(): void {
-  Array.from(activeToasts.keys()).forEach((toastId) => {
-    dismissToast(toastId);
-  });
-}
-
-/**
  * Get toast styling based on type
  */
 function getToastColors(type: ToastType): {

@@ -163,13 +163,3 @@ export function formatTimeAgo(isoString: string): string {
   }
 }
 
-/**
- * Convenience object with all formatters for grouped access
- */
-export const Formatters = {
-  currency: formatCurrency,
-  number: formatNumber,
-  percentage: formatPercentage,
-  dateISO: formatDateISO,
-  timeAgo: formatTimeAgo,
-};

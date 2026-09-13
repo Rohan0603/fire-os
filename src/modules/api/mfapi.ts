@@ -132,13 +132,6 @@ export function setCachedNAV(schemeCode: string, nav: number): void {
 }
 
 /**
- * Clear all NAV cache
- */
-export function clearNAVCache(): void {
-  navCache = {};
-}
-
-/**
  * Get entire cache map (for debugging)
  */
 export function getNAVCacheMap(): NAVCacheMap {

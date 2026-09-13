@@ -238,14 +238,6 @@ export function getCachedNifty(): { level: number; high52w: number } | null {
 }
 
 /**
- * Clear Nifty cache
- */
-export function clearNiftyCache(): void {
-  niftyCache = null;
-  logger.log('Nifty cache cleared');
-}
-
-/**
  * Initialize Nifty cache from persisted state
  * @param niftyData - Cached Nifty data from localStorage/Firebase
  */

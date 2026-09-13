@@ -24,7 +24,6 @@ export {
   fetchNAV,
   getCachedNAV,
   setCachedNAV,
-  clearNAVCache,
   getNAVCacheMap,
   initializeNAVCache,
 } from './mfapi';
@@ -33,7 +32,6 @@ export {
   fetchNifty,
   setCachedNifty,
   getCachedNifty,
-  clearNiftyCache,
   initializeNiftyCache,
   showManualNiftyModal,
 } from './nifty';
@@ -43,19 +41,9 @@ export {
   getCachedEURINR,
   getCachedEURINRData,
   setCachedEURINR,
-  clearEURINRCache,
   initializeEURINRCache,
   showManualEURINRModal,
 } from './eurInr';
-
-export {
-  getFallbackNiftyLevel,
-  getFallbackEURINRRate,
-  getFallbackNAV,
-  showAPIErrorNotification,
-  checkAPIDataAvailability,
-  initializeAllAPICache,
-} from './fallbacks';
 
 export {
   detectCrashAlert,

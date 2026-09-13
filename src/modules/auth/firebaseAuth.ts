@@ -8,7 +8,6 @@ import {
   signInWithEmailAndPassword,
   signInWithPopup,
   GoogleAuthProvider,
-  signOut,
   sendPasswordResetEmail,
 } from 'firebase/auth';
 import { CONFIG } from '../../lib/config';
@@ -82,20 +81,6 @@ export async function loginWithGoogle(): Promise<void> {
 }
 
 /**
- * Log out the current user
- * @throws Error if logout fails
- */
-export async function logoutUser(): Promise<void> {
-  try {
-    await signOut(auth);
-    console.log('Logout successful');
-  } catch (error: any) {
-    console.error('Logout error:', error);
-    throw new Error('Failed to logout. Please try again.');
-  }
-}
-
-/**
  * Send a password reset email to the user
  * @throws Error with user-friendly message if fails
  */
@@ -112,16 +97,3 @@ export async function sendPasswordReset(email: string): Promise<void> {
   }
 }
 
-/**
- * Get the currently authenticated user
- */
-export function getCurrentUser() {
-  return auth.currentUser;
-}
-
-/**
- * Check if user is authenticated
- */
-export function isUserAuthenticated(): boolean {
-  return getCurrentUser() !== null;
-}
