@@ -21,7 +21,7 @@ This file provides comprehensive guidance to Antigravity IDE when working with F
 | PDF Parsing   | PDF.js v3.11.174 (CDN)                         |
 | Auth          | Firebase Authentication (email/password)       |
 | Database      | Cloud Firestore                                |
-| Hosting       | Firebase Hosting (primary), GitHub Pages (alt) |
+| Hosting       | Firebase Hosting |
 | Testing       | Playwright (E2E) + Vitest (unit, unused)       |
 | Fonts         | Google Fonts (Space Mono, Fraunces, DM Sans)   |
 

@@ -3,8 +3,7 @@
     "authorizedDomains": [
       "localhost",
       "fire-os-dd6d6.firebaseapp.com",
-      "fire-os-dd6d6.web.app",
-      "rohan0603.github.io"
+      "fire-os-dd6d6.web.app"
     ],
     "providers": {
       "emailPassword": true,

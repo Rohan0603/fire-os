@@ -23,12 +23,11 @@ The supported backend path is compatible with Firebase Spark plan features:
 - Google Authentication through the browser popup provider
 - Cloud Firestore owner-scoped portfolio documents
 - Firestore offline persistence in the browser
-- Classic Firebase Hosting or GitHub Pages for the static Vite frontend
+- Firebase Hosting for the static Vite frontend
 
 Firebase App Hosting, Cloud Functions, Cloud Run, and other Blaze-only services
-are not required by this application. GitHub Pages is the default free static
-hosting option; Firebase Hosting remains available through the existing
-`deploy.yml` workflow.
+are not required by this application. Firebase Hosting is deployed through the
+existing `deploy.yml` workflow.
 
 ### Dynamic Links compatibility
 
@@ -56,31 +55,12 @@ npx -y firebase-tools@latest deploy --only firestore:rules,firestore:indexes
 ```
 
 4. Add the production frontend domains under **Authentication → Settings →
-  Authorized domains**. Include `fire-os-dd6d6.web.app` and the GitHub Pages
-  host, for example `rohan0603.github.io`.
+  Authorized domains**. Include `fire-os-dd6d6.web.app`.
 
 The browser app reads `VITE_FIREBASE_*` values from the root `.env` file. Do
 not add service-account JSON, Admin SDK credentials, or private API secrets to
 the frontend. Firebase web API keys are public identifiers; access control is
 provided by Authentication and Firestore Rules.
-
-### GitHub Pages Deployment
-
-Enable **Settings → Pages → GitHub Actions** in the repository. The
-`pages.yml` workflow builds the app at `/fire-os/` and deploys it with the
-Firebase client configuration supplied through repository Variables:
-
-```text
-VITE_FIREBASE_API_KEY
-VITE_FIREBASE_AUTH_DOMAIN
-VITE_FIREBASE_STORAGE_BUCKET
-VITE_FIREBASE_MESSAGING_SENDER_ID
-VITE_FIREBASE_MEASUREMENT_ID
-```
-
-`VITE_FIREBASE_PROJECT_ID` and `VITE_FIREBASE_APP_ID` are already pinned to
-the requested project and web app in the workflow. GitHub Pages hosts static
-assets only; Authentication and Firestore continue to run on Firebase.
 
 ---
 
@@ -148,35 +128,6 @@ Users can now:
 
 ---
 
-### Alternative: GitHub Pages Deployment (No Cloud Sync)
-
-**Deploy without Firebase — data stored locally in browser only**
-
-#### Prerequisites
-- GitHub account with a public repository
-- Git CLI
-
-#### Step 1: Push Code to GitHub
-```bash
-git clone https://github.com/yourusername/fire-os.git
-cd fire-os
-git add .
-git commit -m "FIRE OS deployment"
-git push origin main
-```
-
-#### Step 2: Enable GitHub Pages
-1. Go to repo **Settings** → **Pages**
-2. Select **GitHub Actions** as source
-3. Save — workflow deploys automatically
-
-#### Step 3: Access Your Deployment
-Site will be live at: `https://yourusername.github.io/fire-os`
-
-**Note**: No cross-device sync (data local to each browser)
-
----
-
 ## 📋 Features
 
 ### Dashboard
@@ -241,7 +192,7 @@ Site will be live at: `https://yourusername.github.io/fire-os`
 - **PDF.js:** `cdnjs.cloudflare.com` — used for Paytm Money PDF import
 - **SocGen Stock:** Manual entry (no API — use brokerage price)
 
-All APIs are **CORS-friendly** and work from GitHub Pages (static hosting).
+All APIs are **CORS-friendly** and work from Firebase Hosting.
 
 ---
 
@@ -260,7 +211,7 @@ fire-os/
 ├── package.json                    # Playwright dependency
 ├── .github/
 │   └── workflows/
-│       └── static.yml              # GitHub Pages workflow (alternative)
+│       └── deploy.yml              # Firebase Hosting workflow
 └── docs/superpowers/specs/         # Design documentation
 ```
 
@@ -271,7 +222,7 @@ fire-os/
 - **Fonts:** Google Fonts (Space Mono, Fraunces, DM Sans)
 - **Storage:** Cloud Firestore (canonical) + browser localStorage (offline cache/backup)
 - **Auth:** Firebase Authentication (email/password)
-- **Hosting:** Firebase Hosting (recommended) or GitHub Pages (alternative)
+- **Hosting:** Firebase Hosting
 
 ### MF Central CAS Import
 - **Trigger**: "Import CAS PDF" button in Profile tab
@@ -301,12 +252,12 @@ fire-os/
 **Solution:**
 - Manually enter Nifty level in Crash Protocol modal
 - Check [allorigins.win status](https://allorigins.win)
-- Use a direct API (requires CORS headers — may not work from GitHub Pages)
+- Use a direct API only when the endpoint provides CORS headers
 
 ### Data Lost After Refresh
 **Problem:** localStorage disabled or quota exceeded  
 **Solution:**
-- Check browser privacy settings (allow cookies/storage for github.io)
+- Check browser privacy settings and allow browser storage for the app domain
 - Clear some storage (DevTools → Application → Storage)
 - Export profile before clearing cache
 
@@ -398,7 +349,6 @@ FIRE OS is open-source and provided as-is for personal finance planning. Use at 
 - ✅ Crash Protocol auto-open
 - ✅ Input validation
 - ✅ Better error messages
-- ✅ GitHub Pages ready
 - ✅ **SIP P&L tracking with cost basis + Newton-Raphson XIRR**
 - ✅ **Per-fund P&L rows (Invested / Current / P&L / XIRR) + Portfolio summary card**
 - ✅ **Cost basis override (costBasis1–4) for actual-invested amounts**

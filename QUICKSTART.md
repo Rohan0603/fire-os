@@ -55,18 +55,6 @@ The app uses the Spark-compatible Firebase services only: Email/Password Auth,
 Firestore, IndexedDB persistence, and static hosting. App Hosting, Functions,
 and Cloud Run are intentionally out of scope.
 
-### GitHub Pages
-
-The repository includes `.github/workflows/pages.yml`. Enable GitHub Pages with
-**GitHub Actions** as the source, then add the remaining `VITE_FIREBASE_*`
-values as repository Variables. The workflow sets the project to
-`fire-os-dd6d6`, uses app ID
-`1:824527645307:web:7dc209d225e8280d17d0de`, and builds with the `/fire-os/`
-base path.
-
-Add the resulting GitHub Pages hostname to Firebase Authentication’s authorized
-domains. GitHub Pages only serves the frontend; Firebase remains the backend.
-
 ### Firebase Rules Deployment
 
 After `npx -y firebase-tools@latest login`, deploy the Firestore rules from the repository root:

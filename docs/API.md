@@ -153,10 +153,10 @@ export function initializeNAVCache(cacheMap: Map<string, CachedNAV>): void
 ### Request
 
 ```bash
-# Direct (won't work from GitHub Pages due to CORS)
+# Direct (requires an endpoint with CORS headers)
 GET https://query1.finance.yahoo.com/v7/finance/quote?symbols=^NSEI
 
-# Via CORS proxy (works from GitHub Pages)
+# Via CORS proxy
 GET https://api.allorigins.win/raw?url=https%3A%2F%2Fquery1.finance.yahoo.com%2Fv7%2Ffinance%2Fquote%3Fsymbols%3D%5ENSEI
 ```
 
