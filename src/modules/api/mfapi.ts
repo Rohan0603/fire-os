@@ -4,7 +4,7 @@
  */
 
 import { getLogger } from '../../lib/logger';
-import type { NAVCache, NAVCacheMap, MFAPIResponse } from '../../types/api';
+import type { NAVCacheMap, MFAPIResponse } from '../../types/api';
 import { CONFIG } from '../../lib/config';
 
 const logger = getLogger();

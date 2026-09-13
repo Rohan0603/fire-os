@@ -3,14 +3,14 @@
  * Provides financial calculators: Crash Protocol, Emergency Runway, SIP Pause
  */
 
-import { D } from '../../main';
+import { appState as D } from '../../lib/appState';
 import { formatCurrency } from '../../lib/formatters';
 import { showToast } from '../ui';
 import { fetchNifty } from '../api';
 import './styles.css';
 import { initTaxModule } from './tax';
 import { executeMonthlyWithdrawal } from './swp-scheduler';
-import { saveData, savePortfolioToFirebase } from '../../lib/storage';
+import { saveData, queuePortfolioSave } from '../../lib/storage';
 
 export function initCalculatorsModule(containerId: string) {
   const container = document.getElementById(containerId);
@@ -39,7 +39,7 @@ async function autoFetchNiftyData() {
         if (niftyCurrentInput) niftyCurrentInput.value = String(niftyData.level);
       }, 100);
     }
-  } catch (e) {
+  } catch {
     // Silently fail - user can click refresh button
   }
 }
@@ -295,7 +295,7 @@ function attachCalculatorHandlers() {
 
     saveData(D);
     if (D.currentUser?.uid) {
-      savePortfolioToFirebase(D.currentUser.uid, D).catch(e => console.warn('Firebase save failed:', e));
+      queuePortfolioSave(D.currentUser.uid, D).catch(e => console.warn('Firestore save failed:', e));
     }
 
     showToast('✓ SWP config saved successfully', 3000, 'success');
@@ -315,10 +315,10 @@ function attachCalculatorHandlers() {
       await executeMonthlyWithdrawal(D);
       saveData(D);
       if (D.currentUser?.uid) {
-        await savePortfolioToFirebase(D.currentUser.uid, D);
+        await queuePortfolioSave(D.currentUser.uid, D);
       }
       showToast('✓ Simulated withdrawal executed successfully', 3000, 'success');
-    } catch (e) {
+    } catch {
       showToast('✗ Withdrawal execution failed', 3000, 'error');
     } finally {
       if (triggerBtn) {
@@ -416,7 +416,7 @@ async function refreshNiftyData() {
     }
 
     showToast(`✓ Nifty fetched: ${currentVal}`, 2000, 'success');
-  } catch (e) {
+  } catch {
     showToast('✗ Failed to fetch Nifty data', 2000, 'error');
   }
 }

@@ -7,7 +7,7 @@ This document describes all external APIs integrated into FIRE OS, including req
 1. [Mutual Fund NAV API](#mutual-fund-nav-api)
 2. [Nifty Index API](#nifty-index-api)
 3. [EUR/INR Exchange Rate API](#eurinr-exchange-rate-api)
-4. [Firebase Realtime Database](#firebase-realtime-database)
+4. [Cloud Firestore Portfolio Sync](#cloud-firestore-portfolio-sync)
 5. [Error Handling & Fallbacks](#error-handling--fallbacks)
 6. [Caching Strategy](#caching-strategy)
 7. [Rate Limits & Quotas](#rate-limits--quotas)
@@ -415,13 +415,13 @@ export async function showManualEURINRModal(): Promise<number>
 
 ---
 
-## Firebase Realtime Database
+## Cloud Firestore Portfolio Sync
 
 ### Service: Google Firebase
 
 **Project:** `fire-os-dd6d6` (Google Cloud)  
 **Region:** `asia-southeast1` (Singapore, serving India)  
-**Database URL:** `https://fire-os-dd6d6-default-rtdb.asia-southeast1.firebasedatabase.app`
+**Document:** `/users/{uid}/portfolio/state`
 
 ### Authentication
 
@@ -440,7 +440,7 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const database = getDatabase(app);
+const db = getFirestore(app);
 ```
 
 ### Data Structure
@@ -474,10 +474,10 @@ fire-os-dd6d6/
 #### Read Portfolio
 
 ```typescript
-export async function loadPortfolioFromFirebase(uid: string): Promise<FireOSState | null> {
+export async function loadPortfolio(uid: string): Promise<PortfolioEnvelope | null> {
   try {
-    const ref = ref(database, `users/${uid}/portfolio`);
-    const snapshot = await get(ref);
+    const portfolioRef = doc(db, 'users', uid, 'portfolio', 'state');
+    const snapshot = await getDoc(portfolioRef);
     
     if (!snapshot.exists()) {
       // First login, create empty portfolio
@@ -495,13 +495,10 @@ export async function loadPortfolioFromFirebase(uid: string): Promise<FireOSStat
 #### Write Portfolio
 
 ```typescript
-export async function savePortfolioToFirebase(uid: string, portfolio: FireOSState): Promise<void> {
+export async function queuePortfolioSave(uid: string, portfolio: FireOSState): Promise<void> {
   try {
-    const ref = ref(database, `users/${uid}/portfolio`);
-    await set(ref, {
-      ...portfolio,
-      _lastSavedAt: new Date().toISOString()
-    });
+    const portfolioRef = doc(db, 'users', uid, 'portfolio', 'state');
+    await setDoc(portfolioRef, envelope);
     
     logger.info('Portfolio saved to Firebase');
   } catch (error) {
@@ -516,9 +513,9 @@ export async function savePortfolioToFirebase(uid: string, portfolio: FireOSStat
 
 ```typescript
 export function onPortfolioChange(uid: string, callback: (portfolio: FireOSState) => void) {
-  const ref = ref(database, `users/${uid}/portfolio`);
+  const portfolioRef = doc(db, 'users', uid, 'portfolio', 'state');
   
-  const unsubscribe = onValue(ref, (snapshot) => {
+  const unsubscribe = onSnapshot(portfolioRef, (snapshot) => {
     if (snapshot.exists()) {
       const portfolio = snapshot.val();
       D = mergeWithLocal(D, portfolio); // Merge with localStorage
@@ -733,7 +730,7 @@ function persistAPICache() {
 - **Quota:** None
 - **Mitigation:** Cache for 1-24 hours, use CORS proxy
 
-### Firebase Realtime Database (Free Tier)
+### Cloud Firestore (Spark-compatible)
 
 - **Concurrent connections:** 100
 - **Operations/second:** 100

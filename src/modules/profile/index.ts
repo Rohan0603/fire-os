@@ -1,15 +1,15 @@
 /**
  * Profile Module
- * Manages user portfolio data, holdings forms, CAS PDF import, and data export/import
+ * Manages user portfolio data, holdings forms, CAS PDF import, and Firestore sync
  */
 
-import { D } from '../../main';
-import { formatCurrency, formatDateISO } from '../../lib/formatters';
-import { savePortfolioToFirebase, saveData } from '../../lib/storage';
+import { appState as D } from '../../lib/appState';
+import { formatCurrency } from '../../lib/formatters';
+import { queuePortfolioSave, saveData } from '../../lib/storage';
 import { showToast } from '../ui';
 import { parseCASPDF, CASParseResult } from './pdf-parser';
 import { fetchSIPNAVs } from '../dashboard';
-import { validateFormInput, validateFormFields, handleError, ValidationError, ValidationRules } from '../../lib/error-handler';
+import { validateFormInput, handleError, ValidationRules } from '../../lib/error-handler';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
 import './styles.css';
 
@@ -100,8 +100,8 @@ export function renderProfile(container: HTMLElement) {
         <h3>Data Management</h3>
         <div class="data-actions" style="display: flex; gap: 1rem; align-items: center; margin-top: 0.5rem;">
           <button id="import-pdf-btn" class="btn-primary">📄 Import CAS PDF</button>
-          <button id="save-cloud-btn" class="btn-primary">☁ Save to Cloud</button>
-          <span class="save-cloud-hint" style="display: none; color: var(--text-secondary); font-size: 0.875rem;">Log in to sync to cloud</span>
+          <button id="save-cloud-btn" class="btn-primary">☁ Save to Firestore</button>
+          <span class="save-cloud-hint" style="display: none; color: var(--text-secondary); font-size: 0.875rem;">Log in to sync to Firestore</span>
         </div>
         <input type="file" id="pdf-input" accept=".pdf" style="display: none;">
       </div>
@@ -296,7 +296,7 @@ function attachProfileHandlers() {
   document.getElementById('pdf-confirm-btn')?.addEventListener('click', confirmPDFImport);
   document.getElementById('pdf-cancel-btn')?.addEventListener('click', cancelPDFImport);
 
-  // Save to Cloud button
+  // Save to Firestore button
   const saveCloudBtn = document.getElementById('save-cloud-btn') as HTMLButtonElement;
   if (saveCloudBtn) {
     const updateButtonState = () => {
@@ -325,12 +325,12 @@ function attachProfileHandlers() {
           return;
         }
 
-        await savePortfolioToFirebase(D.currentUser.uid, D);
-        showToast('✓ Saved to cloud');
+        await queuePortfolioSave(D.currentUser.uid, D);
+        showToast('✓ Saved to Firestore');
         saveCloudBtn.textContent = '✓ Saved';
       } catch (e) {
-        console.error('[Profile] Save to cloud failed:', e);
-        showToast('✗ Cloud sync failed', 3000, 'warning');
+        console.error('[Profile] Firestore save failed:', e);
+        showToast('✗ Firestore sync failed', 3000, 'warning');
         updateButtonState();
       } finally {
         setTimeout(() => {

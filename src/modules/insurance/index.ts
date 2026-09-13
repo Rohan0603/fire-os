@@ -2,10 +2,9 @@
  * Insurance Module
  * Manages term life and health insurance gap analysis
  */
-import { D } from '../../main';
+import { appState as D } from '../../lib/appState';
 import { formatCurrency } from '../../lib/formatters';
 import { saveData } from '../../lib/storage';
-import { showToast } from '../ui';
 import './styles.css';
 
 const DEBOUNCE_MS = 500;

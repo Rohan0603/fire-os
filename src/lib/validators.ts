@@ -54,7 +54,7 @@ export function validateDateYYYYMM(dateStr: string): boolean {
   const regex = /^\d{4}-\d{2}$/;
   if (!regex.test(dateStr)) return false;
 
-  const [year, month] = dateStr.split('-');
+  const [, month] = dateStr.split('-');
   const monthNum = parseInt(month, 10);
   return monthNum >= 1 && monthNum <= 12;
 }

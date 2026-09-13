@@ -174,6 +174,29 @@
   cursor: not-allowed;
 }
 
+.btn-google {
+  min-height: 44px;
+  padding: 0.875rem 1rem;
+  background: #ffffff;
+  color: #202124;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: box-shadow 200ms ease, transform 200ms ease;
+}
+
+.btn-google:hover:not(:disabled) {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  transform: translateY(-1px);
+}
+
+.btn-google:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Secondary Button (Forgot Password) */
 .forgot-password {
   text-align: center;

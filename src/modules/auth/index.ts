@@ -4,14 +4,12 @@
  */
 
 import { validateLoginForm, validateSignupForm, validatePasswordResetEmail } from './validation';
-import { loginUser, signupUser, sendPasswordReset, getCurrentUser } from './firebaseAuth';
+import { loginUser, loginWithGoogle, signupUser, sendPasswordReset } from './firebaseAuth';
 import './styles.css';
 
 /**
  * Module state
  */
-let currentTab: 'login' | 'signup' = 'login';
-let isLoading = false;
 let containerId = 'auth-screen';
 
 /**
@@ -65,6 +63,7 @@ export function renderAuthScreen(): void {
           </div>
 
           <button type="submit" class="btn-primary" id="login-submit">Login</button>
+          <button type="button" class="btn-google" id="login-google">Continue with Google</button>
           <a href="#forgot" class="forgot-password" id="forgot-password-link">Forgot password?</a>
         </form>
 
@@ -104,6 +103,7 @@ export function renderAuthScreen(): void {
           </div>
 
           <button type="submit" class="btn-primary" id="signup-submit">Sign Up</button>
+          <button type="button" class="btn-google" id="signup-google">Continue with Google</button>
         </form>
       </div>
     </div>
@@ -143,6 +143,8 @@ function attachAuthEventListeners(): void {
   // Form submissions
   document.getElementById('login-form')?.addEventListener('submit', handleLoginSubmit);
   document.getElementById('signup-form')?.addEventListener('submit', handleSignupSubmit);
+  document.getElementById('login-google')?.addEventListener('click', handleGoogleLogin);
+  document.getElementById('signup-google')?.addEventListener('click', handleGoogleLogin);
 
   // Forgot password link
   document.getElementById('forgot-password-link')?.addEventListener('click', handleForgotPassword);
@@ -159,8 +161,6 @@ function attachAuthEventListeners(): void {
  * Switch between login and signup tabs
  */
 function switchTab(tab: 'login' | 'signup'): void {
-  currentTab = tab;
-
   // Update tab button styles
   document.querySelectorAll('.auth-tabs button').forEach((btn, idx) => {
     btn.classList.toggle('active', (idx === 0 && tab === 'login') || (idx === 1 && tab === 'signup'));
@@ -235,6 +235,23 @@ async function handleSignupSubmit(e: Event): Promise<void> {
   } catch (error: any) {
     displaySignupFormError(error.message || 'Signup failed. Please try again.');
     setButtonLoading(false, 'signup');
+  }
+}
+
+async function handleGoogleLogin(): Promise<void> {
+  const googleButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.btn-google'));
+  googleButtons.forEach((button) => {
+    button.disabled = true;
+    button.classList.add('loading');
+  });
+  try {
+    await loginWithGoogle();
+  } catch (error: any) {
+    showErrorModal('Google sign-in failed', error.message || 'Unable to sign in with Google. Please try again.');
+    googleButtons.forEach((button) => {
+      button.disabled = false;
+      button.classList.remove('loading');
+    });
   }
 }
 
@@ -455,7 +472,6 @@ function validateSignupConfirmField(): void {
  * Set button loading state
  */
 function setButtonLoading(loading: boolean, form: 'login' | 'signup'): void {
-  isLoading = loading;
   const button = document.getElementById(
     form === 'login' ? 'login-submit' : 'signup-submit',
   ) as HTMLButtonElement;

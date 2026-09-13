@@ -1,6 +1,6 @@
-import { D } from '../../../main';
+import { appState as D } from '../../../lib/appState';
 import { calculateLTCGHarvestPlan } from './ltcg-planner';
-import { formatCurrency, formatNumber } from '../../../lib/formatters';
+import { formatCurrency } from '../../../lib/formatters';
 import { saveData } from '../../../lib/storage';
 import { showToast } from '../../ui';
 import './styles.css';

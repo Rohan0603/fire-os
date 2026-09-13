@@ -1,5 +1,6 @@
 # Auto-generated test artifacts
 test-results/
+playwright-report/
 test-screenshots/
 *.log
 coverage/
@@ -58,7 +59,6 @@ out/
 *.cache
 .parcel-cache
 .eslintcache
-.prettierignore
 .turbo/
 tmp/
 temp/

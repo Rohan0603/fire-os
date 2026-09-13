@@ -22,11 +22,6 @@ let niftyCache: NiftyData | null = null;
 
 // Constants
 const NIFTY_CACHE_TTL = CONFIG.cacheTtl.nifty;
-const GOLD_ETF_SCHEME = CONFIG.schemes.goldEtf;
-const CORS_PROXY_1 = CONFIG.api.alloriginsBaseUrl.endsWith('?url=') ? CONFIG.api.alloriginsBaseUrl.slice(0, -5) : CONFIG.api.alloriginsBaseUrl;
-const CORS_PROXY_2 = 'https://cors-anywhere.herokuapp.com';
-const YAHOO_NIFTY_URL = CONFIG.api.yahooFinanceNifty;
-
 /**
  * NSE API Endpoints (potential sources)
  * Note: NSE doesn't provide a direct public REST API for free tier

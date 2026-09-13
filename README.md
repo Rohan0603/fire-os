@@ -3,7 +3,7 @@
 A comprehensive personal finance dashboard for FIRE (Financial Independence, Retire Early) planning. Track investments, simulate market crashes, calculate retirement timelines, and manage tax-efficient strategies.
 
 **Live Demo:** https://fire-os-dd6d6.web.app ✨ (with cross-device data sync!)  
-**Status:** Production-ready with Firebase cloud sync & authentication
+**Status:** Firebase Auth + Firestore cloud sync with offline-first local cache
 
 **Documentation:**
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) — System architecture & module design
@@ -11,6 +11,76 @@ A comprehensive personal finance dashboard for FIRE (Financial Independence, Ret
 - [QUICKSTART.md](QUICKSTART.md) — Quick reference for developers
 - [CLAUDE.md](CLAUDE.md) — Development guide for Claude Code
 - [ANTIGRAVITY.md](ANTIGRAVITY.md) — Development guide for Antigravity IDE
+
+## Firebase Backend and Free Hosting
+
+FIRE OS uses Firebase project `fire-os-dd6d6` and web app
+`1:824527645307:web:7dc209d225e8280d17d0de`.
+
+The supported backend path is compatible with Firebase Spark plan features:
+
+- Firebase Authentication with Email/Password provider
+- Google Authentication through the browser popup provider
+- Cloud Firestore owner-scoped portfolio documents
+- Firestore offline persistence in the browser
+- Classic Firebase Hosting or GitHub Pages for the static Vite frontend
+
+Firebase App Hosting, Cloud Functions, Cloud Run, and other Blaze-only services
+are not required by this application. GitHub Pages is the default free static
+hosting option; Firebase Hosting remains available through the existing
+`deploy.yml` workflow.
+
+### Dynamic Links compatibility
+
+This is a browser-only application. It uses Firebase Email/Password sign-in,
+Google popup sign-in, and browser password-reset email actions. It does not use
+email-link sign-in, Firebase Dynamic Links, mobile deep links, or Cordova OAuth.
+Therefore the Firebase Dynamic Links shutdown does not require an authentication
+flow migration for this project. Do not add `sendSignInLinkToEmail`,
+`signInWithEmailLink`, or Cordova OAuth without following Firebase's current
+post-Dynamic-Links implementation guidance first.
+
+### Firebase Console Setup
+
+In the Firebase console for `fire-os-dd6d6`:
+
+1. Open **Authentication → Sign-in method** and enable **Email/Password**.
+2. Open **Firestore Database**, create or select a Standard database, and keep
+  its location aligned with the project’s existing resources.
+3. Deploy the rules after authenticating with the Firebase CLI:
+
+```bash
+npx -y firebase-tools@latest login
+npx -y firebase-tools@latest use fire-os-dd6d6
+npx -y firebase-tools@latest deploy --only firestore:rules,firestore:indexes
+```
+
+4. Add the production frontend domains under **Authentication → Settings →
+  Authorized domains**. Include `fire-os-dd6d6.web.app` and the GitHub Pages
+  host, for example `rohan0603.github.io`.
+
+The browser app reads `VITE_FIREBASE_*` values from the root `.env` file. Do
+not add service-account JSON, Admin SDK credentials, or private API secrets to
+the frontend. Firebase web API keys are public identifiers; access control is
+provided by Authentication and Firestore Rules.
+
+### GitHub Pages Deployment
+
+Enable **Settings → Pages → GitHub Actions** in the repository. The
+`pages.yml` workflow builds the app at `/fire-os/` and deploys it with the
+Firebase client configuration supplied through repository Variables:
+
+```text
+VITE_FIREBASE_API_KEY
+VITE_FIREBASE_AUTH_DOMAIN
+VITE_FIREBASE_STORAGE_BUCKET
+VITE_FIREBASE_MESSAGING_SENDER_ID
+VITE_FIREBASE_MEASUREMENT_ID
+```
+
+`VITE_FIREBASE_PROJECT_ID` and `VITE_FIREBASE_APP_ID` are already pinned to
+the requested project and web app in the workflow. GitHub Pages hosts static
+assets only; Authentication and Firestore continue to run on Firebase.
 
 ---
 
@@ -33,7 +103,7 @@ A comprehensive personal finance dashboard for FIRE (Financial Independence, Ret
 
 ### For Developers/Firebase Hosting Deployment (Recommended)
 
-**Get cross-device data sync with Firebase Authentication & Realtime Database**
+**Get cross-device data sync with Firebase Authentication & Cloud Firestore**
 
 #### Prerequisites
 - Google/Firebase account (free tier available)
@@ -44,8 +114,8 @@ A comprehensive personal finance dashboard for FIRE (Financial Independence, Ret
 ```bash
 # Create/use Firebase project at https://console.firebase.google.com
 # 1. Create new project or use existing one
-# 2. Enable Realtime Database (Asia Southeast 1 region recommended for India)
-# 3. Enable Authentication → Email/Password method
+# 2. Create a Standard Cloud Firestore database
+# 3. Enable Authentication → Email/Password and Google providers
 # 4. Note down your credentials (shown in Firebase Console)
 ```
 
@@ -148,7 +218,7 @@ Site will be live at: `https://yourusername.github.io/fire-os`
 ### Authentication & Cloud Sync (Firebase)
 - **Email/Password Signup** — Create account securely with email + 6+ char password
 - **Cross-Device Sync** — Login on desktop/mobile/tablet with same email → all portfolio data syncs instantly
-- **Secure Cloud Storage** — Portfolio data stored in Firebase Realtime Database (encrypted in transit)
+- **Secure Cloud Storage** — Portfolio data stored in owner-scoped Cloud Firestore documents
 - **Offline Support** — Changes saved locally when offline; auto-sync when connection restored
 - **Logout** — Securely sign out; data cleared from browser (saved safely in cloud)
 
@@ -157,7 +227,9 @@ Site will be live at: `https://yourusername.github.io/fire-os`
 ## 🔒 Data & Privacy
 
 ### Storage
-- **Firebase Realtime Database:** (Primary) Profile data stored securely in cloud; encrypted in transit; each user only accesses their own data
+- **Cloud Firestore:** (Canonical) Portfolio data stored at `users/{uid}/portfolio/state`; Firestore Rules restrict access to the owner
+- **localStorage + IndexedDB:** Offline cache and pending writes; queued changes sync after reconnect
+- **Cloud Firestore:** Canonical portfolio persistence and realtime sync
 - **localStorage:** (Fallback) Local browser storage when offline or not authenticated
 - **Backup:** Download from Profile tab → "Export" button (exports `fireOS_v2` JSON envelope)
 - **Persistence:** Cloud data survives browser restart/clear; can access from any device after login
@@ -197,7 +269,7 @@ fire-os/
 - **UI:** Hand-coded HTML/CSS (no Bootstrap/Tailwind)
 - **Charts:** Chart.js v4.4.0 (via CDN)
 - **Fonts:** Google Fonts (Space Mono, Fraunces, DM Sans)
-- **Storage:** Firebase Realtime Database (primary) + browser localStorage (fallback)
+- **Storage:** Cloud Firestore (canonical) + browser localStorage (offline cache/backup)
 - **Auth:** Firebase Authentication (email/password)
 - **Hosting:** Firebase Hosting (recommended) or GitHub Pages (alternative)
 

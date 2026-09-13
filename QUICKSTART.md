@@ -22,9 +22,70 @@ npm install
 # Start dev server
 npm run dev
 
-# Opens http://localhost:5173 in browser
+# Open the URL printed by Vite (usually http://localhost:5173)
 # HMR auto-reloads on file changes
 ```
+
+## Firebase Configuration
+
+Copy the existing project’s web configuration into the root `.env` file. The
+required values are:
+
+```text
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=fire-os-dd6d6.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=fire-os-dd6d6
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=1:824527645307:web:7dc209d225e8280d17d0de
+VITE_FIREBASE_MEASUREMENT_ID=...
+```
+
+Enable **Authentication → Sign-in method → Email/Password** in the Firebase
+console. Enable Google as well if Google popup sign-in is desired. The app uses
+Firebase Authentication and Firestore directly from the browser; no
+service-account credentials belong in `.env`.
+
+The app does not use email-link authentication, Firebase Dynamic Links, mobile
+deep links, or Cordova OAuth. Firebase Dynamic Links deprecation therefore does
+not require an auth migration for this browser-only frontend. Password reset is
+implemented as a standard web Firebase Auth email action.
+
+The app uses the Spark-compatible Firebase services only: Email/Password Auth,
+Firestore, IndexedDB persistence, and static hosting. App Hosting, Functions,
+and Cloud Run are intentionally out of scope.
+
+### GitHub Pages
+
+The repository includes `.github/workflows/pages.yml`. Enable GitHub Pages with
+**GitHub Actions** as the source, then add the remaining `VITE_FIREBASE_*`
+values as repository Variables. The workflow sets the project to
+`fire-os-dd6d6`, uses app ID
+`1:824527645307:web:7dc209d225e8280d17d0de`, and builds with the `/fire-os/`
+base path.
+
+Add the resulting GitHub Pages hostname to Firebase Authentication’s authorized
+domains. GitHub Pages only serves the frontend; Firebase remains the backend.
+
+### Firebase Rules Deployment
+
+After `npx -y firebase-tools@latest login`, deploy the Firestore rules from the repository root:
+
+```bash
+npx -y firebase-tools@latest use fire-os-dd6d6
+npx -y firebase-tools@latest deploy --only firestore:rules,firestore:indexes
+```
+
+### Verify locally
+
+```bash
+npm test
+npm run build
+```
+
+After signing in, Profile -> Data Management includes **Migrate local data**.
+The action downloads a JSON backup before applying a merge or overwrite choice
+to the authenticated Firestore portfolio.
 
 ## Project Structure Overview
 
@@ -291,7 +352,7 @@ const navPrice = D.nav['122639']?.nav;
 D.profile.age = 30;
 
 // Persist to Firebase + localStorage
-await savePortfolioToFirebase(D.currentUser.uid, D);
+await queuePortfolioSave(D.currentUser.uid, D);
 
 // Dispatch event (notify other modules)
 document.dispatchEvent(new CustomEvent('profileUpdated'));

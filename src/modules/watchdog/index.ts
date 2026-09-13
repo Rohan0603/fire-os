@@ -3,8 +3,8 @@
  * Displays fund performance vs benchmark indices and historical returns
  */
 
-import { D } from '../../main';
-import { formatPercentage, formatCurrency } from '../../lib/formatters';
+import { appState as D } from '../../lib/appState';
+import { formatPercentage } from '../../lib/formatters';
 import './styles.css';
 
 export function initWatchdogModule(containerId: string) {

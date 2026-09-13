@@ -89,7 +89,7 @@
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
 }
 
-.calc-input-group input:readonly {
+.calc-input-group input:read-only {
   background: var(--bg-tertiary);
   color: var(--text-secondary);
   cursor: not-allowed;

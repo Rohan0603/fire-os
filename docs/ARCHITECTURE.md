@@ -25,7 +25,11 @@ fire-os/
 │   │   └── firebase.ts        # Firebase types
 │   ├── lib/                    # Utility libraries (no UI)
 │   │   ├── calculations.ts    # Financial calculations (XIRR, SIP P&L, FI)
-│   │   ├── storage.ts         # Firebase + localStorage sync
+│   │   ├── storage.ts         # Local cache and sync queue integration
+│   │   ├── merge.ts           # Deterministic envelope merge and section clocks
+│   │   ├── syncCoordinator.ts # Debounce, offline queue, retry, and flush lifecycle
+│   │   ├── authCoordinator.ts # Auth session generation and logout lifecycle
+│   │   └── migration.ts       # Legacy localStorage migration preview/plan
 │   │   ├── validators.ts      # Input validation rules
 │   │   ├── formatters.ts      # Number/currency/date formatting
 │   │   ├── logger.ts          # Logging utilities (dev vs prod)
@@ -99,7 +103,7 @@ async function initApp() {
     if (user) {
       // User logged in
       D.currentUser = user;
-      await loadPortfolioFromFirebase(user.uid);
+      const envelope = await loadPortfolio(user.uid);
       renderApp(); // Render main dashboard
     } else {
       // User not logged in
@@ -169,6 +173,19 @@ Modules are **decoupled** and communicate through:
 ## State Management (D Object)
 
 The global state object `D` (type: `FireOSState`) represents the **entire app state**.
+
+### Firestore Persistence Contract
+
+The canonical document is `users/{uid}/portfolio/state`. It stores a validated
+`PortfolioEnvelope` containing persisted portfolio data, schema version, save
+timestamp, client metadata, section clocks, and optional migration metadata.
+Auth state and runtime sync fields never enter the envelope.
+
+Startup loads the local cache first, then merges Firestore data by section clock.
+Equal timestamps use deterministic client metadata tie-breaking. Local writes are
+debounced by `SyncCoordinator`, retained while offline, retried with bounded
+backoff, and flushed before logout. Firestore IndexedDB persistence provides the
+browser-level offline cache; localStorage remains a compatibility backup.
 
 ### Core Structure
 
@@ -252,7 +269,7 @@ function updateProfile(updates: Partial<FireOSState['profile']>) {
   // Persist
   localStorage.setItem('fireOS_state', JSON.stringify(D));
   if (D.currentUser) {
-    savePortfolioToFirebase(D.currentUser.uid, D);
+    queuePortfolioSave(D.currentUser.uid, D);
   }
   
   // Notify other modules
@@ -299,7 +316,7 @@ function updateDashboard() {
 ┌─────────────────────────────────────────────────────────┐
 │  Persist Data                                           │
 │  - localStorage (immediate, offline-safe)              │
-│  - Firebase Realtime DB (if authenticated)             │
+│  - Cloud Firestore (if authenticated)                  │
 │  - Set D._lastSavedAt = ISO timestamp                  │
 └────────────────────┬────────────────────────────────────┘
                      │
@@ -344,7 +361,7 @@ function updateDashboard() {
 4. onAuthStateChanged() fires with user object (or null)
 5. If authenticated:
    - Set D.currentUser = { uid, email, ... }
-   - Call loadPortfolioFromFirebase(uid)
+  - Call loadPortfolio(uid)
    - Render main dashboard
 6. If not authenticated:
    - Show login/signup modal
@@ -375,7 +392,7 @@ function updateDashboard() {
 4. Firebase validates credentials server-side
 5. onAuthStateChanged() fires with user
 6. Set D.currentUser
-7. Call loadPortfolioFromFirebase(uid)
+7. Call loadPortfolio(uid)
    - Fetch from /users/{uid}/portfolio
    - Merge with localStorage (resolve conflicts)
    - Update D object
@@ -771,7 +788,7 @@ firebase deploy --only hosting
 3. **Decoupled Modules**: No direct imports between modules; use event delegation and shared state
 4. **Error Resilience**: Multi-layer error handling ensures app continues even if one module fails
 5. **API Caching**: Intelligent TTL caching prevents over-fetching and supports offline usage
-6. **Cross-Device Sync**: Firebase Realtime DB syncs portfolio changes instantly across devices
+6. **Cross-Device Sync**: Cloud Firestore syncs portfolio changes instantly across devices
 7. **Developer Experience**: HMR during development, clear file structure, comprehensive tests
 
 ## See Also

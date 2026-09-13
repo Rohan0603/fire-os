@@ -1,9 +1,8 @@
-import { D } from '../../main';
+import { appState as D } from '../../lib/appState';
 import { saveData } from '../../lib/storage';
 import { fetchSocGenPrice } from '../api/esop';
 import { fetchEURINR } from '../api/eurInr';
 import { totalNetWorth } from '../dashboard/kpis';
-import { formatCurrency } from '../../lib/formatters';
 import './styles.css';
 
 let moduleContainerId: string = 'esop';

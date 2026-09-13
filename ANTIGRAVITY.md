@@ -20,7 +20,7 @@ This file provides comprehensive guidance to Antigravity IDE when working with F
 | Charts        | Chart.js v4.4.0 (CDN)                         |
 | PDF Parsing   | PDF.js v3.11.174 (CDN)                         |
 | Auth          | Firebase Authentication (email/password)       |
-| Database      | Firebase Realtime Database                     |
+| Database      | Cloud Firestore                                |
 | Hosting       | Firebase Hosting (primary), GitHub Pages (alt) |
 | Testing       | Playwright (E2E) + Vitest (unit, unused)       |
 | Fonts         | Google Fonts (Space Mono, Fraunces, DM Sans)   |
@@ -109,7 +109,7 @@ fire-os/
 │   ├── ARCHITECTURE.md           # System architecture & module design
 │   └── API.md                    # API integrations & response formats
 ├── firebase.json                 # Firebase Hosting config (public: dist/)
-├── firebase-rules.json           # Realtime Database security rules
+├── firestore.rules               # Firestore security rules
 ├── vite.config.ts                # Vite config (root: src/, outDir: dist/)
 ├── tsconfig.json                 # TypeScript strict mode config
 ├── playwright.config.ts          # Playwright config (baseURL: localhost:5173)
@@ -190,7 +190,7 @@ Auth Method:    Email/Password
 
 **Auth flow:** `main.ts` → `onAuthStateChanged()` → load Firebase data → merge with local → fetch NAVs → render
 
-**Security rules** (in `firebase-rules.json`):
+**Security rules** (in `firestore.rules`):
 ```json
 {
   "rules": {
@@ -206,13 +206,13 @@ Auth Method:    Email/Password
 
 ## Data Persistence
 
-1. **Firebase Realtime Database** (primary): Auto-syncs on profile save, 1-second debounce
+1. **Cloud Firestore** (canonical): Syncs authenticated portfolio envelopes with offline persistence
 2. **localStorage** (fallback): `fireOS_v2` key, synchronous, offline-safe
 3. **Export/Import**: JSON `fireOS_v2` envelope (profile + holdings + caches)
 
-**Save flow:** User edits → `saveProfile()` → update `D` → `saveData()` (localStorage) → `savePortfolioToFirebase()` (debounced 1s)
+**Save flow:** User edits → `saveProfile()` → update `D` → `saveData()` (local cache) → `queuePortfolioSave()` (Firestore coordinator)
 
-**Load flow:** App start → `loadData()` (localStorage) → Firebase auth → `loadPortfolioFromFirebase()` → `mergeState()` → `fetchSIPNAVs()`
+**Load flow:** App start → `loadData()` (local cache) → Firebase auth → `loadPortfolio()` → `mergeEnvelopes()` → `fetchSIPNAVs()`
 
 ## Testing
 

@@ -6,10 +6,15 @@
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
   signOut,
   sendPasswordResetEmail,
 } from 'firebase/auth';
-import { auth } from '../../main';
+import { CONFIG } from '../../lib/config';
+import { getFirebaseServices } from '../../lib/firebase';
+
+const { auth } = getFirebaseServices(CONFIG.firebaseConfig);
 
 /**
  * Firebase error code to user-friendly message mapping
@@ -24,6 +29,10 @@ const firebaseErrorMessages: Record<string, string> = {
   'auth/user-disabled': 'This account has been disabled.',
   'auth/too-many-requests': 'Too many failed login attempts. Please try again later.',
   'auth/invalid-credential': 'Invalid email or password.',
+  'auth/popup-closed-by-user': 'Google sign-in was cancelled.',
+  'auth/popup-blocked': 'Your browser blocked the Google sign-in popup. Allow popups and try again.',
+  'auth/unauthorized-domain': 'This domain is not authorized in Firebase Authentication.',
+  'auth/account-exists-with-different-credential': 'An account already exists with a different sign-in method.',
 };
 
 /**
@@ -60,6 +69,15 @@ export async function loginUser(email: string, password: string): Promise<void> 
     const errorCode = error.code || 'unknown';
     const errorMessage = getFirebaseErrorMessage(errorCode);
     throw new Error(errorMessage);
+  }
+}
+
+/** Sign in or sign up with the configured Google provider. */
+export async function loginWithGoogle(): Promise<void> {
+  try {
+    await signInWithPopup(auth, new GoogleAuthProvider());
+  } catch (error: any) {
+    throw new Error(getFirebaseErrorMessage(error.code || 'unknown'));
   }
 }
 

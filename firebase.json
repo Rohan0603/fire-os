@@ -1,4 +1,19 @@
 {
+  "auth": {
+    "authorizedDomains": [
+      "localhost",
+      "fire-os-dd6d6.firebaseapp.com",
+      "fire-os-dd6d6.web.app",
+      "rohan0603.github.io"
+    ],
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "FIRE OS",
+        "supportEmail": "ponnanna06032001@gmail.com"
+      }
+    }
+  },
   "hosting": {
     "public": "dist",
     "ignore": [
@@ -20,7 +35,13 @@
       }
     ]
   },
-  "database": {
-    "rules": "firebase-rules.json"
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "emulators": {
+    "firestore": {
+      "port": 8082
+    }
   }
 }

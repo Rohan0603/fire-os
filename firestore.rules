@@ -1,0 +1,79 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Canonical document: users/{uid}/portfolio/state.
+    // Authenticated owners may read and write only their own portfolio.
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function isIso(value) {
+      return value is string && value.matches('^\\d{4}-\\d{2}-\\d{2}T.*Z$') && value.size() <= 40;
+    }
+
+    function validClient() {
+      return !('client' in request.resource.data)
+        || (request.resource.data.client is map
+          && request.resource.data.client.keys().hasOnly(['clientId', 'appVersion', 'platform', 'userAgent', 'lastWriteId'])
+          && (!('clientId' in request.resource.data.client) || request.resource.data.client.clientId is string)
+          && (!('appVersion' in request.resource.data.client) || request.resource.data.client.appVersion is string)
+          && (!('platform' in request.resource.data.client) || request.resource.data.client.platform in ['web', 'mobile'])
+          && (!('userAgent' in request.resource.data.client) || request.resource.data.client.userAgent is string)
+          && (!('lastWriteId' in request.resource.data.client) || request.resource.data.client.lastWriteId is string));
+    }
+
+    function validSectionClocks() {
+      return !('sectionUpdatedAt' in request.resource.data)
+        || (request.resource.data.sectionUpdatedAt is map
+          && request.resource.data.sectionUpdatedAt.keys().hasOnly(['profile', 'holdings', 'planning', 'insurance', 'esop', 'cache'])
+          && (!('profile' in request.resource.data.sectionUpdatedAt) || isIso(request.resource.data.sectionUpdatedAt.profile))
+          && (!('holdings' in request.resource.data.sectionUpdatedAt) || isIso(request.resource.data.sectionUpdatedAt.holdings))
+          && (!('planning' in request.resource.data.sectionUpdatedAt) || isIso(request.resource.data.sectionUpdatedAt.planning))
+          && (!('insurance' in request.resource.data.sectionUpdatedAt) || isIso(request.resource.data.sectionUpdatedAt.insurance))
+          && (!('esop' in request.resource.data.sectionUpdatedAt) || isIso(request.resource.data.sectionUpdatedAt.esop))
+          && (!('cache' in request.resource.data.sectionUpdatedAt) || isIso(request.resource.data.sectionUpdatedAt.cache)));
+    }
+
+    function validPersistedData() {
+      return request.resource.data.data.keys().hasOnly([
+        'profile', 'mf', 'sip', 'fd', 'epf', 'esop', 'bonds', 'demat',
+        'nav', 'niftyHigh', 'niftyData', 'eurInr', 'eurInrData',
+        'alphaTrackerData', 'coorgCorpus', 'coorgStartDate', 'coorgTarget',
+        'coorgMonthlyAmount', 'watchdogRules', 'swpSchedule', 'taxCalendar',
+        'expenses', 'netWorthHistory', 'completedActions', 'achievedMilestones',
+        'insurance', 'esopDetails'
+      ]) && request.resource.data.data.size() <= 40;
+    }
+
+    function validEnvelope() {
+      return request.resource.data.keys().hasOnly([
+        'schemaVersion',
+        'lastSavedAt',
+        'client',
+        'serverMetadata',
+        'data',
+        'sectionUpdatedAt',
+        'entryUpdatedAt',
+        'migration',
+        'format'
+      ])
+      && request.resource.data.keys().hasAll(['schemaVersion', 'lastSavedAt', 'data'])
+      && request.resource.data.schemaVersion is string
+      && request.resource.data.schemaVersion in ['fireOS_v2', 'fireOS_v3']
+      && isIso(request.resource.data.lastSavedAt)
+      && request.resource.data.data is map
+      && validPersistedData()
+      && validClient()
+      && validSectionClocks()
+      && (!('migration' in request.resource.data) || request.resource.data.migration is map)
+      && (!('format' in request.resource.data) || request.resource.data.format is map);
+    }
+
+    match /users/{uid}/portfolio/state {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid) && validEnvelope();
+      allow delete: if false;
+    }
+  }
+}

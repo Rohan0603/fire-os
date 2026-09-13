@@ -20,7 +20,7 @@ export function addExpense(expenses: Expense[], newExpense: Expense): Expense[] 
 
 export function calculateExpenseRate(
   expenses: Expense[],
-  startDate: string
+  _startDate: string
 ): ExpenseRate {
   if (expenses.length === 0) {
     return {

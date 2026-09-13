@@ -5,7 +5,6 @@
  */
 
 import type { FireOSState } from '../../types/state';
-import type { SIPFund } from '../../types/portfolio';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
 
 /**
@@ -26,7 +25,7 @@ export interface TotalNetWorthKPI {
 
 export function totalNetWorth(state: FireOSState): TotalNetWorthKPI {
   // MF holdings: SIPFunds - units × NAV from cache
-  const mf = Object.entries(state.mf).reduce((sum, [key, fund]) => {
+  const mf = Object.entries(state.mf).reduce((sum, [, fund]) => {
     const nav = fund.schemeCode ? state.nav[fund.schemeCode]?.nav ?? 0 : 0;
     return sum + (fund.units * nav || 0);
   }, 0);
@@ -38,7 +37,7 @@ export function totalNetWorth(state: FireOSState): TotalNetWorthKPI {
   const epf = Object.values(state.epf).reduce((sum, holding) => sum + (holding.amount || 0), 0);
 
   // SIP holdings: units × current NAV from cache
-  const sip = Object.entries(state.sip).reduce((sum, [key, fund]) => {
+  const sip = Object.entries(state.sip).reduce((sum, [, fund]) => {
     // Try to get scheme code: from fund.schemeCode or from fundMatcher
     const navCacheKey = fund.schemeCode || getFundSchemeCode(fund.name);
     const nav = navCacheKey ? state.nav[navCacheKey]?.nav ?? 0 : 0;

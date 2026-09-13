@@ -41,7 +41,7 @@ export async function registerAdvisorReview(
   }
 }
 
-export function renderAdvisorIntegrationWidget(state: any): string {
+export function renderAdvisorIntegrationWidget(_state: any): string {
   return `
     <div class="advisor-widget">
       <h3>Certified Financial Planner Review</h3>

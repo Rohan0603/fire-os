@@ -5,8 +5,8 @@
  */
 
 import { totalNetWorth, sipStatus, fiProgress, floatIndicator, portfolioComposition } from './kpis';
-import { formatCurrency, formatPercentage, formatNumber } from '../../lib/formatters';
-import { D } from '../../main';
+import { formatCurrency, formatNumber } from '../../lib/formatters';
+import { appState as D } from '../../lib/appState';
 import { fetchNAV, getNAVCacheMap } from '../api';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
 import { renderCoorgWidget } from './coorg-tracker';
@@ -17,12 +17,11 @@ import { renderAdvisorIntegrationWidget, registerAdvisorReview } from '../integr
 import { renderExpenseTracker } from '../trackers/expense-tracker';
 import { calculateAllocationDrift } from '../calculators/portfolio-rebalancing';
 import { createModal, closeModal, showToast } from '../ui';
-import { saveData, savePortfolioToFirebase } from '../../lib/storage';
+import { saveData, queuePortfolioSave } from '../../lib/storage';
 import './styles.css';
 
 // Module state
 let containerId = 'dashboard';
-let currentChartType: 'pie' | 'line' = 'pie';
 let currentCrashAlert: CrashAlert | null = null;
 
 /**
@@ -177,7 +176,6 @@ function renderNetWorthCard(value: number): string {
 
 function renderSIPStatusCard(currentValue: number, invested: number): string {
   const pl = currentValue - invested;
-  const plPercent = invested > 0 ? (pl / invested) * 100 : 0;
   const cardClass = pl >= 0 ? 'positive' : 'negative';
 
   return `
@@ -475,7 +473,7 @@ function attachDashboardEventListeners(): void {
         } else {
           showToast(result.error || 'Failed to request review', 4000, 'warning');
         }
-      } catch (err) {
+      } catch {
         showToast('Error requesting review', 4000, 'warning');
       } finally {
         advisorBtn.removeAttribute('disabled');
@@ -547,7 +545,7 @@ function attachDashboardEventListeners(): void {
 
             saveData(D);
             if (D.currentUser?.uid) {
-              savePortfolioToFirebase(D.currentUser.uid, D).catch(e => console.warn('Firebase save failed:', e));
+              queuePortfolioSave(D.currentUser.uid, D).catch(e => console.warn('Firestore save failed:', e));
             }
 
             showToast('✓ Expense added successfully', 3000, 'success');
@@ -583,21 +581,7 @@ export function teardownDashboard(): void {
  * Listen for state changes and re-render dashboard
  */
 export function observeDashboardChanges(): void {
-  // Create a proxy that re-renders on any property change
-  const handler = {
-    set: (target: any, property: string, value: any) => {
-      target[property] = value;
-      // Debounce re-render to avoid excessive updates
-      clearTimeout((window as any).dashboardRenderTimeout);
-      (window as any).dashboardRenderTimeout = setTimeout(() => {
-        renderDashboard();
-      }, 500);
-      return true;
-    },
-  };
-
-  // Note: Full proxy wrapping would be done in main.ts
-  // This is a helper that individual modules can call
+  renderDashboard();
 }
 
 /**

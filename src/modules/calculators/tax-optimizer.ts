@@ -64,7 +64,7 @@ export function calculateLTCGHarvestAmount(
   };
 }
 
-export function generateTaxCalendar(state: any): string[] {
+export function generateTaxCalendar(_state: any): string[] {
   const calendar: string[] = [];
 
   // Annual LTCG harvest reminder (April 1st - Indian fiscal year start)

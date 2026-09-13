@@ -1,4 +1,4 @@
-import { D } from '../../main';
+import { appState as D } from '../../lib/appState';
 import { renderHealthStatusBanner, attachHealthBannerListeners } from './health-status';
 import { renderActionItems } from './action-engine';
 import { renderNetWorthHistory } from './net-worth-history';
@@ -6,8 +6,7 @@ import { renderMilestones } from './milestones';
 import { renderPlainEnglishSummary } from './plain-english';
 import { renderCashflowSummary } from './cashflow-summary';
 import { totalNetWorth } from '../dashboard/kpis';
-import { calculateFIAge, generateScenarios } from '../calculators/scenario-modeler';
-import { sipCorpus } from '../../lib/calculations';
+import { calculateFIAge } from '../calculators/scenario-modeler';
 import { formatCurrency } from '../../lib/formatters';
 import './styles.css';
 
@@ -40,8 +39,6 @@ export function renderPlan() {
   const coorgCorpus = D.coorgCorpus || 0;
   const coorgTarget = D.coorgTarget || 20_000_000;
   const coorgProgressPct = coorgTarget > 0 ? Math.min((coorgCorpus / coorgTarget) * 100, 100) : 0;
-  const coorgMonthlyAmount = D.coorgMonthlyAmount || 10_000;
-  const coorgSIPProjected = sipCorpus(coorgMonthlyAmount, 0.17, 5);
 
   el.innerHTML = `
     <div class="plan-container">
