@@ -12,21 +12,182 @@ service cloud.firestore {
       return value is string && value.matches('^\\d{4}-\\d{2}-\\d{2}T.*Z$') && value.size() <= 40;
     }
 
+    function isBoundedString(value, maxSize) {
+      return value is string && value.size() <= maxSize;
+    }
+
+    function isBoundedMap(value, maxEntries) {
+      return value is map && value.size() <= maxEntries;
+    }
+
+    function isBoundedList(value, maxEntries) {
+      return value is list && value.size() <= maxEntries;
+    }
+
+    function validProfile(value) {
+      return value is map
+        && value.keys().hasOnly(['name', 'age', 'annualExpenses', 'fiTarget', 'monthlyIncome'])
+        && value.keys().hasAll(['name', 'age', 'annualExpenses', 'fiTarget', 'monthlyIncome'])
+        && value.size() <= 5
+        && isBoundedString(value.name, 200)
+        && value.age is number
+        && value.annualExpenses is number
+        && value.fiTarget is number
+        && value.monthlyIncome is number;
+    }
+
+    function validNiftyData(value) {
+      return value is map
+        && value.keys().hasOnly(['level', 'high52w', 'timestamp', 'source'])
+        && value.keys().hasAll(['level', 'high52w', 'timestamp', 'source'])
+        && value.size() <= 4
+        && value.level is number
+        && value.high52w is number
+        && isIso(value.timestamp)
+        && isBoundedString(value.source, 100);
+    }
+
+    function validEurInrData(value) {
+      return value is map
+        && value.keys().hasOnly(['rate', 'timestamp'])
+        && value.keys().hasAll(['rate', 'timestamp'])
+        && value.size() <= 2
+        && value.rate is number
+        && isIso(value.timestamp);
+    }
+
+    function validWatchdogRules(value) {
+      return value is map
+        && value.keys().hasOnly([
+          'ppfcfAumLimit', 'nipponGrowthBlockThreshold', 'nipponSmallCapBlockThreshold',
+          'currentAum', 'blockedDays', 'managerExits'
+        ])
+        && value.keys().hasAll([
+          'ppfcfAumLimit', 'nipponGrowthBlockThreshold', 'nipponSmallCapBlockThreshold',
+          'currentAum', 'blockedDays', 'managerExits'
+        ])
+        && value.size() <= 6
+        && value.ppfcfAumLimit is number
+        && value.nipponGrowthBlockThreshold is number
+        && value.nipponSmallCapBlockThreshold is number
+        && value.currentAum is map
+        && value.currentAum.keys().hasOnly(['PPFCF'])
+        && value.currentAum.keys().hasAll(['PPFCF'])
+        && value.currentAum.PPFCF is number
+        && value.blockedDays is map
+        && value.blockedDays.keys().hasOnly(['NipponGrowth', 'NipponSmallCap'])
+        && value.blockedDays.keys().hasAll(['NipponGrowth', 'NipponSmallCap'])
+        && value.blockedDays.NipponGrowth is number
+        && value.blockedDays.NipponSmallCap is number
+        && value.managerExits is map
+        && value.managerExits.keys().hasOnly(['PPFCF', 'NipponSmallCap'])
+        && value.managerExits.keys().hasAll(['PPFCF', 'NipponSmallCap'])
+        && value.managerExits.PPFCF is bool
+        && value.managerExits.NipponSmallCap is bool;
+    }
+
+    function validSwpSchedule(value) {
+      return value is map
+        && value.keys().hasOnly(['enabled', 'startDate', 'monthlyAmount', 'rate'])
+        && value.keys().hasAll(['enabled', 'startDate', 'monthlyAmount', 'rate'])
+        && value.size() <= 4
+        && value.enabled is bool
+        && isBoundedString(value.startDate, 20)
+        && value.monthlyAmount is number
+        && value.rate is number;
+    }
+
+    function validTaxCalendar(value) {
+      return value is map
+        && value.keys().hasOnly(['lastLTCGHarvestDate', 'lastHarvestedAmount', 'harvestTarget'])
+        && value.keys().hasAll(['lastLTCGHarvestDate', 'lastHarvestedAmount', 'harvestTarget'])
+        && value.size() <= 3
+        && isBoundedString(value.lastLTCGHarvestDate, 40)
+        && value.lastHarvestedAmount is number
+        && value.harvestTarget is number;
+    }
+
+    function validInsurance(value) {
+      return value is map
+        && value.keys().hasOnly(['termLife', 'health', 'vehicle'])
+        && value.keys().hasAll(['termLife', 'health', 'vehicle'])
+        && value.size() <= 3
+        && value.termLife is map
+        && value.termLife.keys().hasOnly(['currentCover', 'annualPremium', 'expiryDate', 'provider'])
+        && value.termLife.keys().hasAll(['currentCover', 'annualPremium', 'expiryDate', 'provider'])
+        && value.termLife.currentCover is number
+        && value.termLife.annualPremium is number
+        && isBoundedString(value.termLife.expiryDate, 40)
+        && isBoundedString(value.termLife.provider, 200)
+        && value.health is map
+        && value.health.keys().hasOnly(['currentCover', 'annualPremium', 'familySize', 'provider'])
+        && value.health.keys().hasAll(['currentCover', 'annualPremium', 'familySize', 'provider'])
+        && value.health.currentCover is number
+        && value.health.annualPremium is number
+        && value.health.familySize is number
+        && isBoundedString(value.health.provider, 200)
+        && value.vehicle is map
+        && value.vehicle.keys().hasOnly(['covered', 'annualPremium'])
+        && value.vehicle.keys().hasAll(['covered', 'annualPremium'])
+        && value.vehicle.covered is bool
+        && value.vehicle.annualPremium is number;
+    }
+
+    function validEsopDetails(value) {
+      return value is map
+        && value.keys().hasOnly(['shares', 'grantPrice', 'vestingSchedule', 'triggers'])
+        && value.keys().hasAll(['shares', 'grantPrice', 'vestingSchedule', 'triggers'])
+        && value.size() <= 4
+        && value.shares is number
+        && value.grantPrice is number
+        && isBoundedList(value.vestingSchedule, 200)
+        && value.triggers is map
+        && value.triggers.keys().hasOnly(['marriage', 'childBirth', 'jobChange', 'coorgConstruction'])
+        && value.triggers.keys().hasAll(['marriage', 'childBirth', 'jobChange', 'coorgConstruction'])
+        && value.triggers.marriage is bool
+        && value.triggers.childBirth is bool
+        && value.triggers.jobChange is bool
+        && value.triggers.coorgConstruction is bool;
+    }
+
+    function validMfEntry(value) {
+      return value is map
+        && value.keys().hasOnly(['name', 'schemeCode', 'units', 'startDate', 'monthlyAmount', 'costBasis'])
+        && value.keys().hasAll(['name', 'units', 'startDate', 'monthlyAmount'])
+        && value.size() <= 6
+        && isBoundedString(value.name, 200)
+        && (!('schemeCode' in value) || isBoundedString(value.schemeCode, 50))
+        && value.units is number
+        && isBoundedString(value.startDate, 20)
+        && value.monthlyAmount is number
+        && (!('costBasis' in value) || value.costBasis is number);
+    }
+
+    function validMfHoldingDocument() {
+      return request.resource.data.keys().hasOnly(['kind', 'value', 'updatedAt'])
+        && request.resource.data.keys().hasAll(['kind', 'value', 'updatedAt'])
+        && request.resource.data.kind == 'mf'
+        && validMfEntry(request.resource.data.value)
+        && isIso(request.resource.data.updatedAt);
+    }
+
     function validClient() {
       return !('client' in request.resource.data)
         || (request.resource.data.client is map
           && request.resource.data.client.keys().hasOnly(['clientId', 'appVersion', 'platform', 'userAgent', 'lastWriteId'])
-          && (!('clientId' in request.resource.data.client) || request.resource.data.client.clientId is string)
-          && (!('appVersion' in request.resource.data.client) || request.resource.data.client.appVersion is string)
+          && request.resource.data.client.size() <= 5
+          && (!('clientId' in request.resource.data.client) || isBoundedString(request.resource.data.client.clientId, 100))
+          && (!('appVersion' in request.resource.data.client) || isBoundedString(request.resource.data.client.appVersion, 50))
           && (!('platform' in request.resource.data.client) || request.resource.data.client.platform in ['web', 'mobile'])
-          && (!('userAgent' in request.resource.data.client) || request.resource.data.client.userAgent is string)
-          && (!('lastWriteId' in request.resource.data.client) || request.resource.data.client.lastWriteId is string));
+          && (!('userAgent' in request.resource.data.client) || isBoundedString(request.resource.data.client.userAgent, 512))
+          && (!('lastWriteId' in request.resource.data.client) || isBoundedString(request.resource.data.client.lastWriteId, 100)));
     }
 
     function validSectionClocks() {
       return !('sectionUpdatedAt' in request.resource.data)
         || (request.resource.data.sectionUpdatedAt is map
           && request.resource.data.sectionUpdatedAt.keys().hasOnly(['profile', 'holdings', 'planning', 'insurance', 'esop', 'cache'])
+          && request.resource.data.sectionUpdatedAt.size() <= 6
           && (!('profile' in request.resource.data.sectionUpdatedAt) || isIso(request.resource.data.sectionUpdatedAt.profile))
           && (!('holdings' in request.resource.data.sectionUpdatedAt) || isIso(request.resource.data.sectionUpdatedAt.holdings))
           && (!('planning' in request.resource.data.sectionUpdatedAt) || isIso(request.resource.data.sectionUpdatedAt.planning))
@@ -36,14 +197,79 @@ service cloud.firestore {
     }
 
     function validPersistedData() {
-      return request.resource.data.data.keys().hasOnly([
-        'profile', 'mf', 'sip', 'fd', 'epf', 'esop', 'bonds', 'demat',
+      let data = request.resource.data.data;
+      return data.keys().hasOnly([
+        'profile', 'sip', 'fd', 'epf', 'esop', 'bonds', 'demat',
         'nav', 'niftyHigh', 'niftyData', 'eurInr', 'eurInrData',
         'alphaTrackerData', 'coorgCorpus', 'coorgStartDate', 'coorgTarget',
         'coorgMonthlyAmount', 'watchdogRules', 'swpSchedule', 'taxCalendar',
         'expenses', 'netWorthHistory', 'completedActions', 'achievedMilestones',
         'insurance', 'esopDetails'
-      ]) && request.resource.data.data.size() <= 40;
+      ]) && data.size() <= 40
+        && (!('profile' in data) || validProfile(data.profile))
+        && (!('sip' in data) || isBoundedMap(data.sip, 200))
+        && (!('fd' in data) || isBoundedMap(data.fd, 200))
+        && (!('epf' in data) || isBoundedMap(data.epf, 200))
+        && (!('esop' in data) || isBoundedMap(data.esop, 200))
+        && (!('bonds' in data) || isBoundedMap(data.bonds, 200))
+        && (!('demat' in data) || isBoundedMap(data.demat, 200))
+        && (!('nav' in data) || isBoundedMap(data.nav, 200))
+        && (!('niftyHigh' in data) || data.niftyHigh is number)
+        && (!('niftyData' in data) || validNiftyData(data.niftyData))
+        && (!('eurInr' in data) || data.eurInr is number)
+        && (!('eurInrData' in data) || validEurInrData(data.eurInrData))
+        && (!('alphaTrackerData' in data) || isBoundedMap(data.alphaTrackerData, 200))
+        && (!('coorgCorpus' in data) || data.coorgCorpus is number)
+        && (!('coorgStartDate' in data) || isBoundedString(data.coorgStartDate, 20))
+        && (!('coorgTarget' in data) || data.coorgTarget is number)
+        && (!('coorgMonthlyAmount' in data) || data.coorgMonthlyAmount is number)
+        && (!('watchdogRules' in data) || validWatchdogRules(data.watchdogRules))
+        && (!('swpSchedule' in data) || validSwpSchedule(data.swpSchedule))
+        && (!('taxCalendar' in data) || validTaxCalendar(data.taxCalendar))
+        && (!('expenses' in data) || isBoundedList(data.expenses, 500))
+        && (!('netWorthHistory' in data) || isBoundedList(data.netWorthHistory, 500))
+        && (!('completedActions' in data) || isBoundedMap(data.completedActions, 500))
+        && (!('achievedMilestones' in data) || isBoundedList(data.achievedMilestones, 500))
+        && (!('insurance' in data) || validInsurance(data.insurance))
+        && (!('esopDetails' in data) || validEsopDetails(data.esopDetails));
+    }
+
+    function validServerMetadata() {
+      return !('serverMetadata' in request.resource.data)
+        || (request.resource.data.serverMetadata is map
+          && request.resource.data.serverMetadata.keys().hasOnly(['savedBy', 'savedAt'])
+          && request.resource.data.serverMetadata.size() <= 2
+          && (!('savedBy' in request.resource.data.serverMetadata) || isBoundedString(request.resource.data.serverMetadata.savedBy, 128))
+          && (!('savedAt' in request.resource.data.serverMetadata) || isIso(request.resource.data.serverMetadata.savedAt)));
+    }
+
+    function validEntryUpdatedAt() {
+      return !('entryUpdatedAt' in request.resource.data)
+        || (request.resource.data.entryUpdatedAt is map
+          && request.resource.data.entryUpdatedAt.keys().hasOnly(['holdings'])
+          && request.resource.data.entryUpdatedAt.size() <= 1
+          && !('holdings' in request.resource.data.entryUpdatedAt));
+    }
+
+    function validMigration() {
+      return !('migration' in request.resource.data)
+        || (request.resource.data.migration is map
+          && request.resource.data.migration.keys().hasOnly(['source', 'completedAt', 'sourceVersion'])
+          && request.resource.data.migration.keys().hasAll(['source', 'completedAt', 'sourceVersion'])
+          && request.resource.data.migration.size() <= 3
+          && request.resource.data.migration.source in ['localStorage', 'json']
+          && isIso(request.resource.data.migration.completedAt)
+          && isBoundedString(request.resource.data.migration.sourceVersion, 50));
+    }
+
+    function validFormat() {
+      return !('format' in request.resource.data)
+        || (request.resource.data.format is map
+          && request.resource.data.format.keys().hasOnly(['normalizedArrays', 'backupVersion'])
+          && request.resource.data.format.keys().hasAll(['normalizedArrays', 'backupVersion'])
+          && request.resource.data.format.size() <= 2
+          && request.resource.data.format.normalizedArrays is bool
+          && isBoundedString(request.resource.data.format.backupVersion, 50));
     }
 
     function validEnvelope() {
@@ -60,20 +286,28 @@ service cloud.firestore {
       ])
       && request.resource.data.keys().hasAll(['schemaVersion', 'lastSavedAt', 'data'])
       && request.resource.data.schemaVersion is string
-      && request.resource.data.schemaVersion in ['fireOS_v2', 'fireOS_v3']
+      && request.resource.data.schemaVersion in ['fireOS_v2', 'fireOS_v3', 'fireOS_v4']
       && isIso(request.resource.data.lastSavedAt)
       && request.resource.data.data is map
       && validPersistedData()
       && validClient()
       && validSectionClocks()
-      && (!('migration' in request.resource.data) || request.resource.data.migration is map)
-      && (!('format' in request.resource.data) || request.resource.data.format is map);
+      && validServerMetadata()
+      && validEntryUpdatedAt()
+      && validMigration()
+      && validFormat();
     }
 
     match /users/{uid}/portfolio/state {
       allow read: if isOwner(uid);
       allow create, update: if isOwner(uid) && validEnvelope();
       allow delete: if false;
+    }
+
+    match /users/{uid}/portfolio/state/holdings/{holdingId} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid) && holdingId.size() <= 128 && validMfHoldingDocument();
+      allow delete: if isOwner(uid);
     }
   }
 }

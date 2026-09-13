@@ -46,12 +46,13 @@ In the Firebase console for `fire-os-dd6d6`:
 1. Open **Authentication → Sign-in method** and enable **Email/Password**.
 2. Open **Firestore Database**, create or select a Standard database, and keep
   its location aligned with the project’s existing resources.
-3. Deploy the rules after authenticating with the Firebase CLI:
+3. Deploy Hosting, rules, and indexes after authenticating with the pinned
+  project-local Firebase CLI:
 
 ```bash
-npx -y firebase-tools@latest login
-npx -y firebase-tools@latest use fire-os-dd6d6
-npx -y firebase-tools@latest deploy --only firestore:rules,firestore:indexes
+npx --no-install firebase-tools login
+npx --no-install firebase-tools use fire-os-dd6d6
+npx --no-install firebase-tools deploy --only hosting,firestore:rules,firestore:indexes
 ```
 
 4. Add the production frontend domains under **Authentication → Settings →
@@ -101,14 +102,19 @@ provided by Authentication and Firestore Rules.
 
 #### Step 2: Initialize & Deploy
 ```bash
-# Install Firebase CLI
-npm install -g firebase-tools
+# Install project dependencies, including the pinned Firebase CLI
+npm ci
 
-# Login to Firebase (opens browser)
-firebase login
+# Login to Firebase with the project-local CLI (opens browser)
+npx --no-install firebase-tools login
+npx --no-install firebase-tools use fire-os-dd6d6
 
-# Deploy to Firebase Hosting (from project root)
-firebase deploy
+# Build and validate Firestore rules
+npm run build
+npm run test:rules:emulator
+
+# Deploy Hosting, Firestore rules, and indexes from project root
+npx --no-install firebase-tools deploy --only hosting,firestore:rules,firestore:indexes
 ```
 
 #### Step 3: Access Your Deployment

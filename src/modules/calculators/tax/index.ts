@@ -1,7 +1,7 @@
 import { appState as D } from '../../../lib/appState';
 import { calculateLTCGHarvestPlan } from './ltcg-planner';
 import { formatCurrency } from '../../../lib/formatters';
-import { saveData } from '../../../lib/storage';
+import { persistPortfolioState } from '../../../lib/storage';
 import { showToast } from '../../ui';
 import './styles.css';
 
@@ -228,7 +228,7 @@ export function renderTax(container?: HTMLElement) {
       const day = String(now.getDate()).padStart(2, '0');
       D.taxCalendar.lastLTCGHarvestDate = `${year}-${month}-${day}`;
 
-      saveData(D);
+      persistPortfolioState(D);
       showToast('Tax harvest recorded successfully');
       renderTax(targetContainer);
     });
@@ -240,7 +240,7 @@ export function renderTax(container?: HTMLElement) {
       D.taxCalendar.lastHarvestedAmount = 0;
       D.taxCalendar.lastLTCGHarvestDate = '';
 
-      saveData(D);
+      persistPortfolioState(D);
       showToast('Tax harvest reset successfully');
       renderTax(targetContainer);
     });

@@ -114,6 +114,252 @@ export interface FireOSState {
   esopDetails: EsopDetails;
 }
 
+const PERSISTED_STATE_KEYS = [
+  'profile', 'mf', 'fd', 'epf', 'sip', 'esop', 'bonds', 'demat', 'nav',
+  'niftyHigh', 'niftyData', 'eurInr', 'eurInrData', 'alphaTrackerData',
+  'coorgCorpus', 'coorgStartDate', 'coorgTarget', 'coorgMonthlyAmount',
+  'watchdogRules', 'swpSchedule', 'taxCalendar', 'expenses', 'netWorthHistory',
+  'completedActions', 'achievedMilestones', 'insurance', 'esopDetails',
+] as const;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
+  return Object.keys(value).every((key) => allowed.includes(key));
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+function isTimestamp(value: unknown): value is string {
+  return typeof value === 'string' && Number.isFinite(Date.parse(value));
+}
+
+function isProfile(value: unknown): boolean {
+  if (!isRecord(value) || !hasOnlyKeys(value, ['name', 'age', 'annualExpenses', 'fiTarget', 'monthlyIncome'])) return false;
+  return typeof value.name === 'string'
+    && isFiniteNumber(value.age)
+    && isFiniteNumber(value.annualExpenses)
+    && isFiniteNumber(value.fiTarget)
+    && isFiniteNumber(value.monthlyIncome);
+}
+
+function isHoldingMap(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return Object.values(value).every((holding) =>
+    isRecord(holding)
+    && hasOnlyKeys(holding, ['amount', 'currency'])
+    && isFiniteNumber(holding.amount)
+    && typeof holding.currency === 'string',
+  );
+}
+
+function isSipMap(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return Object.values(value).every((fund) =>
+    isRecord(fund)
+    && hasOnlyKeys(fund, ['name', 'schemeCode', 'units', 'startDate', 'monthlyAmount', 'costBasis'])
+    && typeof fund.name === 'string'
+    && (fund.schemeCode === undefined || typeof fund.schemeCode === 'string')
+    && isFiniteNumber(fund.units)
+    && typeof fund.startDate === 'string'
+    && isFiniteNumber(fund.monthlyAmount)
+    && (fund.costBasis === undefined || isFiniteNumber(fund.costBasis)),
+  );
+}
+
+function isDematMap(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return Object.values(value).every((holding) =>
+    isRecord(holding)
+    && hasOnlyKeys(holding, ['isin', 'quantity', 'currentValue', 'name'])
+    && typeof holding.isin === 'string'
+    && isFiniteNumber(holding.quantity)
+    && isFiniteNumber(holding.currentValue)
+    && typeof holding.name === 'string',
+  );
+}
+
+function isNavMap(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return Object.values(value).every((cache) =>
+    isRecord(cache)
+    && hasOnlyKeys(cache, ['schemeCode', 'nav', 'timestamp', 'ttl'])
+    && typeof cache.schemeCode === 'string'
+    && isFiniteNumber(cache.nav)
+    && isTimestamp(cache.timestamp)
+    && isFiniteNumber(cache.ttl),
+  );
+}
+
+function isNiftyData(value: unknown): boolean {
+  return isRecord(value)
+    && hasOnlyKeys(value, ['level', 'high52w', 'timestamp', 'source'])
+    && isFiniteNumber(value.level)
+    && isFiniteNumber(value.high52w)
+    && isTimestamp(value.timestamp)
+    && typeof value.source === 'string';
+}
+
+function isEurInrData(value: unknown): boolean {
+  return isRecord(value)
+    && hasOnlyKeys(value, ['rate', 'timestamp'])
+    && isFiniteNumber(value.rate)
+    && isTimestamp(value.timestamp);
+}
+
+function isAlphaTrackerMap(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return Object.values(value).every((entry) =>
+    isRecord(entry)
+    && hasOnlyKeys(entry, ['fund', 'benchmark', 'year', 'return', 'benchmarkReturn'])
+    && typeof entry.fund === 'string'
+    && typeof entry.benchmark === 'string'
+    && isFiniteNumber(entry.year)
+    && isFiniteNumber(entry.return)
+    && isFiniteNumber(entry.benchmarkReturn),
+  );
+}
+
+function isWatchdogRules(value: unknown): boolean {
+  if (!isRecord(value) || !hasOnlyKeys(value, ['ppfcfAumLimit', 'nipponGrowthBlockThreshold', 'nipponSmallCapBlockThreshold', 'currentAum', 'blockedDays', 'managerExits'])) return false;
+  return isFiniteNumber(value.ppfcfAumLimit)
+    && isFiniteNumber(value.nipponGrowthBlockThreshold)
+    && isFiniteNumber(value.nipponSmallCapBlockThreshold)
+    && isRecord(value.currentAum)
+    && hasOnlyKeys(value.currentAum, ['PPFCF'])
+    && isFiniteNumber(value.currentAum.PPFCF)
+    && isRecord(value.blockedDays)
+    && hasOnlyKeys(value.blockedDays, ['NipponGrowth', 'NipponSmallCap'])
+    && isFiniteNumber(value.blockedDays.NipponGrowth)
+    && isFiniteNumber(value.blockedDays.NipponSmallCap)
+    && isRecord(value.managerExits)
+    && hasOnlyKeys(value.managerExits, ['PPFCF', 'NipponSmallCap'])
+    && typeof value.managerExits.PPFCF === 'boolean'
+    && typeof value.managerExits.NipponSmallCap === 'boolean';
+}
+
+function isSwpSchedule(value: unknown): boolean {
+  return isRecord(value)
+    && hasOnlyKeys(value, ['enabled', 'startDate', 'monthlyAmount', 'rate'])
+    && typeof value.enabled === 'boolean'
+    && typeof value.startDate === 'string'
+    && isFiniteNumber(value.monthlyAmount)
+    && isFiniteNumber(value.rate);
+}
+
+function isTaxCalendar(value: unknown): boolean {
+  return isRecord(value)
+    && hasOnlyKeys(value, ['lastLTCGHarvestDate', 'lastHarvestedAmount', 'harvestTarget'])
+    && typeof value.lastLTCGHarvestDate === 'string'
+    && isFiniteNumber(value.lastHarvestedAmount)
+    && isFiniteNumber(value.harvestTarget);
+}
+
+function isExpenses(value: unknown): boolean {
+  return Array.isArray(value) && value.every((expense) =>
+    isRecord(expense)
+    && hasOnlyKeys(expense, ['date', 'category', 'amount', 'linkedToSWP'])
+    && typeof expense.date === 'string'
+    && typeof expense.category === 'string'
+    && isFiniteNumber(expense.amount)
+    && typeof expense.linkedToSWP === 'boolean',
+  );
+}
+
+function isNetWorthHistory(value: unknown): boolean {
+  return Array.isArray(value) && value.every((snapshot) =>
+    isRecord(snapshot)
+    && hasOnlyKeys(snapshot, ['date', 'value'])
+    && typeof snapshot.date === 'string'
+    && isFiniteNumber(snapshot.value),
+  );
+}
+
+function isCompletedActions(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  return Object.values(value).every((action) =>
+    isRecord(action)
+    && hasOnlyKeys(action, ['completedAt'])
+    && isTimestamp(action.completedAt),
+  );
+}
+
+function isInsurance(value: unknown): boolean {
+  if (!isRecord(value) || !hasOnlyKeys(value, ['termLife', 'health', 'vehicle'])) return false;
+  return isRecord(value.termLife)
+    && hasOnlyKeys(value.termLife, ['currentCover', 'annualPremium', 'expiryDate', 'provider'])
+    && isFiniteNumber(value.termLife.currentCover)
+    && isFiniteNumber(value.termLife.annualPremium)
+    && typeof value.termLife.expiryDate === 'string'
+    && typeof value.termLife.provider === 'string'
+    && isRecord(value.health)
+    && hasOnlyKeys(value.health, ['currentCover', 'annualPremium', 'familySize', 'provider'])
+    && isFiniteNumber(value.health.currentCover)
+    && isFiniteNumber(value.health.annualPremium)
+    && isFiniteNumber(value.health.familySize)
+    && typeof value.health.provider === 'string'
+    && isRecord(value.vehicle)
+    && hasOnlyKeys(value.vehicle, ['covered', 'annualPremium'])
+    && typeof value.vehicle.covered === 'boolean'
+    && isFiniteNumber(value.vehicle.annualPremium);
+}
+
+function isEsopDetails(value: unknown): boolean {
+  if (!isRecord(value) || !hasOnlyKeys(value, ['shares', 'grantPrice', 'vestingSchedule', 'triggers'])) return false;
+  return isFiniteNumber(value.shares)
+    && isFiniteNumber(value.grantPrice)
+    && Array.isArray(value.vestingSchedule)
+    && value.vestingSchedule.every((item) =>
+      isRecord(item)
+      && hasOnlyKeys(item, ['date', 'shares'])
+      && typeof item.date === 'string'
+      && isFiniteNumber(item.shares),
+    )
+    && isRecord(value.triggers)
+    && hasOnlyKeys(value.triggers, ['marriage', 'childBirth', 'jobChange', 'coorgConstruction'])
+    && typeof value.triggers.marriage === 'boolean'
+    && typeof value.triggers.childBirth === 'boolean'
+    && typeof value.triggers.jobChange === 'boolean'
+    && typeof value.triggers.coorgConstruction === 'boolean';
+}
+
+/** Validate the shared persisted payload used by localStorage and Firestore. */
+export function isPersistedPortfolioData(value: unknown): value is Partial<FireOSState> {
+  if (!isRecord(value) || !hasOnlyKeys(value, PERSISTED_STATE_KEYS)) return false;
+  const data = value;
+  if ('profile' in data && !isProfile(data.profile)) return false;
+  if ('mf' in data && !isSipMap(data.mf)) return false;
+  if ('sip' in data && !isSipMap(data.sip)) return false;
+  for (const key of ['fd', 'epf', 'esop', 'bonds'] as const) {
+    if (key in data && !isHoldingMap(data[key])) return false;
+  }
+  if ('demat' in data && !isDematMap(data.demat)) return false;
+  if ('nav' in data && !isNavMap(data.nav)) return false;
+  if ('niftyHigh' in data && !isFiniteNumber(data.niftyHigh)) return false;
+  if ('niftyData' in data && !isNiftyData(data.niftyData)) return false;
+  if ('eurInr' in data && !isFiniteNumber(data.eurInr)) return false;
+  if ('eurInrData' in data && !isEurInrData(data.eurInrData)) return false;
+  if ('alphaTrackerData' in data && !isAlphaTrackerMap(data.alphaTrackerData)) return false;
+  for (const key of ['coorgCorpus', 'coorgTarget', 'coorgMonthlyAmount'] as const) {
+    if (key in data && !isFiniteNumber(data[key])) return false;
+  }
+  if ('coorgStartDate' in data && typeof data.coorgStartDate !== 'string') return false;
+  if ('watchdogRules' in data && !isWatchdogRules(data.watchdogRules)) return false;
+  if ('swpSchedule' in data && !isSwpSchedule(data.swpSchedule)) return false;
+  if ('taxCalendar' in data && !isTaxCalendar(data.taxCalendar)) return false;
+  if ('expenses' in data && !isExpenses(data.expenses)) return false;
+  if ('netWorthHistory' in data && !isNetWorthHistory(data.netWorthHistory)) return false;
+  if ('completedActions' in data && !isCompletedActions(data.completedActions)) return false;
+  if ('achievedMilestones' in data && (!Array.isArray(data.achievedMilestones) || !data.achievedMilestones.every((id) => typeof id === 'string'))) return false;
+  if ('insurance' in data && !isInsurance(data.insurance)) return false;
+  if ('esopDetails' in data && !isEsopDetails(data.esopDetails)) return false;
+  return true;
+}
+
 /**
  * Initialize a new FireOSState object with sensible defaults
  * @returns A fresh FireOSState with empty collections and default values
@@ -222,55 +468,59 @@ export function initializeState(): FireOSState {
   };
 }
 
-/**
- * Type guard to check if a value is a valid FireOSState
- */
+/** Fill omitted top-level persisted sections with current application defaults. */
+export function normalizePersistedState(value: unknown): FireOSState | null {
+  if (!isPersistedPortfolioData(value)) return null;
+
+  const defaults = initializeState();
+  const data = value as Partial<FireOSState>;
+  return {
+    ...defaults,
+    ...data,
+    profile: { ...defaults.profile, ...data.profile },
+    watchdogRules: {
+      ...defaults.watchdogRules,
+      ...data.watchdogRules,
+      currentAum: { ...defaults.watchdogRules.currentAum, ...data.watchdogRules?.currentAum },
+      blockedDays: { ...defaults.watchdogRules.blockedDays, ...data.watchdogRules?.blockedDays },
+      managerExits: { ...defaults.watchdogRules.managerExits, ...data.watchdogRules?.managerExits },
+    },
+    swpSchedule: { ...defaults.swpSchedule, ...data.swpSchedule },
+    taxCalendar: { ...defaults.taxCalendar, ...data.taxCalendar },
+    insurance: {
+      ...defaults.insurance,
+      ...data.insurance,
+      termLife: { ...defaults.insurance.termLife, ...data.insurance?.termLife },
+      health: { ...defaults.insurance.health, ...data.insurance?.health },
+      vehicle: { ...defaults.insurance.vehicle, ...data.insurance?.vehicle },
+    },
+    esopDetails: {
+      ...defaults.esopDetails,
+      ...data.esopDetails,
+      triggers: { ...defaults.esopDetails.triggers, ...data.esopDetails?.triggers },
+    },
+  };
+}
+
+/** Type guard for a complete in-memory state, including runtime-only fields. */
 export function isFireOSState(value: unknown): value is FireOSState {
-  if (typeof value !== 'object' || value === null) return false;
-
-  const obj = value as Record<string, unknown>;
-
-  // Validate core properties exist and have correct types
-  if (typeof obj.watchdogRules !== 'object' || obj.watchdogRules === null) {
-    return false;
-  }
-
-  const watchdog = obj.watchdogRules as Record<string, unknown>;
-
-  return (
-    typeof obj.profile === 'object' &&
-    obj.profile !== null &&
-    typeof obj.esopDetails === 'object' &&
-    obj.esopDetails !== null &&
-    typeof obj.mf === 'object' &&
-    typeof obj.fd === 'object' &&
-    typeof obj.epf === 'object' &&
-    typeof obj.esop === 'object' &&
-    typeof obj.bonds === 'object' &&
-    typeof obj.demat === 'object' &&
-    typeof obj.coorgCorpus === 'number' &&
-    typeof obj.coorgStartDate === 'string' &&
-    typeof obj.coorgTarget === 'number' &&
-    typeof obj.coorgMonthlyAmount === 'number' &&
-    typeof watchdog.ppfcfAumLimit === 'number' &&
-    typeof watchdog.nipponGrowthBlockThreshold === 'number' &&
-    typeof watchdog.nipponSmallCapBlockThreshold === 'number' &&
-    typeof watchdog.currentAum === 'object' &&
-    typeof watchdog.blockedDays === 'object' &&
-    typeof watchdog.managerExits === 'object' &&
-    typeof obj.swpSchedule === 'object' &&
-    obj.swpSchedule !== null &&
-    typeof obj.taxCalendar === 'object' &&
-    obj.taxCalendar !== null &&
-    Array.isArray(obj.expenses) &&
-    Array.isArray(obj.netWorthHistory) &&
-    typeof obj.completedActions === 'object' &&
-    obj.completedActions !== null &&
-    Array.isArray(obj.achievedMilestones) &&
-    typeof obj.insurance === 'object' &&
-    obj.insurance !== null &&
-    (obj.currentUser === null || typeof obj.currentUser === 'object')
+  if (!isRecord(value)) return false;
+  if (!hasOnlyKeys(value, [...PERSISTED_STATE_KEYS, 'currentUser', '_lastSavedAt', '_syncMetadata'])) return false;
+  const persistedData = Object.fromEntries(
+    PERSISTED_STATE_KEYS.filter((key) => key in value).map((key) => [key, value[key]]),
   );
+  const requiredPersistedKeys = PERSISTED_STATE_KEYS.filter((key) => key !== 'niftyData' && key !== 'eurInrData');
+  if (!requiredPersistedKeys.every((key) => key in value) || !isPersistedPortfolioData(persistedData)) return false;
+  if (value.currentUser !== null && !isRecord(value.currentUser)) return false;
+  if (!isTimestamp(value._lastSavedAt)) return false;
+  if (value._syncMetadata !== undefined) {
+    if (!isRecord(value._syncMetadata)
+      || !hasOnlyKeys(value._syncMetadata, ['lastSavedAt', 'lastSyncedAt', 'isDirty'])
+      || !isTimestamp(value._syncMetadata.lastSavedAt)
+      || (value._syncMetadata.lastSyncedAt !== undefined && !isTimestamp(value._syncMetadata.lastSyncedAt))
+      || typeof value._syncMetadata.isDirty !== 'boolean') return false;
+  }
+  return true;
 }
 
 /**

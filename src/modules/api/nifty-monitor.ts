@@ -126,6 +126,7 @@ export function monitorNiftyLevel(callback: (alert: CrashAlert | null) => void):
 
     try {
       const niftyData = await fetchNifty();
+      if (!isRunning) return;
 
       if (niftyData && niftyData.level && niftyData.high52w) {
         const alert = detectCrashAlert({

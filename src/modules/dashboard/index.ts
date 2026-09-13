@@ -17,7 +17,7 @@ import { renderAdvisorIntegrationWidget, registerAdvisorReview } from '../integr
 import { renderExpenseTracker } from '../trackers/expense-tracker';
 import { calculateAllocationDrift } from '../calculators/portfolio-rebalancing';
 import { createModal, closeModal, showToast } from '../ui';
-import { saveData, queuePortfolioSave } from '../../lib/storage';
+import { persistPortfolioState } from '../../lib/storage';
 import './styles.css';
 
 // Module state
@@ -543,10 +543,7 @@ function attachDashboardEventListeners(): void {
               linkedToSWP: category === 'SWP',
             });
 
-            saveData(D);
-            if (D.currentUser?.uid) {
-              queuePortfolioSave(D.currentUser.uid, D).catch(e => console.warn('Firestore save failed:', e));
-            }
+            persistPortfolioState(D);
 
             showToast('✓ Expense added successfully', 3000, 'success');
             closeModal();

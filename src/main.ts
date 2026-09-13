@@ -1,4 +1,10 @@
-import { configurePortfolioSync, loadData, queuePortfolioSave, saveData } from './lib/storage';
+import {
+  clearPortfolioStorageScope,
+  configurePortfolioStorageScope,
+  configurePortfolioSync,
+  loadData,
+  persistPortfolioState,
+} from './lib/storage';
 import { CONFIG } from './lib/config';
 import { getFirebaseServices } from './lib/firebase';
 import { AuthCoordinator } from './lib/authCoordinator';
@@ -7,6 +13,7 @@ import { SyncCoordinator } from './lib/syncCoordinator';
 import { initFirestore, loadPortfolio, onPortfolioChange, savePortfolio } from './modules/api/firestore';
 
 // Import types
+import { initializeState } from './types/state';
 import type { FireOSState } from './types/state';
 import type { PortfolioEnvelope } from './types/firebase';
 import { appState } from './lib/appState';
@@ -60,6 +67,37 @@ const authCoordinator = new AuthCoordinator(auth);
 let activePortfolioUnsubscribe: (() => void) | null = null;
 let activeSyncCoordinator: SyncCoordinator | null = null;
 let activePortfolioEnvelope: PortfolioEnvelope | null = null;
+let activeNiftyMonitorCleanup: (() => void) | null = null;
+
+function resetLiveAppState(): void {
+  Object.assign(appState, initializeState());
+  appState.niftyData = undefined;
+  appState.eurInrData = undefined;
+}
+
+async function teardownAuthSession(): Promise<void> {
+  activePortfolioUnsubscribe?.();
+  activePortfolioUnsubscribe = null;
+
+  const coordinator = activeSyncCoordinator;
+  activeSyncCoordinator = null;
+  if (coordinator) {
+    coordinator.pause();
+    try {
+      await coordinator.flush({ timeoutMs: 5000 });
+    } catch (error) {
+      console.warn('[Auth] Failed to flush pending portfolio changes:', error);
+    }
+    coordinator.dispose();
+  }
+
+  activeNiftyMonitorCleanup?.();
+  activeNiftyMonitorCleanup = null;
+  activePortfolioEnvelope = null;
+  configurePortfolioSync(null, null);
+  clearPortfolioStorageScope();
+  resetLiveAppState();
+}
 
 function hasLocalPortfolioData(state: FireOSState): boolean {
   return Boolean(
@@ -171,7 +209,13 @@ function renderApp() {
 // Firebase auth listener
 function setupAuthListener() {
   authCoordinator.start(async ({ generation: sessionGeneration, user }) => {
+    await teardownAuthSession();
+    if (!authCoordinator.isCurrent({ generation: sessionGeneration, user })) return;
+
     if (user) {
+      configurePortfolioStorageScope(user.uid);
+      const scopedState = loadData();
+      if (scopedState) Object.assign(appState, scopedState);
       appState.currentUser = user;
       const logoutBtn = document.getElementById('logout-btn');
       if (logoutBtn) logoutBtn.style.display = 'block';
@@ -194,9 +238,8 @@ function setupAuthListener() {
         applyEnvelopeToState(appState, merged.envelope);
         appState.currentUser = user;
         activePortfolioEnvelope = merged.envelope;
-        saveData(appState);
+          persistPortfolioState(appState, { sync: false });
         hideAuthScreen();
-        activeSyncCoordinator?.dispose();
         activeSyncCoordinator = new SyncCoordinator({
           uid: user.uid,
           save: savePortfolio,
@@ -217,7 +260,7 @@ function setupAuthListener() {
           appState.currentUser = user;
           activePortfolioEnvelope = mergedSnapshot;
           configurePortfolioSync(activeSyncCoordinator, mergedSnapshot);
-          saveData(appState);
+          persistPortfolioState(appState, { sync: false });
           document.dispatchEvent(new CustomEvent('profileUpdated', { detail: appState }));
         }, (error) => console.warn('[Auth] Firestore snapshot failed:', error));
 
@@ -242,7 +285,8 @@ function setupAuthListener() {
 
       // Start Nifty monitoring when user logs in
       try {
-        monitorNiftyLevel((alert) => {
+        activeNiftyMonitorCleanup = monitorNiftyLevel((alert) => {
+          if (!authCoordinator.isCurrent({ generation: sessionGeneration, user })) return;
           if (alert) {
             // Calculate dynamic deploy amount based on Bonds
             const totalBonds = Object.values(appState.bonds || {}).reduce((sum, b) => sum + b.amount, 0);
@@ -267,12 +311,6 @@ function setupAuthListener() {
       }
 
     } else {
-      activePortfolioUnsubscribe?.();
-      activePortfolioUnsubscribe = null;
-      activeSyncCoordinator?.dispose();
-      activeSyncCoordinator = null;
-      activePortfolioEnvelope = null;
-      configurePortfolioSync(null, null);
       appState.currentUser = null;
       showAuthScreen();
       const logoutBtn = document.getElementById('logout-btn');
@@ -379,10 +417,7 @@ function setupTabNavigation() {
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
       try {
-        activePortfolioUnsubscribe?.();
-        activePortfolioUnsubscribe = null;
-        activeSyncCoordinator?.pause();
-        await activeSyncCoordinator?.flush({ timeoutMs: 5000 });
+        await teardownAuthSession();
         await authCoordinator.signOut();
       } catch (e) {
         console.error('Logout failed:', e);
@@ -510,10 +545,7 @@ function checkDailyTasks(state: FireOSState) {
         if (!hasSwpThisMonth) {
           stateChanged = true;
           executeMonthlyWithdrawal(state).then(() => {
-            saveData(state);
-            if (state.currentUser?.uid) {
-              queuePortfolioSave(state.currentUser.uid, state).catch(e => console.warn('Firestore save failed:', e));
-            }
+            persistPortfolioState(state);
             showToast('✓ Automatic monthly SWP executed', 4000, 'success');
             const dashboardTab = document.querySelector('[data-tab="dashboard"]');
             if (dashboardTab && dashboardTab.classList.contains('active')) {
@@ -527,7 +559,7 @@ function checkDailyTasks(state: FireOSState) {
     }
 
     if (stateChanged) {
-      saveData(state);
+      persistPortfolioState(state);
     }
   } catch (e) {
     console.warn('[main] Failed to run daily tasks:', e);
@@ -562,10 +594,7 @@ function setupBackgroundNAVRefresh() {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     if (updated) {
-            saveData(appState);
-            if (appState.currentUser?.uid) {
-              queuePortfolioSave(appState.currentUser.uid, appState).catch(e => console.warn('Firestore save failed:', e));
-      }
+          persistPortfolioState(appState);
       const dashboardTab = document.querySelector('[data-tab="dashboard"]');
       if (dashboardTab && dashboardTab.classList.contains('active')) {
         renderDashboard();

@@ -19,7 +19,6 @@ const { auth } = getFirebaseServices(CONFIG.firebaseConfig);
  * Firebase error code to user-friendly message mapping
  */
 const firebaseErrorMessages: Record<string, string> = {
-  'auth/user-not-found': 'Email not found. Please sign up first.',
   'auth/wrong-password': 'Invalid email or password.',
   'auth/invalid-email': 'Invalid email address.',
   'auth/email-already-in-use': 'This email is already registered.',
@@ -87,11 +86,10 @@ export async function loginWithGoogle(): Promise<void> {
 export async function sendPasswordReset(email: string): Promise<void> {
   try {
     await sendPasswordResetEmail(auth, email);
-    console.log('Password reset email sent to:', email);
   } catch (error: any) {
     const errorCode = error.code || 'unknown';
     if (errorCode === 'auth/user-not-found') {
-      throw new Error('No account found with this email address.');
+      return;
     }
     throw new Error('Failed to send password reset email. Please try again.');
   }

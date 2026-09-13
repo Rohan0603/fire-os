@@ -55,13 +55,17 @@ The app uses the Spark-compatible Firebase services only: Email/Password Auth,
 Firestore, IndexedDB persistence, and static hosting. App Hosting, Functions,
 and Cloud Run are intentionally out of scope.
 
-### Firebase Rules Deployment
+### Firebase Hosting, Rules, And Indexes Deployment
 
-After `npx -y firebase-tools@latest login`, deploy the Firestore rules from the repository root:
+The repository pins `firebase-tools` to `15.30.0`. Install dependencies so the
+project-local CLI is available, then authenticate and deploy every declared
+Firebase artifact from the repository root:
 
 ```bash
-npx -y firebase-tools@latest use fire-os-dd6d6
-npx -y firebase-tools@latest deploy --only firestore:rules,firestore:indexes
+npm ci
+npx --no-install firebase-tools login
+npx --no-install firebase-tools use fire-os-dd6d6
+npx --no-install firebase-tools deploy --only hosting,firestore:rules,firestore:indexes
 ```
 
 ### Verify locally

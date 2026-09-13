@@ -10,7 +10,7 @@ import { fetchNifty } from '../api';
 import './styles.css';
 import { initTaxModule } from './tax';
 import { executeMonthlyWithdrawal } from './swp-scheduler';
-import { saveData, queuePortfolioSave } from '../../lib/storage';
+import { persistPortfolioState } from '../../lib/storage';
 
 export function initCalculatorsModule(containerId: string) {
   const container = document.getElementById(containerId);
@@ -293,10 +293,7 @@ function attachCalculatorHandlers() {
     D.swpSchedule.monthlyAmount = amount;
     D.swpSchedule.startDate = startDate;
 
-    saveData(D);
-    if (D.currentUser?.uid) {
-      queuePortfolioSave(D.currentUser.uid, D).catch(e => console.warn('Firestore save failed:', e));
-    }
+    persistPortfolioState(D);
 
     showToast('✓ SWP config saved successfully', 3000, 'success');
   });
@@ -313,10 +310,7 @@ function attachCalculatorHandlers() {
         return;
       }
       await executeMonthlyWithdrawal(D);
-      saveData(D);
-      if (D.currentUser?.uid) {
-        await queuePortfolioSave(D.currentUser.uid, D);
-      }
+      await persistPortfolioState(D, { awaitCloud: true });
       showToast('✓ Simulated withdrawal executed successfully', 3000, 'success');
     } catch {
       showToast('✗ Withdrawal execution failed', 3000, 'error');

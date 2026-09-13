@@ -5,25 +5,65 @@
  * Functions are exported as library utilities; main.ts has its own simple
  * localStorage integration for initial bootstrap.
  *
- * - loadData() / saveData() → localStorage only
- * - queuePortfolioSave() → Firestore SyncCoordinator queue
+ * - loadData() / saveData() -> validated localStorage persistence
+ * - persistPortfolioState() -> local-first persistence with optional cloud enqueue
  * Implements offline-first architecture with 4-hour NAV cache TTL
  */
 
-import { FireOSState } from '../types/state';
+import { FireOSState, isPersistedPortfolioData, normalizePersistedState } from '../types/state';
 import { NAVCache } from '../types/api';
 import { buildEnvelopeFromState } from './merge';
 import type { SyncCoordinator } from './syncCoordinator';
 import type { PortfolioEnvelope } from '../types/firebase';
 
-// localStorage key for portfolio data
-const STORAGE_KEY = 'fireOS_v2';
+const LEGACY_STORAGE_KEY = 'fireOS_v2';
+const ANONYMOUS_STORAGE_KEY = 'fireOS_v2:anonymous';
+const USER_STORAGE_PREFIX = 'fireOS_v2:user:';
+const USER_ID_PATTERN = /^[A-Za-z0-9._~-]{1,128}$/;
 
 // NAV cache TTL: 4 hours in milliseconds
 const NAV_CACHE_TTL = 4 * 60 * 60 * 1000; // 14400000ms
 
 let activeSyncCoordinator: SyncCoordinator | null = null;
 let activeEnvelope: PortfolioEnvelope | null = null;
+let activeStorageKey: string | null = ANONYMOUS_STORAGE_KEY;
+let activeStorageUid: string | null = null;
+
+function getUserStorageKey(uid: string): string {
+  if (!USER_ID_PATTERN.test(uid)) {
+    throw new Error('Invalid authenticated user id for local storage scope');
+  }
+  return `${USER_STORAGE_PREFIX}${uid}`;
+}
+
+/** Select the local cache that may be read or written by persistence helpers. */
+export function configurePortfolioStorageScope(uid: string | null): void {
+  if (uid === null) {
+    activeStorageKey = ANONYMOUS_STORAGE_KEY;
+    activeStorageUid = null;
+    return;
+  }
+
+  activeStorageKey = getUserStorageKey(uid);
+  activeStorageUid = uid;
+}
+
+/** Disable local persistence until the next auth session explicitly selects a scope. */
+export function clearPortfolioStorageScope(): void {
+  activeStorageKey = null;
+  activeStorageUid = null;
+}
+
+export function getPortfolioStorageKey(): string | null {
+  return activeStorageKey;
+}
+
+function canPersistState(state: FireOSState): boolean {
+  if (!activeStorageKey) return false;
+  return activeStorageUid === null
+    ? state.currentUser === null
+    : state.currentUser?.uid === activeStorageUid;
+}
 
 export function configurePortfolioSync(
   coordinator: SyncCoordinator | null,
@@ -40,10 +80,24 @@ export function configurePortfolioSync(
  */
 export function loadData(): FireOSState | null {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!activeStorageKey) return null;
+
+    let stored = localStorage.getItem(activeStorageKey);
+    const shouldMigrateLegacy = !stored && activeStorageKey === ANONYMOUS_STORAGE_KEY;
+    if (shouldMigrateLegacy) {
+      stored = localStorage.getItem(LEGACY_STORAGE_KEY);
+    }
     if (!stored) return null;
 
-    const state = JSON.parse(stored) as FireOSState;
+    const parsed: unknown = JSON.parse(stored);
+    const state = normalizePersistedState(parsed);
+    if (!state) {
+      console.warn('[Storage] Invalid localStorage data, returning null');
+      return null;
+    }
+    if (shouldMigrateLegacy) {
+      localStorage.setItem(ANONYMOUS_STORAGE_KEY, JSON.stringify(state));
+    }
 
     // Validate NAV cache TTL and flag stale entries
     if (state.nav && typeof state.nav === 'object') {
@@ -87,11 +141,25 @@ export function loadData(): FireOSState | null {
  */
 export function saveData(state: FireOSState): void {
   try {
+    if (!canPersistState(state)) {
+      console.warn('[Storage] Refusing to persist data outside the active portfolio scope');
+      return;
+    }
+
     // Update last saved timestamp
     state._lastSavedAt = new Date().toISOString();
 
-    const serialized = JSON.stringify(state);
-    localStorage.setItem(STORAGE_KEY, serialized);
+    const { currentUser, _syncMetadata, _lastSavedAt, ...persisted } = state;
+    void currentUser;
+    void _syncMetadata;
+    void _lastSavedAt;
+    if (!isPersistedPortfolioData(persisted)) {
+      console.warn('[Storage] Refusing to persist invalid portfolio data');
+      return;
+    }
+
+    const serialized = JSON.stringify(persisted);
+    localStorage.setItem(activeStorageKey!, serialized);
 
     // Log success in dev mode
     if (import.meta.env.DEV) {
@@ -106,8 +174,31 @@ export function saveData(state: FireOSState): void {
   }
 }
 
+export interface PersistPortfolioOptions {
+  sync?: boolean;
+  awaitCloud?: boolean;
+}
+
+/** Persist locally first, then optionally enqueue one debounced Firestore write. */
+export function persistPortfolioState(state: FireOSState, options: { sync?: boolean; awaitCloud: true }): Promise<void>;
+export function persistPortfolioState(state: FireOSState, options?: { sync?: boolean; awaitCloud?: false }): void;
+export function persistPortfolioState(
+  state: FireOSState,
+  options: PersistPortfolioOptions = {},
+): void | Promise<void> {
+  saveData(state);
+  if (options.sync === false || !state.currentUser?.uid) return;
+
+  const queued = queuePortfolioSave(state.currentUser.uid, state);
+  if (options.awaitCloud) return queued;
+  queued.catch((error) => console.warn('Firestore save failed:', error));
+}
+
 /** Queue the latest portfolio envelope for Firestore synchronization. */
 export async function queuePortfolioSave(uid: string, state: FireOSState): Promise<void> {
+  if (activeStorageUid !== uid) {
+    throw new Error(`Firestore sync scope is not active for user ${uid}`);
+  }
   if (!activeSyncCoordinator) {
     throw new Error(`Firestore sync is not active for user ${uid}`);
   }

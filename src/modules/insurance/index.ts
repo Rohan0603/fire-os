@@ -4,7 +4,7 @@
  */
 import { appState as D } from '../../lib/appState';
 import { formatCurrency } from '../../lib/formatters';
-import { saveData } from '../../lib/storage';
+import { persistPortfolioState } from '../../lib/storage';
 import './styles.css';
 
 const DEBOUNCE_MS = 500;
@@ -125,5 +125,5 @@ function saveInsurance() {
   D.insurance.health.annualPremium = parseFloat(healthPremium.value) || 0;
   D.insurance.health.familySize = parseInt(healthFamily.value) || 1;
 
-  saveData(D);
+  persistPortfolioState(D);
 }

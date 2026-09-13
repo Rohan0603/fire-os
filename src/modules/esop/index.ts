@@ -1,5 +1,5 @@
 import { appState as D } from '../../lib/appState';
-import { saveData } from '../../lib/storage';
+import { persistPortfolioState } from '../../lib/storage';
 import { fetchSocGenPrice } from '../api/esop';
 import { fetchEURINR } from '../api/eurInr';
 import { totalNetWorth } from '../dashboard/kpis';
@@ -61,7 +61,7 @@ export function renderEsop(container?: HTMLElement) {
         // Sync valuation to main state
         const computedInrValue = D.esopDetails.shares * glePrice * eurInrRate;
         D.esop.esop = { amount: computedInrValue, currency: 'INR' };
-        saveData(D);
+        persistPortfolioState(D);
 
         renderEsop(targetContainer);
       })
@@ -525,7 +525,7 @@ function clearInputError(input: HTMLInputElement) {
 function debounceSave() {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
-    saveData(D);
+    persistPortfolioState(D);
     renderEsop();
   }, DEBOUNCE_MS);
 }

@@ -4,6 +4,7 @@
  */
 
 import type { NiftyData, EURINRData } from './api';
+import { isPersistedPortfolioData } from './state';
 import type { FireOSState } from './state';
 import type { User as FirebaseSDKUser } from 'firebase/auth';
 
@@ -17,7 +18,7 @@ export interface SyncMetadata {
   isDirty: boolean; // Whether local state differs from server
 }
 
-export type SchemaVersion = 'fireOS_v2' | 'fireOS_v3';
+export type SchemaVersion = 'fireOS_v2' | 'fireOS_v3' | 'fireOS_v4';
 
 export interface ClientMetadata {
   clientId?: string;
@@ -122,10 +123,6 @@ const persistedFields = new Set<keyof PersistedPortfolioData>([
   'completedActions', 'achievedMilestones', 'insurance', 'esopDetails',
 ]);
 
-const numericFields = new Set<keyof PersistedPortfolioData>([
-  'niftyHigh', 'eurInr', 'coorgCorpus', 'coorgTarget', 'coorgMonthlyAmount',
-]);
-
 function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
   return Object.keys(value).every((key) => allowed.includes(key));
 }
@@ -143,15 +140,12 @@ function isClientMetadata(value: unknown): boolean {
 /** Runtime guard for Firestore and imported envelope data. */
 export function isPortfolioEnvelope(value: unknown): value is PortfolioEnvelope {
   if (!isRecord(value)) return false;
-  if (value.schemaVersion !== 'fireOS_v2' && value.schemaVersion !== 'fireOS_v3') return false;
+  if (value.schemaVersion !== 'fireOS_v2' && value.schemaVersion !== 'fireOS_v3' && value.schemaVersion !== 'fireOS_v4') return false;
   if (!isIsoTimestamp(value.lastSavedAt) || !isRecord(value.data)) return false;
 
   const data = value.data;
   if ('currentUser' in data || '_syncMetadata' in data || '_lastSavedAt' in data) return false;
-  if (!hasOnlyKeys(data, [...persistedFields])) return false;
-  for (const key of numericFields) {
-    if (data[key] !== undefined && (typeof data[key] !== 'number' || !Number.isFinite(data[key]))) return false;
-  }
+  if (!hasOnlyKeys(data, [...persistedFields]) || !isPersistedPortfolioData(data)) return false;
   try {
     if (JSON.stringify(value).length > 900_000) return false;
   } catch {

@@ -5,7 +5,7 @@
 
 import { appState as D } from '../../lib/appState';
 import { formatCurrency } from '../../lib/formatters';
-import { queuePortfolioSave, saveData } from '../../lib/storage';
+import { persistPortfolioState } from '../../lib/storage';
 import { showToast } from '../ui';
 import { parseCASPDF, CASParseResult } from './pdf-parser';
 import { fetchSIPNAVs } from '../dashboard';
@@ -325,7 +325,7 @@ function attachProfileHandlers() {
           return;
         }
 
-        await queuePortfolioSave(D.currentUser.uid, D);
+        await persistPortfolioState(D, { awaitCloud: true });
         showToast('✓ Saved to Firestore');
         saveCloudBtn.textContent = '✓ Saved';
       } catch (e) {
@@ -633,7 +633,7 @@ export async function saveProfile(): Promise<boolean> {
     }
 
     // ==================== SAVE DATA ====================
-    saveData(D);
+    persistPortfolioState(D, { sync: false });
 
     // Fetch NAVs for SIPs that now have units
     fetchSIPNAVs().catch(e => console.warn('[Profile] Failed to fetch SIP NAVs after save:', e));

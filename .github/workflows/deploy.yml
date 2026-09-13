@@ -25,7 +25,10 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Validate Firestore rules
+        run: npm run test:rules:emulator
+
       - name: Deploy to Firebase
-        run: npx firebase-tools deploy --only hosting --project fire-os-dd6d6 --token "$FIREBASE_TOKEN"
+        run: npx --no-install firebase-tools deploy --only hosting,firestore:rules,firestore:indexes --project fire-os-dd6d6 --token "$FIREBASE_TOKEN"
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}

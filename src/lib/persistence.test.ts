@@ -1,12 +1,95 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildEnvelopeFromState, mergeEnvelopes } from './merge';
 import { SyncCoordinator } from './syncCoordinator';
-import { initializeState } from '../types/state';
+import { initializeState, isFireOSState } from '../types/state';
 import { isPortfolioEnvelope } from '../types/firebase';
+import { configurePortfolioStorageScope, configurePortfolioSync, loadData, persistPortfolioState } from './storage';
 
 const client = { clientId: 'test-client', lastWriteId: 'write-1' };
 
+function createLocalStorage() {
+  const values = new Map<string, string>();
+  return {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    removeItem: (key: string) => values.delete(key),
+    clear: () => values.clear(),
+  };
+}
+
 describe('portfolio persistence contracts', () => {
+  beforeEach(() => {
+    vi.stubGlobal('localStorage', createLocalStorage());
+    configurePortfolioStorageScope(null);
+    configurePortfolioSync(null, null);
+  });
+
+  afterEach(() => {
+    configurePortfolioStorageScope(null);
+    configurePortfolioSync(null, null);
+    vi.unstubAllGlobals();
+  });
+
+  it('validates the complete initialized state and rejects malformed nested data', () => {
+    const state = initializeState();
+    expect(isFireOSState(state)).toBe(true);
+    expect(isPortfolioEnvelope({
+      ...buildEnvelopeFromState(state, client),
+      data: { ...buildEnvelopeFromState(state, client).data, nav: { bad: { nav: 'not-a-number' } } },
+    })).toBe(false);
+  });
+
+  it('rejects runtime fields and normalizes omitted top-level persisted sections', () => {
+    localStorage.setItem('fireOS_v2', '{malformed');
+    expect(loadData()).toBeNull();
+
+    localStorage.setItem('fireOS_v2', JSON.stringify({
+      profile: { name: 'Ada', age: 35, annualExpenses: 100, fiTarget: 200, monthlyIncome: 300 },
+      currentUser: { uid: 'should-not-load' },
+    }));
+    expect(loadData()).toBeNull();
+
+    localStorage.setItem('fireOS_v2', JSON.stringify({
+      profile: { name: 'Ada', age: 35, annualExpenses: 100, fiTarget: 200, monthlyIncome: 300 },
+    }));
+    const normalized = loadData();
+    expect(normalized?.profile.name).toBe('Ada');
+    expect(normalized?.insurance.health.familySize).toBe(1);
+    expect(normalized?.currentUser).toBeNull();
+  });
+
+  it('writes locally before enqueueing exactly one authenticated cloud write', () => {
+    const events: string[] = [];
+    const coordinator = {
+      markDirty: vi.fn(() => events.push('cloud')),
+    } as unknown as SyncCoordinator;
+    const state = initializeState();
+    state.currentUser = { uid: 'user-1' } as typeof state.currentUser;
+    configurePortfolioStorageScope('user-1');
+    vi.spyOn(localStorage, 'setItem').mockImplementation(() => events.push('local'));
+    configurePortfolioSync(coordinator);
+
+    persistPortfolioState(state);
+
+    expect(events).toEqual(['local', 'cloud']);
+    expect(coordinator.markDirty).toHaveBeenCalledOnce();
+  });
+
+  it('keeps local data when cloud enqueue fails', async () => {
+    const coordinator = {
+      markDirty: vi.fn(() => { throw new Error('offline'); }),
+    } as unknown as SyncCoordinator;
+    const state = initializeState();
+    state.currentUser = { uid: 'user-1' } as typeof state.currentUser;
+    configurePortfolioStorageScope('user-1');
+    configurePortfolioSync(coordinator);
+
+    persistPortfolioState(state);
+    await Promise.resolve();
+
+    expect(localStorage.getItem('fireOS_v2:user:user-1')).not.toBeNull();
+  });
+
   it('rejects malformed envelopes at the runtime boundary', () => {
     expect(isPortfolioEnvelope({ schemaVersion: 'fireOS_v3' })).toBe(false);
     expect(isPortfolioEnvelope({
