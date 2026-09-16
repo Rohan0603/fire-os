@@ -1,20 +1,24 @@
-import { appState as D } from '../../../lib/appState';
 import { calculateLTCGHarvestPlan } from './ltcg-planner';
 import { formatCurrency } from '../../../lib/formatters';
-import { persistPortfolioState } from '../../../lib/storage';
-import { showToast } from '../../ui';
+import { createFeatureContext, type FeatureContext } from '../../../core/feature-context';
 import './styles.css';
 
 let moduleContainerId = 'tax';
+let activeContext = createFeatureContext();
+let D = activeContext.state;
 
-export function initTaxModule(containerId: string) {
+export function initTaxModule(containerId: string, context: FeatureContext = activeContext) {
   moduleContainerId = containerId;
+  activeContext = context;
+  D = context.state;
   const container = document.getElementById(containerId);
   if (!container) return;
-  renderTax(container);
+  renderTax(container, context);
 }
 
-export function renderTax(container?: HTMLElement) {
+export function renderTax(container?: HTMLElement, context: FeatureContext = activeContext) {
+  activeContext = context;
+  D = context.state;
   const targetContainer = container || document.getElementById(moduleContainerId);
   if (!targetContainer) return;
 
@@ -228,9 +232,9 @@ export function renderTax(container?: HTMLElement) {
       const day = String(now.getDate()).padStart(2, '0');
       D.taxCalendar.lastLTCGHarvestDate = `${year}-${month}-${day}`;
 
-      persistPortfolioState(D);
-      showToast('Tax harvest recorded successfully');
-      renderTax(targetContainer);
+      context.portfolio.save(D);
+      context.ports.ui.showToast('Tax harvest recorded successfully');
+      renderTax(targetContainer, context);
     });
   }
 
@@ -240,9 +244,9 @@ export function renderTax(container?: HTMLElement) {
       D.taxCalendar.lastHarvestedAmount = 0;
       D.taxCalendar.lastLTCGHarvestDate = '';
 
-      persistPortfolioState(D);
-      showToast('Tax harvest reset successfully');
-      renderTax(targetContainer);
+      context.portfolio.save(D);
+      context.ports.ui.showToast('Tax harvest reset successfully');
+      renderTax(targetContainer, context);
     });
   }
 

@@ -1,26 +1,30 @@
-import { appState as D } from '../../lib/appState';
+import { createFeatureContext, type FeatureContext } from '../../core/feature-context';
 import { renderHealthStatusBanner, attachHealthBannerListeners } from './health-status';
 import { renderActionItems } from './action-engine';
 import { renderNetWorthHistory } from './net-worth-history';
 import { renderMilestones } from './milestones';
 import { renderPlainEnglishSummary } from './plain-english';
 import { renderCashflowSummary } from './cashflow-summary';
-import { totalNetWorth } from '../dashboard/kpis';
-import { calculateFIAge } from '../calculators/scenario-modeler';
 import { formatCurrency } from '../../lib/formatters';
 import './styles.css';
 
 let containerId = 'plan';
+let activeContext = createFeatureContext();
+let D = activeContext.state;
 
-export function initPlanModule(id: string = 'plan') {
+export function initPlanModule(id: string = 'plan', context: FeatureContext = activeContext) {
   containerId = id;
+  activeContext = context;
+  D = context.state;
 }
 
-export function renderPlan() {
+export function renderPlan(context: FeatureContext = activeContext) {
+  activeContext = context;
+  D = context.state;
   const el = document.getElementById(containerId);
   if (!el) return;
 
-  const { netWorth } = totalNetWorth(D);
+  const { netWorth } = context.ports.calculations.totalNetWorth(D);
   const fiTarget = D.profile?.fiTarget || 55_000_000;
   const currentAge = D.profile?.age || 25;
   const totalMonthlyAmount = Object.values(D.sip || {}).reduce(
@@ -28,7 +32,7 @@ export function renderPlan() {
     0,
   );
   const fiProgressPct = fiTarget > 0 ? Math.min((netWorth / fiTarget) * 100, 100) : 0;
-  const baseScenario = calculateFIAge({
+  const baseScenario = context.ports.calculations.calculateFIAge({
     currentCorpus: netWorth,
     monthlyAmount: totalMonthlyAmount,
     targetCorpus: fiTarget,

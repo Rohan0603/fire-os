@@ -2,34 +2,36 @@
  * Insurance Module
  * Manages term life and health insurance gap analysis
  */
-import { appState as D } from '../../lib/appState';
 import { formatCurrency } from '../../lib/formatters';
-import { persistPortfolioState } from '../../lib/storage';
+import { createFeatureContext, type FeatureContext } from '../../core/feature-context';
 import './styles.css';
 
 const DEBOUNCE_MS = 500;
 let debounceTimer: NodeJS.Timeout | null = null;
+let activeContext = createFeatureContext();
 
-export function initInsuranceModule(containerId: string) {
+export function initInsuranceModule(containerId: string, context: FeatureContext = activeContext) {
+  activeContext = context;
   const container = document.getElementById(containerId);
   if (!container) return;
-  renderInsurance(container);
+  renderInsurance(container, context);
 }
 
-export function renderInsurance(container?: HTMLElement) {
+export function renderInsurance(container?: HTMLElement, context: FeatureContext = activeContext) {
+  const state = context.state;
   if (!container) {
     container = document.getElementById('insurance') as HTMLElement;
     if (!container) return;
   }
 
-  const annualIncome = (D.profile.monthlyIncome || 0) * 12;
+  const annualIncome = (state.profile.monthlyIncome || 0) * 12;
   const recommendedTerm = Math.max(annualIncome * 10, 10000000);
-  const currentTermCover = D.insurance.termLife.currentCover || 0;
+  const currentTermCover = state.insurance.termLife.currentCover || 0;
   const termAdequate = currentTermCover >= recommendedTerm;
 
-  const familySize = D.insurance.health.familySize || 1;
+  const familySize = state.insurance.health.familySize || 1;
   const recommendedHealth = familySize <= 2 ? 2000000 : 5000000;
-  const currentHealthCover = D.insurance.health.currentCover || 0;
+  const currentHealthCover = state.insurance.health.currentCover || 0;
   const healthAdequate = currentHealthCover >= recommendedHealth;
 
   const successIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:24px;height:24px;color:#2e7d32;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
@@ -54,11 +56,11 @@ export function renderInsurance(container?: HTMLElement) {
           <form id="term-form" class="insurance-form">
             <div class="form-group">
               <label for="term-cover">Current Cover Amount (₹)</label>
-              <input type="number" id="term-cover" value="${D.insurance.termLife.currentCover || ''}" placeholder="e.g. 10000000">
+              <input type="number" id="term-cover" value="${state.insurance.termLife.currentCover || ''}" placeholder="e.g. 10000000">
             </div>
             <div class="form-group">
               <label for="term-premium">Annual Premium (₹)</label>
-              <input type="number" id="term-premium" value="${D.insurance.termLife.annualPremium || ''}" placeholder="e.g. 15000">
+              <input type="number" id="term-premium" value="${state.insurance.termLife.annualPremium || ''}" placeholder="e.g. 15000">
             </div>
           </form>
         </div>
@@ -77,15 +79,15 @@ export function renderInsurance(container?: HTMLElement) {
           <form id="health-form" class="insurance-form">
             <div class="form-group">
               <label for="health-cover">Current Cover Amount (₹)</label>
-              <input type="number" id="health-cover" value="${D.insurance.health.currentCover || ''}" placeholder="e.g. 2000000">
+              <input type="number" id="health-cover" value="${state.insurance.health.currentCover || ''}" placeholder="e.g. 2000000">
             </div>
             <div class="form-group">
               <label for="health-premium">Annual Premium (₹)</label>
-              <input type="number" id="health-premium" value="${D.insurance.health.annualPremium || ''}" placeholder="e.g. 25000">
+              <input type="number" id="health-premium" value="${state.insurance.health.annualPremium || ''}" placeholder="e.g. 25000">
             </div>
             <div class="form-group">
               <label for="health-family">Family Size (Number of people)</label>
-              <input type="number" id="health-family" value="${D.insurance.health.familySize || ''}" placeholder="e.g. 4">
+              <input type="number" id="health-family" value="${state.insurance.health.familySize || ''}" placeholder="e.g. 4">
             </div>
           </form>
         </div>
@@ -93,37 +95,38 @@ export function renderInsurance(container?: HTMLElement) {
     </div>
   `;
 
-  attachInsuranceHandlers();
+  attachInsuranceHandlers(context);
 }
 
-function attachInsuranceHandlers() {
+function attachInsuranceHandlers(context: FeatureContext) {
   const inputs = document.querySelectorAll('.insurance-form input');
   inputs.forEach(input => {
-    input.addEventListener('input', debounceInsuranceSave);
+    input.addEventListener('input', () => debounceInsuranceSave(context));
   });
 }
 
-function debounceInsuranceSave() {
+function debounceInsuranceSave(context: FeatureContext) {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
-    saveInsurance();
-    renderInsurance();
+    saveInsurance(context);
+    renderInsurance(undefined, context);
   }, DEBOUNCE_MS);
 }
 
-function saveInsurance() {
+function saveInsurance(context: FeatureContext) {
+  const state = context.state;
   const termCover = document.getElementById('term-cover') as HTMLInputElement;
   const termPremium = document.getElementById('term-premium') as HTMLInputElement;
   const healthCover = document.getElementById('health-cover') as HTMLInputElement;
   const healthPremium = document.getElementById('health-premium') as HTMLInputElement;
   const healthFamily = document.getElementById('health-family') as HTMLInputElement;
 
-  D.insurance.termLife.currentCover = parseFloat(termCover.value) || 0;
-  D.insurance.termLife.annualPremium = parseFloat(termPremium.value) || 0;
+  state.insurance.termLife.currentCover = parseFloat(termCover.value) || 0;
+  state.insurance.termLife.annualPremium = parseFloat(termPremium.value) || 0;
   
-  D.insurance.health.currentCover = parseFloat(healthCover.value) || 0;
-  D.insurance.health.annualPremium = parseFloat(healthPremium.value) || 0;
-  D.insurance.health.familySize = parseInt(healthFamily.value) || 1;
+  state.insurance.health.currentCover = parseFloat(healthCover.value) || 0;
+  state.insurance.health.annualPremium = parseFloat(healthPremium.value) || 0;
+  state.insurance.health.familySize = parseInt(healthFamily.value) || 1;
 
-  persistPortfolioState(D);
+  context.portfolio.save(state);
 }

@@ -1,11 +1,9 @@
-import { appState as D } from '../../lib/appState';
-import { persistPortfolioState } from '../../lib/storage';
-import { fetchSocGenPrice } from '../api/esop';
-import { fetchEURINR } from '../api/eurInr';
-import { totalNetWorth } from '../dashboard/kpis';
+import { createFeatureContext, type FeatureContext } from '../../core/feature-context';
 import './styles.css';
 
 let moduleContainerId: string = 'esop';
+let activeContext = createFeatureContext();
+let D = activeContext.state;
 const DEBOUNCE_MS = 500;
 let debounceTimer: NodeJS.Timeout | null = null;
 
@@ -21,14 +19,18 @@ let calcVestingFmv: number | null = null;
 let calcCurrentPrice: number | null = null;
 let calcSlabRate = 30; // default 30%
 
-export function initEsopModule(containerId: string) {
+export function initEsopModule(containerId: string, context: FeatureContext = activeContext) {
   moduleContainerId = containerId;
+  activeContext = context;
+  D = context.state;
   const container = document.getElementById(containerId);
   if (!container) return;
-  renderEsop(container);
+  renderEsop(container, context);
 }
 
-export function renderEsop(container?: HTMLElement) {
+export function renderEsop(container?: HTMLElement, context: FeatureContext = activeContext) {
+  activeContext = context;
+  D = context.state;
   const targetContainer = container || document.getElementById(moduleContainerId);
   if (!targetContainer) return;
 
@@ -48,7 +50,10 @@ export function renderEsop(container?: HTMLElement) {
       </div>
     `;
 
-    Promise.all([fetchSocGenPrice(), fetchEURINR()])
+    Promise.all([
+      context.ports.marketData.fetchSocGenPrice(),
+      context.ports.marketData.fetchEURINR(),
+    ])
       .then(([price, rate]) => {
         glePrice = price || 24.50; // Fallback price
         eurInrRate = rate || 90.00; // Fallback rate
@@ -61,7 +66,7 @@ export function renderEsop(container?: HTMLElement) {
         // Sync valuation to main state
         const computedInrValue = D.esopDetails.shares * glePrice * eurInrRate;
         D.esop.esop = { amount: computedInrValue, currency: 'INR' };
-        persistPortfolioState(D);
+        context.portfolio.save(D);
 
         renderEsop(targetContainer);
       })
@@ -87,7 +92,7 @@ export function renderEsop(container?: HTMLElement) {
   const grossInr = D.esopDetails.shares * finalPrice * finalRate;
   
   // Calculate percentage of net worth
-  const { netWorth } = totalNetWorth(D);
+  const { netWorth } = context.ports.calculations.totalNetWorth(D);
   const percentNetWorth = netWorth > 0 ? (grossInr / netWorth) * 100 : 0;
 
   // 2. Vesting schedule calculations
@@ -525,7 +530,7 @@ function clearInputError(input: HTMLInputElement) {
 function debounceSave() {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
-    persistPortfolioState(D);
+    activeContext.portfolio.save(D);
     renderEsop();
   }, DEBOUNCE_MS);
 }

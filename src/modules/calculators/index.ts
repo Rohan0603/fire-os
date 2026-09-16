@@ -3,26 +3,28 @@
  * Provides financial calculators: Crash Protocol, Emergency Runway, SIP Pause
  */
 
-import { appState as D } from '../../lib/appState';
 import { formatCurrency } from '../../lib/formatters';
-import { showToast } from '../ui';
-import { fetchNifty } from '../api';
+import { createFeatureContext, type FeatureContext } from '../../core/feature-context';
 import './styles.css';
 import { initTaxModule } from './tax';
 import { executeMonthlyWithdrawal } from './swp-scheduler';
-import { persistPortfolioState } from '../../lib/storage';
 
-export function initCalculatorsModule(containerId: string) {
+let activeContext = createFeatureContext();
+let D = activeContext.state;
+
+export function initCalculatorsModule(containerId: string, context: FeatureContext = activeContext) {
+  activeContext = context;
+  D = context.state;
   const container = document.getElementById(containerId);
   if (!container) return;
-  renderCalculators(container);
+  renderCalculators(container, context);
   autoFetchNiftyData();
 }
 
 // Auto-fetch Nifty data on init
 async function autoFetchNiftyData() {
   try {
-    const niftyData = await fetchNifty();
+    const niftyData = await activeContext.ports.marketData.fetchNifty();
     if (niftyData) {
       D.niftyHigh = niftyData.high52w;
       D.niftyData = {
@@ -44,7 +46,9 @@ async function autoFetchNiftyData() {
   }
 }
 
-export function renderCalculators(container: HTMLElement) {
+export function renderCalculators(container: HTMLElement, context: FeatureContext = activeContext) {
+  activeContext = context;
+  D = context.state;
   container.innerHTML = `
     <div class="calculators-container">
       <div class="calc-tabs">
@@ -71,8 +75,8 @@ export function renderCalculators(container: HTMLElement) {
     </div>
   `;
 
-  attachCalculatorHandlers();
-  initTaxModule('tax-planner');
+  attachCalculatorHandlers(context);
+  initTaxModule('tax-planner', context);
 }
 
 function renderCrashProtocol(): string {
@@ -248,7 +252,7 @@ function updateCrashScenarios() {
   }
 }
 
-function attachCalculatorHandlers() {
+function attachCalculatorHandlers(context: FeatureContext) {
   // Tab switching
   document.querySelectorAll('.calc-tab').forEach((tab) => {
     tab.addEventListener('click', (e) => {
@@ -265,7 +269,7 @@ function attachCalculatorHandlers() {
 
   // Crash Protocol
   document.getElementById('crash-portfolio')?.addEventListener('input', updateCrashScenarios);
-  document.getElementById('refresh-nifty-btn')?.addEventListener('click', refreshNiftyData);
+  document.getElementById('refresh-nifty-btn')?.addEventListener('click', () => refreshNiftyData(context));
 
   // SIP Pause
   document.getElementById('calculate-sip-btn')?.addEventListener('click', calculateSIPPause);
@@ -281,7 +285,7 @@ function attachCalculatorHandlers() {
     const startDate = startDateInput?.value ? `${startDateInput.value}-01` : '';
 
     if (amount <= 0) {
-      showToast('Please enter a valid positive monthly amount', 3000, 'warning');
+      context.ports.ui.showToast('Please enter a valid positive monthly amount', 3000, 'warning');
       return;
     }
 
@@ -293,9 +297,9 @@ function attachCalculatorHandlers() {
     D.swpSchedule.monthlyAmount = amount;
     D.swpSchedule.startDate = startDate;
 
-    persistPortfolioState(D);
+    context.portfolio.save(D);
 
-    showToast('✓ SWP config saved successfully', 3000, 'success');
+    context.ports.ui.showToast('✓ SWP config saved successfully', 3000, 'success');
   });
 
   document.getElementById('trigger-swp-btn')?.addEventListener('click', async () => {
@@ -306,14 +310,14 @@ function attachCalculatorHandlers() {
     }
     try {
       if (!D.swpSchedule || !D.swpSchedule.enabled) {
-        showToast('Please enable SWP and save config first', 3000, 'warning');
+        context.ports.ui.showToast('Please enable SWP and save config first', 3000, 'warning');
         return;
       }
       await executeMonthlyWithdrawal(D);
-      await persistPortfolioState(D, { awaitCloud: true });
-      showToast('✓ Simulated withdrawal executed successfully', 3000, 'success');
+      await context.portfolio.save(D, { awaitCloud: true });
+      context.ports.ui.showToast('✓ Simulated withdrawal executed successfully', 3000, 'success');
     } catch {
-      showToast('✗ Withdrawal execution failed', 3000, 'error');
+      context.ports.ui.showToast('✗ Withdrawal execution failed', 3000, 'error');
     } finally {
       if (triggerBtn) {
         triggerBtn.disabled = false;
@@ -348,14 +352,14 @@ function calculateTotalNetWorth(): number {
   return total;
 }
 
-async function refreshNiftyData() {
+async function refreshNiftyData(context: FeatureContext = activeContext) {
   try {
-    showToast('⟳ Fetching Nifty data...', 2000);
+    context.ports.ui.showToast('⟳ Fetching Nifty data...', 2000);
 
     // Fetch fresh Nifty data from API
-    const niftyData = await fetchNifty();
+    const niftyData = await context.ports.marketData.fetchNifty();
     if (!niftyData) {
-      showToast('✗ Failed to fetch Nifty data. Enter manually.', 2000, 'error');
+      context.ports.ui.showToast('✗ Failed to fetch Nifty data. Enter manually.', 2000, 'error');
       return;
     }
 
@@ -409,9 +413,9 @@ async function refreshNiftyData() {
       }
     }
 
-    showToast(`✓ Nifty fetched: ${currentVal}`, 2000, 'success');
+    context.ports.ui.showToast(`✓ Nifty fetched: ${currentVal}`, 2000, 'success');
   } catch {
-    showToast('✗ Failed to fetch Nifty data', 2000, 'error');
+    context.ports.ui.showToast('✗ Failed to fetch Nifty data', 2000, 'error');
   }
 }
 

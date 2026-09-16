@@ -1,6 +1,5 @@
 import type { FireOSState } from '../../types/state';
-import { fiProgress } from '../dashboard/kpis';
-import { checkWatchdogRules } from '../watchdog/fund-manager-alerts';
+import { checkWatchdogRules, fiProgress } from '../../core/feature-ports';
 
 export interface HealthAssessment {
   status: 'green' | 'yellow' | 'red';

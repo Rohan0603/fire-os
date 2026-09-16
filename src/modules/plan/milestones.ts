@@ -1,5 +1,5 @@
 import type { FireOSState } from '../../types/state';
-import { totalNetWorth } from '../dashboard/kpis';
+import { totalNetWorth } from '../../core/feature-ports';
 
 export interface MilestoneDef {
   id: string;

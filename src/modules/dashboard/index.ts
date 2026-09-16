@@ -4,51 +4,27 @@
  * Displays KPI cards, portfolio composition pie chart, and FI progress
  */
 
-import { totalNetWorth, sipStatus, fiProgress, floatIndicator, portfolioComposition } from './kpis';
 import { formatCurrency, formatNumber } from '../../lib/formatters';
-import { appState as D } from '../../lib/appState';
-import { fetchNAV, getNAVCacheMap } from '../api';
+import { createFeatureContext, type FeatureContext } from '../../core/feature-context';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
 import { renderCoorgWidget } from './coorg-tracker';
-import { renderCashflowSummary } from '../plan/cashflow-summary';
 
 import type { CrashAlert } from '../api/nifty-monitor';
-import { renderAdvisorIntegrationWidget, registerAdvisorReview } from '../integrations/advisor-webhook';
-import { renderExpenseTracker } from '../trackers/expense-tracker';
-import { calculateAllocationDrift } from '../calculators/portfolio-rebalancing';
-import { createModal, closeModal, showToast } from '../ui';
-import { persistPortfolioState } from '../../lib/storage';
 import './styles.css';
 
 // Module state
 let containerId = 'dashboard';
 let currentCrashAlert: CrashAlert | null = null;
+let activeContext = createFeatureContext();
+let D = activeContext.state;
 
 /**
  * Fetch NAVs for all SIPs with units (holdings)
  * Triggered when portfolio data loads + dashboard renders
  * Fetches sequentially with 100ms delay to avoid API throttling
  */
-export async function fetchSIPNAVs(): Promise<void> {
-  const sipsToFetch = Object.entries(D.sip).filter(([, fund]) => fund.units && fund.units > 0);
-
-  for (const [key, fund] of sipsToFetch) {
-    const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
-    if (schemeCode) {
-      try {
-        await fetchNAV(schemeCode);
-        // Sync fetched NAV from cache to state.nav so KPI calc can find it
-        const navCache = getNAVCacheMap();
-        if (navCache[schemeCode]) {
-          D.nav[schemeCode] = navCache[schemeCode];
-        }
-      } catch (e) {
-        console.warn(`[Dashboard] Failed to fetch NAV for SIP ${key}:`, e);
-      }
-    }
-    // Small delay between requests to avoid API throttling
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
+export function fetchSIPNAVs(context: FeatureContext = activeContext): Promise<void> {
+  return context.ports.marketData.refreshPortfolioNAVs(context.state);
 }
 
 /**
@@ -71,15 +47,19 @@ export function updateCrashAlert(alert: CrashAlert | null): void {
  * Initialize the dashboard module
  * Called once when the app starts
  */
-export function initDashboardModule(container: string = 'dashboard'): void {
+export function initDashboardModule(container: string = 'dashboard', context: FeatureContext = activeContext): void {
   containerId = container;
+  activeContext = context;
+  D = context.state;
 }
 
 /**
  * Render the dashboard UI
  * Called whenever data changes or user switches to Dashboard tab
  */
-export async function renderDashboard(): Promise<void> {
+export async function renderDashboard(context: FeatureContext = activeContext): Promise<void> {
+  activeContext = context;
+  D = context.state;
   const container = document.getElementById(containerId);
   if (!container) return;
 
@@ -106,11 +86,11 @@ export async function renderDashboard(): Promise<void> {
   await fetchSIPNAVs();
 
   // Calculate all KPIs from current state
-  const netWorth = totalNetWorth(D);
-  const sip = sipStatus(D);
-  const fi = fiProgress(D);
-  const nifty = floatIndicator(D);
-  const composition = portfolioComposition(D);
+  const netWorth = context.ports.calculations.totalNetWorth(D);
+  const sip = context.ports.calculations.sipStatus(D);
+  const fi = context.ports.calculations.fiProgress(D);
+  const nifty = context.ports.calculations.floatIndicator(D);
+  const composition = context.ports.calculations.portfolioComposition(D);
 
 
 
@@ -130,7 +110,7 @@ export async function renderDashboard(): Promise<void> {
       </div>
 
       <!-- Cashflow Summary Card -->
-      ${renderCashflowSummary(D)}
+      ${context.ports.widgets.renderCashflowSummary(D)}
 
       <!-- Portfolio Summary Section -->
       ${renderPortfolioSummary(netWorth.breakdown, sip.totalCurrentValue, fi)}
@@ -144,10 +124,10 @@ export async function renderDashboard(): Promise<void> {
       ${D.swpSchedule?.enabled ? renderTaxOptimizationWidget(D) : ''}
 
       <!-- Advisor Integration Widget (if SWP enabled) -->
-      ${D.swpSchedule?.enabled ? renderAdvisorIntegrationWidget(D) : ''}
+      ${D.swpSchedule?.enabled ? context.ports.widgets.renderAdvisorIntegrationWidget(D) : ''}
 
       <!-- Expense Tracker Widget (if SWP enabled) -->
-      ${D.swpSchedule?.enabled ? renderExpenseTracker(D) : ''}
+      ${D.swpSchedule?.enabled ? context.ports.widgets.renderExpenseTracker(D) : ''}
 
       <!-- Charts Section -->
       <div class="charts-section">
@@ -421,7 +401,7 @@ function attachDashboardEventListeners(): void {
   // Draw pie chart if data exists
   const canvas = document.getElementById('composition-chart');
   if (canvas) {
-    const composition = portfolioComposition(D);
+    const composition = activeContext.ports.calculations.portfolioComposition(D);
     if (composition.categories.length > 0) {
       drawPieChart('composition-chart', composition.categories);
     }
@@ -434,7 +414,7 @@ function attachDashboardEventListeners(): void {
       advisorBtn.setAttribute('disabled', 'true');
       advisorBtn.textContent = '⏳ Requesting...';
       try {
-        const { netWorth } = totalNetWorth(D);
+        const { netWorth } = activeContext.ports.calculations.totalNetWorth(D);
         const holdings: Record<string, number> = {
           PPFCF: 0,
           NipponGrowth: 0,
@@ -457,9 +437,9 @@ function attachDashboardEventListeners(): void {
         if (D.sip) Object.values(D.sip).forEach(processFund);
         if (D.mf) Object.values(D.mf).forEach(processFund);
 
-        const drift = calculateAllocationDrift(holdings, netWorth);
+        const drift = activeContext.ports.calculations.calculateAllocationDrift(holdings, netWorth);
 
-        const result = await registerAdvisorReview({
+        const result = await activeContext.ports.widgets.registerAdvisorReview({
           userEmail: D.currentUser?.email || 'user@example.com',
           portfolioSummary: {
             totalCorpus: netWorth,
@@ -468,13 +448,13 @@ function attachDashboardEventListeners(): void {
         });
 
         if (result.status === 'review_request_sent' && result.reviewUrl) {
-          showToast('✓ Review request sent! Opening link...', 3000, 'success');
+          activeContext.ports.ui.showToast('✓ Review request sent! Opening link...', 3000, 'success');
           window.open(result.reviewUrl, '_blank');
         } else {
-          showToast(result.error || 'Failed to request review', 4000, 'warning');
+          activeContext.ports.ui.showToast(result.error || 'Failed to request review', 4000, 'warning');
         }
       } catch {
-        showToast('Error requesting review', 4000, 'warning');
+        activeContext.ports.ui.showToast('Error requesting review', 4000, 'warning');
       } finally {
         advisorBtn.removeAttribute('disabled');
         advisorBtn.textContent = 'Request Review';
@@ -510,10 +490,10 @@ function attachDashboardEventListeners(): void {
         </div>
       `;
 
-      createModal('Add Expense', modalContent, [
+      activeContext.ports.ui.createModal('Add Expense', modalContent, [
         {
           label: 'Cancel',
-          onClick: () => closeModal(),
+          onClick: () => activeContext.ports.ui.closeModal(),
         },
         {
           label: 'Add',
@@ -528,7 +508,7 @@ function attachDashboardEventListeners(): void {
             const date = dateInput.value;
 
             if (!amount || amount <= 0) {
-              showToast('Please enter a valid positive amount', 4000, 'warning');
+              activeContext.ports.ui.showToast('Please enter a valid positive amount', 4000, 'warning');
               return;
             }
 
@@ -543,10 +523,10 @@ function attachDashboardEventListeners(): void {
               linkedToSWP: category === 'SWP',
             });
 
-            persistPortfolioState(D);
+            activeContext.portfolio.save(D);
 
-            showToast('✓ Expense added successfully', 3000, 'success');
-            closeModal();
+            activeContext.ports.ui.showToast('✓ Expense added successfully', 3000, 'success');
+            activeContext.ports.ui.closeModal();
             renderDashboard();
           },
         },

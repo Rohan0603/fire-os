@@ -3,32 +3,35 @@
  * Manages user portfolio data, holdings forms, CAS PDF import, and Firestore sync
  */
 
-import { appState as D } from '../../lib/appState';
 import { formatCurrency } from '../../lib/formatters';
-import { persistPortfolioState } from '../../lib/storage';
-import { showToast } from '../ui';
+import { createFeatureContext, type FeatureContext } from '../../core/feature-context';
 import { parseCASPDF, CASParseResult } from './pdf-parser';
-import { fetchSIPNAVs } from '../dashboard';
 import { validateFormInput, handleError, ValidationRules } from '../../lib/error-handler';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
 import './styles.css';
 
 const DEBOUNCE_MS = 500;
 let debounceTimer: NodeJS.Timeout | null = null;
+let activeContext = createFeatureContext();
+let D = activeContext.state;
 
 /**
  * Initialize profile module
  */
-export function initProfileModule(containerId: string) {
+export function initProfileModule(containerId: string, context: FeatureContext = activeContext) {
+  activeContext = context;
+  D = context.state;
   const container = document.getElementById(containerId);
   if (!container) return;
-  renderProfile(container);
+  renderProfile(container, context);
 }
 
 /**
  * Render profile form
  */
-export function renderProfile(container: HTMLElement) {
+export function renderProfile(container: HTMLElement, context: FeatureContext = activeContext) {
+  activeContext = context;
+  D = context.state;
   container.innerHTML = `
     <div class="profile-container">
       <h2>Portfolio Profile</h2>
@@ -119,7 +122,7 @@ export function renderProfile(container: HTMLElement) {
     </div>
   `;
 
-  attachProfileHandlers();
+  attachProfileHandlers(context);
 }
 
 /**
@@ -218,7 +221,7 @@ function renderDematHoldings(): string {
 /**
  * Attach event handlers to form elements
  */
-function attachProfileHandlers() {
+function attachProfileHandlers(context: FeatureContext) {
   // Profile form inputs
   const profileForm = document.getElementById('profile-form');
   if (profileForm) {
@@ -325,12 +328,12 @@ function attachProfileHandlers() {
           return;
         }
 
-        await persistPortfolioState(D, { awaitCloud: true });
-        showToast('✓ Saved to Firestore');
+        await context.portfolio.save(D, { awaitCloud: true });
+        context.ports.ui.showToast('✓ Saved to Firestore');
         saveCloudBtn.textContent = '✓ Saved';
       } catch (e) {
         console.error('[Profile] Firestore save failed:', e);
-        showToast('✗ Firestore sync failed', 3000, 'warning');
+        context.ports.ui.showToast('✗ Firestore sync failed', 3000, 'warning');
         updateButtonState();
       } finally {
         setTimeout(() => {
@@ -627,16 +630,16 @@ export async function saveProfile(): Promise<boolean> {
     // ==================== SHOW VALIDATION ERRORS ====================
     if (validationErrors.length > 0) {
       const errorMessages = validationErrors.map((e) => e.message).join('; ');
-      showToast(`⚠️ Validation failed: ${errorMessages}`, 4000, 'warning');
+      activeContext.ports.ui.showToast(`⚠️ Validation failed: ${errorMessages}`, 4000, 'warning');
       console.warn('Profile validation errors:', validationErrors);
       return false;
     }
 
     // ==================== SAVE DATA ====================
-    persistPortfolioState(D, { sync: false });
+    activeContext.portfolio.save(D, { sync: false });
 
     // Fetch NAVs for SIPs that now have units
-    fetchSIPNAVs().catch(e => console.warn('[Profile] Failed to fetch SIP NAVs after save:', e));
+    activeContext.ports.marketData.refreshPortfolioNAVs(D).catch(e => console.warn('[Profile] Failed to fetch SIP NAVs after save:', e));
 
     return true;
   } catch (e) {
@@ -682,7 +685,7 @@ async function handlePDFImport(event: Event) {
     }
   } catch (e) {
     console.error('PDF import error:', e);
-    showToast('✗ Failed to parse PDF');
+    activeContext.ports.ui.showToast('✗ Failed to parse PDF');
   }
 }
 
@@ -733,7 +736,7 @@ function confirmPDFImport() {
 
   const container = document.getElementById('profile');
   if (container) renderProfile(container);
-  showToast('✓ CAS imported (click Save to sync to cloud)', 4000, 'info');
+  activeContext.ports.ui.showToast('✓ CAS imported (click Save to sync to cloud)', 4000, 'info');
 }
 
 /**

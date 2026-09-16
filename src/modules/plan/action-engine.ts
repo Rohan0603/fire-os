@@ -1,7 +1,5 @@
 import type { FireOSState } from '../../types/state';
-import { checkWatchdogRules } from '../watchdog/fund-manager-alerts';
-import { floatIndicator } from '../dashboard/kpis';
-import { calculateAllocationDrift } from '../calculators/portfolio-rebalancing';
+import { checkWatchdogRules, floatIndicator, calculateAllocationDrift } from '../../core/feature-ports';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
 
 export interface ActionItem {

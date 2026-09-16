@@ -4,6 +4,9 @@ import { SyncCoordinator } from './syncCoordinator';
 import { initializeState, isFireOSState } from '../types/state';
 import { isPortfolioEnvelope } from '../types/firebase';
 import { configurePortfolioStorageScope, configurePortfolioSync, loadData, persistPortfolioState } from './storage';
+import { createFeatureContext } from '../core/feature-context';
+import { FeatureRegistry, type FeatureModule } from '../app/feature-registry';
+import { createPortfolioRepository } from '../core/persistence/portfolio-repository';
 
 const client = { clientId: 'test-client', lastWriteId: 'write-1' };
 
@@ -137,5 +140,73 @@ describe('portfolio persistence contracts', () => {
     expect(save).toHaveBeenCalledOnce();
     expect(save).toHaveBeenCalledWith('user-1', latest);
     coordinator.dispose();
+  });
+
+  it('preserves injected feature dependencies and registry lifecycle dispatch', async () => {
+    const state = initializeState();
+    const portfolio = { load: () => state, save: vi.fn() };
+    const context = createFeatureContext(state, portfolio);
+    const container = {} as HTMLElement;
+    const mount = vi.fn();
+    const unmount = vi.fn();
+    const module: FeatureModule = { id: 'reports', label: 'Reports', mount, unmount };
+    const registry = new FeatureRegistry(context);
+
+    registry.register(module);
+    await registry.mount('reports', container);
+    await registry.unmount('reports', container);
+
+    expect(context.state).toBe(state);
+    expect(context.portfolio).toBe(portfolio);
+    expect(registry.get('reports')).toBe(module);
+    expect(mount).toHaveBeenCalledWith(container, context);
+    expect(unmount).toHaveBeenCalledWith(container, context);
+  });
+
+  it('rejects duplicate and unknown feature registrations', async () => {
+    const registry = new FeatureRegistry(createFeatureContext(initializeState()));
+    const module: FeatureModule = { id: 'reports', label: 'Reports', mount: vi.fn() };
+
+    registry.register(module);
+
+    expect(() => registry.register(module)).toThrow('Feature already registered: reports');
+    await expect(registry.mount('missing', {} as HTMLElement)).rejects.toThrow(
+      'Unknown feature: missing',
+    );
+  });
+
+  it('keeps repository local data when cloud enqueue fails', async () => {
+    const repository = createPortfolioRepository();
+    const state = initializeState();
+    state.currentUser = { uid: 'user-1' } as typeof state.currentUser;
+    const coordinator = {
+      markDirty: vi.fn(() => {
+        throw new Error('offline');
+      }),
+    };
+
+    configurePortfolioStorageScope('user-1');
+    configurePortfolioSync(coordinator as never);
+
+    repository.save(state);
+    await Promise.resolve();
+
+    expect(repository.load()).not.toBeNull();
+    expect(coordinator.markDirty).toHaveBeenCalledOnce();
+  });
+
+  it('returns the cloud persistence promise when awaitCloud is requested', async () => {
+    const repository = createPortfolioRepository();
+    const state = initializeState();
+    state.currentUser = { uid: 'user-1' } as typeof state.currentUser;
+    const coordinator = { markDirty: vi.fn() };
+
+    configurePortfolioStorageScope('user-1');
+    configurePortfolioSync(coordinator as never);
+
+    await expect(repository.save(state, { awaitCloud: true })).resolves.toBeUndefined();
+
+    expect(repository.load()).not.toBeNull();
+    expect(coordinator.markDirty).toHaveBeenCalledOnce();
   });
 });

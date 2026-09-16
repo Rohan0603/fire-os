@@ -1,5 +1,5 @@
 import type { FireOSState } from '../../types/state';
-import { totalNetWorth, fiProgress } from '../dashboard/kpis';
+import { totalNetWorth, fiProgress } from '../../core/feature-ports';
 
 export function renderPlainEnglishSummary(state: FireOSState): string {
   const profile = state.profile;

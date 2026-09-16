@@ -17,6 +17,8 @@ import { initializeState } from './types/state';
 import type { FireOSState } from './types/state';
 import type { PortfolioEnvelope } from './types/firebase';
 import { appState } from './lib/appState';
+import { createFeatureContext } from './core/feature-context';
+import { FeatureRegistry } from './app/feature-registry';
 
 // Import auth module
 import { renderAuthScreen, hideAuthScreen, showAuthScreen, initAuthModule } from './modules/auth';
@@ -68,6 +70,80 @@ let activePortfolioUnsubscribe: (() => void) | null = null;
 let activeSyncCoordinator: SyncCoordinator | null = null;
 let activePortfolioEnvelope: PortfolioEnvelope | null = null;
 let activeNiftyMonitorCleanup: (() => void) | null = null;
+const featureContext = createFeatureContext(appState);
+const featureRegistry = new FeatureRegistry(featureContext);
+const initializedFeatures = new Set<string>();
+
+featureRegistry.register({
+  id: 'profile',
+  label: 'Profile',
+  mount(container, context) {
+    if (!initializedFeatures.has('profile')) {
+      initProfileModule(container.id, context);
+      initializedFeatures.add('profile');
+      return;
+    }
+    renderProfile(container, context);
+  },
+});
+featureRegistry.register({
+  id: 'dashboard',
+  label: 'Dashboard',
+  mount(container, context) {
+    if (!initializedFeatures.has('dashboard')) {
+      initDashboardModule(container.id, context);
+      initializedFeatures.add('dashboard');
+    }
+    return renderDashboard(context);
+  },
+});
+featureRegistry.register({
+  id: 'calculators',
+  label: 'Calculators',
+  mount(container, context) {
+    if (!initializedFeatures.has('calculators')) {
+      initCalculatorsModule(container.id, context);
+      initializedFeatures.add('calculators');
+      return;
+    }
+    renderCalculators(container, context);
+  },
+});
+featureRegistry.register({
+  id: 'insurance',
+  label: 'Insurance',
+  mount(container, context) {
+    if (!initializedFeatures.has('insurance')) {
+      initInsuranceModule(container.id, context);
+      initializedFeatures.add('insurance');
+      return;
+    }
+    renderInsurance(container, context);
+  },
+});
+featureRegistry.register({
+  id: 'plan',
+  label: 'Plan',
+  mount(container, context) {
+    if (!initializedFeatures.has('plan')) {
+      initPlanModule(container.id, context);
+      initializedFeatures.add('plan');
+    }
+    renderPlan(context);
+  },
+});
+featureRegistry.register({
+  id: 'esop',
+  label: 'ESOP Tools',
+  mount(container, context) {
+    if (!initializedFeatures.has('esop')) {
+      initEsopModule(container.id, context);
+      initializedFeatures.add('esop');
+      return;
+    }
+    renderEsop(container, context);
+  },
+});
 
 function resetLiveAppState(): void {
   Object.assign(appState, initializeState());
@@ -138,13 +214,13 @@ function initApp() {
     }
 
     // Initialize profile module with error handling
-    try {
-      initProfileModule('profile');
-    } catch (e) {
-      console.error('Failed to initialize Profile module:', e);
-      handleError(e, 'Profile module initialization failed');
-      const profileEl = document.getElementById('profile');
-      if (profileEl) profileEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading Profile module. Please reload.</p>';
+    const profileEl = document.getElementById('profile');
+    if (profileEl) {
+      void featureRegistry.mount('profile', profileEl).catch((e) => {
+        console.error('Failed to initialize Profile module:', e);
+        handleError(e, 'Profile module initialization failed');
+        profileEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading Profile module. Please reload.</p>';
+      });
     }
 
     setupAuthListener();
@@ -267,7 +343,7 @@ function setupAuthListener() {
         fetchSIPNAVs().catch(e => console.warn('[Auth] Failed to fetch SIP NAVs:', e));
         const profileTab = document.getElementById('profile');
         const profileNavTab = document.querySelector('[data-tab="profile"]');
-        if (profileTab && profileNavTab?.classList.contains('active')) renderProfile(profileTab);
+        if (profileTab && profileNavTab?.classList.contains('active')) renderProfile(profileTab, featureContext);
           checkDailyTasks(appState);
       } catch (e) {
         console.warn('[Auth] Failed to load from Firebase:', e);
@@ -329,8 +405,6 @@ function setupAuthListener() {
 }
 
 // Tab navigation
-const initializedModules = new Set<string>(['profile']);
-
 function setupTabNavigation() {
   const hamburgerBtn = document.getElementById('hamburger-btn');
   const navTabs = document.querySelector('.nav-tabs');
@@ -357,56 +431,11 @@ function setupTabNavigation() {
         const tabEl = document.getElementById(target);
         if (tabEl) tabEl.classList.add('active');
 
-        try {
-          // Render dashboard when tab is activated
-          if (target === 'dashboard') {
-            if (!initializedModules.has('dashboard')) {
-              initDashboardModule('dashboard');
-              initializedModules.add('dashboard');
-            }
-            renderDashboard();
-          }
-
-          // Render calculators when tab is activated
-          if (target === 'calculators') {
-            if (!initializedModules.has('calculators')) {
-              initCalculatorsModule('calculators');
-              initializedModules.add('calculators');
-            }
-            renderCalculators(document.getElementById('calculators')!);
-          }
-
-          // Render insurance when tab is activated
-          if (target === 'insurance') {
-            if (!initializedModules.has('insurance')) {
-              initInsuranceModule('insurance');
-              initializedModules.add('insurance');
-            }
-            renderInsurance();
-          }
-
-          // Render plan when tab is activated
-          if (target === 'plan') {
-            if (!initializedModules.has('plan')) {
-              initPlanModule('plan');
-              initializedModules.add('plan');
-            }
-            renderPlan();
-          }
-
-          // Render esop when tab is activated
-          if (target === 'esop') {
-            if (!initializedModules.has('esop')) {
-              initEsopModule('esop');
-              initializedModules.add('esop');
-            }
-            renderEsop(document.getElementById('esop')!);
-          }
-        } catch (error) {
-          console.error(`Failed to load module for tab ${target}:`, error);
-          if (tabEl) {
-            tabEl.innerHTML = `<p style="padding: 20px; color: #d32f2f;">Error loading module. Please check your connection.</p>`;
-          }
+        if (tabEl) {
+          void featureRegistry.mount(target, tabEl).catch((error) => {
+            console.error(`Failed to load module for tab ${target}:`, error);
+            tabEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading module. Please check your connection.</p>';
+          });
         }
       }
     });
