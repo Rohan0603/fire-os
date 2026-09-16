@@ -46,53 +46,6 @@ export function handleError(error: unknown, userMessage?: string) {
 }
 
 /**
- * Validation error (for form input validation)
- */
-export class ValidationError extends AppError {
-  constructor(message: string, public field?: string) {
-    super(message, 'VALIDATION_ERROR', 'warning');
-    this.name = 'ValidationError';
-  }
-}
-
-/**
- * API error
- */
-export class APIError extends AppError {
-  constructor(
-    message: string,
-    public endpoint: string,
-    public statusCode?: number
-  ) {
-    super(message, 'API_ERROR', 'error');
-    this.name = 'APIError';
-  }
-}
-
-/**
- * Firebase error
- */
-export class FirebaseError extends AppError {
-  constructor(
-    message: string,
-    public operation: string
-  ) {
-    super(message, 'FIREBASE_ERROR', 'error');
-    this.name = 'FirebaseError';
-  }
-}
-
-/**
- * Offline error - special handling for offline state
- */
-export class OfflineError extends AppError {
-  constructor(message: string = 'You are offline. Changes will be synced when you reconnect.') {
-    super(message, 'OFFLINE_ERROR', 'warning');
-    this.name = 'OfflineError';
-  }
-}
-
-/**
  * Setup global error handler
  */
 export function setupErrorHandling() {

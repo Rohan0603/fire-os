@@ -4,16 +4,9 @@
  * Target allocation: PPFCF 40%, Nippon Growth 30%, Nippon SmallCap 20%, Gold 10%
  */
 
-// Target allocation percentages (must sum to 100)
-const TARGET_ALLOCATION: Record<string, number> = {
-  PPFCF: 40,
-  NipponGrowth: 30,
-  NipponSmallCap: 20,
-  Gold: 10,
-};
+import { CONFIG } from '../../lib/config';
 
-// Threshold for recommending rebalancing (%)
-const DRIFT_THRESHOLD = 5;
+const { targetAllocation: TARGET_ALLOCATION, driftThreshold: DRIFT_THRESHOLD } = CONFIG;
 
 /**
  * Holdings dictionary: fund name → value in rupees
