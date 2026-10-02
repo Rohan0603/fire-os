@@ -17,7 +17,6 @@ const CORE_HOLDING_ROWS = {
   51: { name: 'Fixed Deposits', stateKey: 'fd' },
   52: { name: 'EPF', stateKey: 'epf' },
   53: { name: 'Bonds', stateKey: 'bonds' },
-  54: { name: 'ESOP', stateKey: 'esop' },
 } as const;
 let debounceTimer: NodeJS.Timeout | null = null;
 let activeContext = createFeatureContext();
@@ -150,7 +149,6 @@ async function refreshEsopProfileValue(context: FeatureContext): Promise<void> {
       if (validValuations.length > 0) {
         const amount = validValuations.reduce((total, valuation) => total + valuation.value!, 0);
         D.esop.esop = { amount, currency: 'INR' };
-        syncEsopCoreHolding(amount);
       }
     })().catch(() => {
       valueElements.forEach((element) => { element.textContent = 'Unavailable'; });
@@ -239,6 +237,7 @@ function escapeHtml(value: string): string {
 
 function ensureCoreHoldingRows(): void {
   if (!D.otherHoldings || typeof D.otherHoldings !== 'object') D.otherHoldings = {};
+  delete D.otherHoldings.otherHolding54;
   for (const [index, config] of Object.entries(CORE_HOLDING_ROWS)) {
     const key = `otherHolding${index}`;
     if (D.otherHoldings[key]) continue;
@@ -246,20 +245,6 @@ function ensureCoreHoldingRows(): void {
     const amount = source?.amount || 0;
     if (amount > 0) D.otherHoldings[key] = { name: config.name, amount, annualReturn: 0 };
   }
-}
-
-function syncEsopCoreHolding(amount: number): void {
-  const key = 'otherHolding54';
-  const holding = D.otherHoldings[key];
-  if (!holding) {
-    D.otherHoldings[key] = { name: 'ESOP', amount, annualReturn: 0 };
-  } else {
-    holding.name = 'ESOP';
-    holding.amount = amount;
-  }
-
-  const amountInput = document.querySelector<HTMLInputElement>('.other-holding-amount[data-index="54"]');
-  if (amountInput && document.activeElement !== amountInput) amountInput.value = String(amount);
 }
 
 function renderOtherHoldingsFields(): string {
