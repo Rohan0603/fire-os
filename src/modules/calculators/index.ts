@@ -343,6 +343,7 @@ function calculateTotalNetWorth(): number {
   total += D.epf.epf?.amount || 0;
   total += D.esop.esop?.amount || 0;
   total += D.bonds.bonds?.amount || 0;
+  total += Object.values(D.otherHoldings || {}).reduce((sum, holding) => sum + (holding.amount || 0), 0);
 
   // Demat stocks
   Object.values(D.demat).forEach((stock) => {

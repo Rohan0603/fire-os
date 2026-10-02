@@ -121,7 +121,10 @@ export function generateActionItems(state: FireOSState): ActionItem[] {
     Object.values(state.mf).forEach(processFund);
   }
 
-  const totalValue = holdings.PPFCF + holdings.NipponGrowth + holdings.NipponSmallCap + holdings.Gold;
+  const targetFundValue = holdings.PPFCF + holdings.NipponGrowth + holdings.NipponSmallCap + holdings.Gold;
+  const otherHoldingsValue = Object.values(state.otherHoldings || {})
+    .reduce((sum, holding) => sum + (holding.amount || 0), 0);
+  const totalValue = targetFundValue + otherHoldingsValue;
   const drift = calculateAllocationDrift(holdings, totalValue);
   if (drift.recommendations.length > 0) {
     addAction({

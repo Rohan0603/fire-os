@@ -41,6 +41,7 @@ export interface PortfolioData {
   epf?: FireOSState['epf'];
   esop?: FireOSState['esop'];
   bonds?: FireOSState['bonds'];
+  otherHoldings?: FireOSState['otherHoldings'];
   demat?: FireOSState['demat'];
   nav?: FireOSState['nav'];
   niftyHigh?: number;
@@ -116,7 +117,7 @@ function isIsoTimestamp(value: unknown): value is string {
 }
 
 const persistedFields = new Set<keyof PersistedPortfolioData>([
-  'profile', 'mf', 'sip', 'fd', 'epf', 'esop', 'bonds', 'demat', 'nav',
+  'profile', 'mf', 'sip', 'fd', 'epf', 'esop', 'bonds', 'otherHoldings', 'demat', 'nav',
   'niftyHigh', 'niftyData', 'eurInr', 'eurInrData', 'alphaTrackerData',
   'coorgCorpus', 'coorgStartDate', 'coorgTarget', 'coorgMonthlyAmount',
   'watchdogRules', 'swpSchedule', 'taxCalendar', 'expenses', 'netWorthHistory',

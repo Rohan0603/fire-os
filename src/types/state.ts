@@ -3,7 +3,7 @@
  * Defines the complete FireOSState interface and initialization logic
  */
 
-import type { PortfolioProfile, Holdings, DematHoldings, AlphaTrackerDataCollection, SIPFunds } from './portfolio';
+import type { PortfolioProfile, Holdings, DematHoldings, AlphaTrackerDataCollection, SIPFunds, OtherHoldings } from './portfolio';
 import type { NiftyData, EURINRData, NAVCacheMap } from './api';
 import type { SyncMetadata, FirebaseUser } from './firebase';
 
@@ -41,6 +41,7 @@ export interface FireOSState {
   sip: SIPFunds; // SIP investments (with cost basis + XIRR structure)
   esop: Holdings; // ESOP stocks
   bonds: Holdings; // Bonds
+  otherHoldings: OtherHoldings; // User-defined holdings
   demat: DematHoldings; // Demat stock holdings
 
   // API Cache and Live Data
@@ -115,7 +116,7 @@ export interface FireOSState {
 }
 
 const PERSISTED_STATE_KEYS = [
-  'profile', 'mf', 'fd', 'epf', 'sip', 'esop', 'bonds', 'demat', 'nav',
+  'profile', 'mf', 'fd', 'epf', 'sip', 'esop', 'bonds', 'otherHoldings', 'demat', 'nav',
   'niftyHigh', 'niftyData', 'eurInr', 'eurInrData', 'alphaTrackerData',
   'coorgCorpus', 'coorgStartDate', 'coorgTarget', 'coorgMonthlyAmount',
   'watchdogRules', 'swpSchedule', 'taxCalendar', 'expenses', 'netWorthHistory',
@@ -154,6 +155,22 @@ function isHoldingMap(value: unknown): boolean {
     && hasOnlyKeys(holding, ['amount', 'currency'])
     && isFiniteNumber(holding.amount)
     && typeof holding.currency === 'string',
+  );
+}
+
+function isOtherHoldingMap(value: unknown): value is OtherHoldings {
+  if (!isRecord(value)) return false;
+  return Object.values(value).every((holding) =>
+    isRecord(holding)
+    && hasOnlyKeys(holding, ['name', 'amount', 'annualReturn'])
+    && typeof holding.name === 'string'
+    && holding.name.trim().length > 0
+    && holding.name.length <= 200
+    && isFiniteNumber(holding.amount)
+    && holding.amount >= 0
+    && isFiniteNumber(holding.annualReturn)
+    && holding.annualReturn >= 0
+    && holding.annualReturn <= 100,
   );
 }
 
@@ -337,6 +354,7 @@ export function isPersistedPortfolioData(value: unknown): value is Partial<FireO
   for (const key of ['fd', 'epf', 'esop', 'bonds'] as const) {
     if (key in data && !isHoldingMap(data[key])) return false;
   }
+  if ('otherHoldings' in data && !isOtherHoldingMap(data.otherHoldings)) return false;
   if ('demat' in data && !isDematMap(data.demat)) return false;
   if ('nav' in data && !isNavMap(data.nav)) return false;
   if ('niftyHigh' in data && !isFiniteNumber(data.niftyHigh)) return false;
@@ -382,6 +400,7 @@ export function initializeState(): FireOSState {
     sip: {},
     esop: {},
     bonds: {},
+    otherHoldings: {},
     demat: {},
 
     // API cache and defaults

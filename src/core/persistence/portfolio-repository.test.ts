@@ -39,6 +39,18 @@ describe('portfolio repository adapter', () => {
     expect(repository.load()?.profile.name).toBe('Ada');
   });
 
+  it('round-trips other holdings through local persistence', () => {
+    const repository = createPortfolioRepository();
+    const state = initializeState();
+    state.otherHoldings = {
+      rental: { name: 'Rental Property', amount: 2500000, annualReturn: 7 },
+    };
+
+    repository.save(state, { sync: false });
+
+    expect(repository.load()?.otherHoldings).toEqual(state.otherHoldings);
+  });
+
   it('forwards sync options while keeping local persistence when cloud enqueue fails', async () => {
     const repository = createPortfolioRepository();
     const state = initializeState();

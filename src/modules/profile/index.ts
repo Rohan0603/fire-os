@@ -72,6 +72,11 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
 
       <div class="profile-section">
         <h3>Other Holdings</h3>
+        <div id="other-holdings-list" class="other-holdings-list">
+          ${renderOtherHoldingsFields()}
+        </div>
+        <button id="add-other-holding-btn" class="btn-secondary" type="button">+ Add Holding</button>
+        <h4>Core Holdings</h4>
         <form id="holdings-form" class="holdings-form">
           <div class="form-group">
             <label for="fd">Fixed Deposits (₹)</label>
@@ -191,6 +196,62 @@ function renderSIPFields(): string {
   return html;
 }
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[character] || character));
+}
+
+function renderOtherHoldingsFields(): string {
+  const otherHoldings = D.otherHoldings || {};
+  const indices = Object.keys(otherHoldings)
+    .map((key) => Number(key.replace('otherHolding', '')))
+    .filter((index) => Number.isInteger(index) && index > 0)
+    .sort((a, b) => a - b);
+
+  if (indices.length === 0) indices.push(1);
+
+  return `
+    <div class="sip-table-wrapper" style="overflow-x: auto; margin-bottom: 1rem;">
+      <table class="sip-table" style="width: 100%; border-collapse: collapse; text-align: left; background: var(--card-bg); border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <thead style="background: var(--bg-tertiary); border-bottom: 2px solid var(--border-primary);">
+          <tr>
+            <th style="padding: 12px 16px; font-weight: 600; color: var(--text-secondary); min-width: 220px;">Holding Name</th>
+            <th style="padding: 12px 16px; font-weight: 600; color: var(--text-secondary);">Amount (₹)</th>
+            <th style="padding: 12px 16px; font-weight: 600; color: var(--text-secondary);">Annual Return (%)</th>
+            <th style="padding: 12px 16px; font-weight: 600; color: var(--text-secondary);">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${indices.map((index) => {
+            const holding = otherHoldings[`otherHolding${index}`];
+            return `
+              <tr style="border-bottom: 1px solid var(--border-primary);">
+                <td style="padding: 8px 16px;">
+                  <input type="text" class="other-holding-name" data-index="${index}" placeholder="e.g. Gold, Crypto" value="${escapeHtml(holding?.name || '')}" style="width: 100%; min-width: 200px; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+                </td>
+                <td style="padding: 8px 16px;">
+                  <input type="number" class="other-holding-amount" data-index="${index}" min="0" step="0.01" placeholder="₹0" value="${holding?.amount || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+                </td>
+                <td style="padding: 8px 16px;">
+                  <input type="number" class="other-holding-return" data-index="${index}" min="0" max="100" step="0.1" placeholder="0" value="${holding?.annualReturn || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+                </td>
+                <td style="padding: 8px 16px;">
+                  <button type="button" class="btn-secondary delete-other-holding-btn" data-index="${index}" aria-label="Delete ${escapeHtml(holding?.name || 'holding')}">Delete</button>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
 /**
  * Render demat holdings list
  */
@@ -262,6 +323,38 @@ function attachProfileHandlers(context: FeatureContext) {
   if (holdingsForm) {
     holdingsForm.querySelectorAll('input').forEach((input) => {
       input.addEventListener('blur', debounceProfileSave);
+    });
+  }
+
+  // Other holdings form inputs and row actions
+  const otherHoldingsList = document.getElementById('other-holdings-list');
+  if (otherHoldingsList) {
+    otherHoldingsList.querySelectorAll('input').forEach((input) => {
+      input.addEventListener('blur', debounceProfileSave);
+    });
+
+    otherHoldingsList.querySelectorAll<HTMLButtonElement>('.delete-other-holding-btn').forEach((button) => {
+      button.addEventListener('click', () => {
+        delete D.otherHoldings[`otherHolding${button.dataset.index}`];
+        const container = document.getElementById('profile');
+        if (container) renderProfile(container, context);
+        saveProfile();
+      });
+    });
+  }
+
+  const addOtherHoldingBtn = document.getElementById('add-other-holding-btn');
+  if (addOtherHoldingBtn) {
+    addOtherHoldingBtn.addEventListener('click', () => {
+      if (!D.otherHoldings) D.otherHoldings = {};
+      for (let i = 1; i <= 50; i++) {
+        if (!D.otherHoldings[`otherHolding${i}`]) {
+          D.otherHoldings[`otherHolding${i}`] = { name: '', amount: 0, annualReturn: 0 };
+          const container = document.getElementById('profile');
+          if (container) renderProfile(container, context);
+          return;
+        }
+      }
     });
   }
 
@@ -380,6 +473,20 @@ function debounceProfileSave() {
           (startEl?.value || '') !== (sip?.startDate || '') ||
           (costBasisEl?.value ? parseFloat(costBasisEl.value) : 0) !== (sip?.costBasis || 0)) {
         return; // Form changed, save
+      }
+    }
+  }
+
+  if (!isDirty) {
+    for (let i = 1; i <= 50; i++) {
+      const nameEl = document.querySelector(`.other-holding-name[data-index="${i}"]`) as HTMLInputElement;
+      const amountEl = document.querySelector(`.other-holding-amount[data-index="${i}"]`) as HTMLInputElement;
+      const returnEl = document.querySelector(`.other-holding-return[data-index="${i}"]`) as HTMLInputElement;
+      const holding = D.otherHoldings?.[`otherHolding${i}`];
+      if ((nameEl?.value || '') !== (holding?.name || '')
+        || (amountEl?.value ? parseFloat(amountEl.value) : 0) !== (holding?.amount || 0)
+        || (returnEl?.value ? parseFloat(returnEl.value) : 0) !== (holding?.annualReturn || 0)) {
+        return;
       }
     }
   }
@@ -570,6 +677,7 @@ export async function saveProfile(): Promise<boolean> {
     if (typeof D.epf !== 'object' || D.epf === null) D.epf = {};
     if (typeof D.bonds !== 'object' || D.bonds === null) D.bonds = {};
     if (typeof D.esop !== 'object' || D.esop === null) D.esop = {};
+    if (typeof D.otherHoldings !== 'object' || D.otherHoldings === null) D.otherHoldings = {};
 
     // Validate FD
     if (fdInput?.value) {
@@ -625,6 +733,35 @@ export async function saveProfile(): Promise<boolean> {
       }
     } else {
       D.esop.esop = { amount: 0, currency: 'INR' };
+    }
+
+    // ==================== OTHER HOLDINGS SECTION ====================
+    for (let i = 1; i <= 50; i++) {
+      const nameEl = document.querySelector(`.other-holding-name[data-index="${i}"]`) as HTMLInputElement;
+      const amountEl = document.querySelector(`.other-holding-amount[data-index="${i}"]`) as HTMLInputElement;
+      const returnEl = document.querySelector(`.other-holding-return[data-index="${i}"]`) as HTMLInputElement;
+      const name = nameEl?.value?.trim() || '';
+      const amount = parseFloat(amountEl?.value || '0');
+      const annualReturn = parseFloat(returnEl?.value || '0');
+
+      if (!name && !amountEl?.value && !returnEl?.value) {
+        delete D.otherHoldings[`otherHolding${i}`];
+        continue;
+      }
+      if (!name) {
+        validationErrors.push({ field: `otherHolding${i}-name`, message: `Holding ${i}: Name is required` });
+        continue;
+      }
+      if (!Number.isFinite(amount) || amount < 0) {
+        validationErrors.push({ field: `otherHolding${i}-amount`, message: `Holding ${i}: Amount must be non-negative` });
+        continue;
+      }
+      if (!Number.isFinite(annualReturn) || annualReturn < 0 || annualReturn > 100) {
+        validationErrors.push({ field: `otherHolding${i}-return`, message: `Holding ${i}: Annual return must be between 0% and 100%` });
+        continue;
+      }
+
+      D.otherHoldings[`otherHolding${i}`] = { name, amount, annualReturn };
     }
 
     // ==================== SHOW VALIDATION ERRORS ====================

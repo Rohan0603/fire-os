@@ -42,6 +42,28 @@ describe('portfolio persistence contracts', () => {
     })).toBe(false);
   });
 
+  it('accepts valid other holdings and rejects invalid values', () => {
+    const valid = buildEnvelopeFromState(initializeState(), client);
+    expect(isPortfolioEnvelope({
+      ...valid,
+      data: {
+        ...valid.data,
+        otherHoldings: {
+          gold: { name: 'Gold', amount: 100000, annualReturn: 8 },
+        },
+      },
+    })).toBe(true);
+    expect(isPortfolioEnvelope({
+      ...valid,
+      data: {
+        ...valid.data,
+        otherHoldings: {
+          invalid: { name: ' ', amount: -1, annualReturn: 101 },
+        },
+      },
+    })).toBe(false);
+  });
+
   it('rejects runtime fields and normalizes omitted top-level persisted sections', () => {
     localStorage.setItem('fireOS_v2', '{malformed');
     expect(loadData()).toBeNull();
@@ -57,6 +79,7 @@ describe('portfolio persistence contracts', () => {
     }));
     const normalized = loadData();
     expect(normalized?.profile.name).toBe('Ada');
+    expect(normalized?.otherHoldings).toEqual({});
     expect(normalized?.insurance.health.familySize).toBe(1);
     expect(normalized?.currentUser).toBeNull();
   });

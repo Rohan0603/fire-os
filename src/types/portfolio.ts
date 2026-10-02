@@ -19,6 +19,13 @@ export interface Holding {
   currency: string;
 }
 
+/** Represents a user-defined portfolio holding with an expected annual return */
+export interface OtherHolding {
+  name: string;
+  amount: number;
+  annualReturn: number;
+}
+
 /** Represents a demat stock holding (from Consolidated Account Statement) */
 export interface DematHolding {
   isin: string;
@@ -50,6 +57,9 @@ export type SIPFunds = Record<string, SIPFund>;
 
 /** Collection of holdings indexed by key */
 export type Holdings = Record<string, Holding>;
+
+/** Collection of user-defined holdings indexed by stable form key */
+export type OtherHoldings = Record<string, OtherHolding>;
 
 /** Collection of demat holdings indexed by ISIN */
 export type DematHoldings = Record<string, DematHolding>;

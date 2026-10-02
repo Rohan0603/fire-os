@@ -199,7 +199,7 @@ service cloud.firestore {
     function validPersistedData() {
       let data = request.resource.data.data;
       return data.keys().hasOnly([
-        'profile', 'sip', 'fd', 'epf', 'esop', 'bonds', 'demat',
+        'profile', 'sip', 'fd', 'epf', 'esop', 'bonds', 'otherHoldings', 'demat',
         'nav', 'niftyHigh', 'niftyData', 'eurInr', 'eurInrData',
         'alphaTrackerData', 'coorgCorpus', 'coorgStartDate', 'coorgTarget',
         'coorgMonthlyAmount', 'watchdogRules', 'swpSchedule', 'taxCalendar',
@@ -212,6 +212,7 @@ service cloud.firestore {
         && (!('epf' in data) || isBoundedMap(data.epf, 200))
         && (!('esop' in data) || isBoundedMap(data.esop, 200))
         && (!('bonds' in data) || isBoundedMap(data.bonds, 200))
+        && (!('otherHoldings' in data) || isBoundedMap(data.otherHoldings, 200))
         && (!('demat' in data) || isBoundedMap(data.demat, 200))
         && (!('nav' in data) || isBoundedMap(data.nav, 200))
         && (!('niftyHigh' in data) || data.niftyHigh is number)

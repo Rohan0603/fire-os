@@ -176,6 +176,29 @@ describe('portfolio Firestore rules', () => {
     }));
   });
 
+  it('allows valid other holdings and denies an oversized collection', async () => {
+    const db = testEnvironment.authenticatedContext('owner-other-holdings').firestore();
+    await assertSucceeds(setDoc(doc(db, 'users/owner-other-holdings/portfolio/state'), {
+      ...validEnvelope,
+      data: {
+        otherHoldings: {
+          gold: { name: 'Gold', amount: 100000, annualReturn: 8 },
+        },
+      },
+    }));
+
+    const oversized = Object.fromEntries(
+      Array.from({ length: 201 }, (_, index) => [
+        `holding-${index}`,
+        { name: `Holding ${index}`, amount: 1000, annualReturn: 5 },
+      ]),
+    );
+    await assertFails(setDoc(doc(db, 'users/owner-other-holdings/portfolio/state'), {
+      ...validEnvelope,
+      data: { otherHoldings: oversized },
+    }));
+  });
+
   it('revalidates nested values on update', async () => {
     const db = testEnvironment.authenticatedContext('owner-8').firestore();
     const stateRef = doc(db, 'users/owner-8/portfolio/state');

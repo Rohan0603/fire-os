@@ -20,6 +20,28 @@ export interface TotalNetWorthKPI {
     bonds: number;
     esop: number;
     demat: number;
+    otherHoldings: number;
+  };
+}
+
+export interface OtherHoldingsSummary {
+  totalValue: number;
+  weightedAnnualReturn: number;
+}
+
+export function summarizeOtherHoldings(state: FireOSState): OtherHoldingsSummary {
+  const entries = Object.values(state.otherHoldings || {});
+  const totalValue = entries.reduce((sum, holding) => sum + (holding.amount || 0), 0);
+  const weightedReturn = entries.reduce(
+    (sum, holding) => sum + (holding.amount || 0) * (holding.annualReturn || 0),
+    0,
+  );
+
+  return {
+    totalValue: isFinite(totalValue) ? Math.max(0, totalValue) : 0,
+    weightedAnnualReturn: totalValue > 0 && isFinite(weightedReturn)
+      ? Math.max(0, weightedReturn / totalValue)
+      : 0,
   };
 }
 
@@ -53,8 +75,10 @@ export function totalNetWorth(state: FireOSState): TotalNetWorthKPI {
   // Demat holdings: currentValue already in INR
   const demat = Object.values(state.demat).reduce((sum, holding) => sum + (holding.currentValue || 0), 0);
 
+  const otherHoldings = summarizeOtherHoldings(state).totalValue;
+
   // Total net worth
-  const netWorth = mf + fd + epf + sip + esop + bonds + demat;
+  const netWorth = mf + fd + epf + sip + esop + bonds + demat + otherHoldings;
 
   return {
     netWorth: isFinite(netWorth) ? netWorth : 0,
@@ -66,6 +90,7 @@ export function totalNetWorth(state: FireOSState): TotalNetWorthKPI {
       bonds: isFinite(bonds) ? bonds : 0,
       esop: isFinite(esop) ? esop : 0,
       demat: isFinite(demat) ? demat : 0,
+      otherHoldings: isFinite(otherHoldings) ? otherHoldings : 0,
     },
   };
 }
@@ -225,7 +250,7 @@ export interface PortfolioCompositionKPI {
 
 export function portfolioComposition(state: FireOSState): PortfolioCompositionKPI {
   const breakdown = totalNetWorth(state).breakdown;
-  const total = breakdown.mf + breakdown.fd + breakdown.epf + breakdown.sip + breakdown.esop + breakdown.bonds + breakdown.demat;
+  const total = breakdown.mf + breakdown.fd + breakdown.epf + breakdown.sip + breakdown.esop + breakdown.bonds + breakdown.demat + breakdown.otherHoldings;
 
   const categories: PortfolioCompositionKPI['categories'] = [
     { name: 'Mutual Funds', value: breakdown.mf, percentage: total > 0 ? (breakdown.mf / total) * 100 : 0 },
@@ -235,6 +260,7 @@ export function portfolioComposition(state: FireOSState): PortfolioCompositionKP
     { name: 'Bonds', value: breakdown.bonds, percentage: total > 0 ? (breakdown.bonds / total) * 100 : 0 },
     { name: 'ESOP', value: breakdown.esop, percentage: total > 0 ? (breakdown.esop / total) * 100 : 0 },
     { name: 'Equity (Demat)', value: breakdown.demat, percentage: total > 0 ? (breakdown.demat / total) * 100 : 0 },
+    { name: 'Other Holdings', value: breakdown.otherHoldings, percentage: total > 0 ? (breakdown.otherHoldings / total) * 100 : 0 },
   ].filter(cat => cat.value > 0); // Only show non-zero categories
 
   return {
