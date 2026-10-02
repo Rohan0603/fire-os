@@ -146,6 +146,10 @@ export function saveData(state: FireOSState): void {
       return;
     }
 
+    if ('eurInrData' in state && !isPersistedPortfolioData({ eurInrData: state.eurInrData })) {
+      delete state.eurInrData;
+    }
+
     // Update last saved timestamp
     state._lastSavedAt = new Date().toISOString();
 
@@ -154,7 +158,10 @@ export function saveData(state: FireOSState): void {
     void _syncMetadata;
     void _lastSavedAt;
     if (!isPersistedPortfolioData(persisted)) {
-      console.warn('[Storage] Refusing to persist invalid portfolio data');
+      const invalidKeys = Object.keys(persisted).filter((key) =>
+        !isPersistedPortfolioData({ [key]: persisted[key as keyof typeof persisted] }),
+      );
+      console.warn('[Storage] Refusing to persist invalid portfolio data', invalidKeys);
       return;
     }
 
