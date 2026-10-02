@@ -448,7 +448,7 @@ function debounceProfileSave() {
   const fiTargetInput = document.getElementById('fi-target') as HTMLInputElement;
   const monthlyIncomeInput = document.getElementById('monthly-income') as HTMLInputElement;
 
-  const isDirty =
+  let isDirty =
     (nameInput?.value || '') !== (D.profile.name || '') ||
     (ageInput?.value ? parseInt(ageInput.value) : 0) !== (D.profile.age || 0) ||
     (expensesInput?.value ? parseFloat(expensesInput.value) : 0) !== (D.profile.annualExpenses || 0) ||
@@ -472,7 +472,8 @@ function debounceProfileSave() {
           (amountEl?.value ? parseFloat(amountEl.value) : 0) !== (sip?.monthlyAmount || 0) ||
           (startEl?.value || '') !== (sip?.startDate || '') ||
           (costBasisEl?.value ? parseFloat(costBasisEl.value) : 0) !== (sip?.costBasis || 0)) {
-        return; // Form changed, save
+        isDirty = true;
+        break;
       }
     }
   }
@@ -486,7 +487,8 @@ function debounceProfileSave() {
       if ((nameEl?.value || '') !== (holding?.name || '')
         || (amountEl?.value ? parseFloat(amountEl.value) : 0) !== (holding?.amount || 0)
         || (returnEl?.value ? parseFloat(returnEl.value) : 0) !== (holding?.annualReturn || 0)) {
-        return;
+        isDirty = true;
+        break;
       }
     }
   }
