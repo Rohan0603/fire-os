@@ -280,7 +280,7 @@ function renderOtherHoldingsFields(): string {
                   <input type="number" class="other-holding-return" data-index="${index}" min="0" max="100" step="0.1" placeholder="0" value="${holding?.annualReturn ?? ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
                 </td>
                 <td style="padding: 8px 16px;">
-                  <button type="button" class="btn-secondary delete-other-holding-btn" data-index="${index}" aria-label="Delete ${escapeHtml(holding?.name || 'holding')}">Delete</button>
+                  <button type="button" class="btn-secondary delete-other-holding-btn" data-index="${index}" aria-label="Delete ${escapeHtml(holding?.name || 'holding')}" title="Delete holding">🗑</button>
                 </td>
               </tr>
             `;
