@@ -222,7 +222,7 @@ describe('portfolio persistence contracts', () => {
     const repository = createPortfolioRepository();
     const state = initializeState();
     state.currentUser = { uid: 'user-1' } as typeof state.currentUser;
-    const coordinator = { markDirty: vi.fn() };
+    const coordinator = { markDirty: vi.fn(), flush: vi.fn(async () => undefined) };
 
     configurePortfolioStorageScope('user-1');
     configurePortfolioSync(coordinator as never);
@@ -231,5 +231,6 @@ describe('portfolio persistence contracts', () => {
 
     expect(repository.load()).not.toBeNull();
     expect(coordinator.markDirty).toHaveBeenCalledOnce();
+    expect(coordinator.flush).toHaveBeenCalledOnce();
   });
 });

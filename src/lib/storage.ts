@@ -209,4 +209,5 @@ export async function queuePortfolioSave(uid: string, state: FireOSState): Promi
   }, state._lastSavedAt, activeEnvelope ?? undefined);
   activeEnvelope = envelope;
   activeSyncCoordinator.markDirty(envelope);
+  await activeSyncCoordinator.flush();
 }

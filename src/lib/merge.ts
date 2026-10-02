@@ -14,7 +14,7 @@ export interface MergeResult {
 
 const SECTION_FIELDS: Record<PortfolioSection, Array<keyof PersistedPortfolioData>> = {
   profile: ['profile'],
-  holdings: ['mf', 'fd', 'epf', 'sip', 'esop', 'bonds', 'demat'],
+  holdings: ['mf', 'fd', 'epf', 'sip', 'esop', 'bonds', 'otherHoldings', 'demat'],
   planning: [
     'coorgCorpus', 'coorgStartDate', 'coorgTarget', 'coorgMonthlyAmount',
     'watchdogRules', 'swpSchedule', 'taxCalendar', 'expenses',
