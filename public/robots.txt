@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://fire-os-dd6d6.web.app/sitemap.xml

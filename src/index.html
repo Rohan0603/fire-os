@@ -3,12 +3,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="FIRE OS is a local-first financial independence dashboard for portfolio planning, calculators, insurance, retirement plans, and ESOP analysis.">
   <title>FIRE OS — Financial Independence Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 </head>
 <body>
-  <div id="app"></div>
+  <div id="app">
+    <noscript>
+      <main>
+        <h1>FIRE OS Financial Independence Dashboard</h1>
+        <p>Explore financial planning tools without signing in. Guest mode keeps changes in this browser.</p>
+        <nav aria-label="FIRE OS sections">
+          <a href="/profile">Profile</a>
+          <a href="/dashboard">Dashboard</a>
+          <a href="/calculators">Calculators</a>
+          <a href="/insurance">Insurance</a>
+          <a href="/plan">Plan</a>
+          <a href="/esop">ESOP Tools</a>
+        </nav>
+      </main>
+    </noscript>
+  </div>
   <script type="module" src="/main.ts"></script>
 </body>
 </html>

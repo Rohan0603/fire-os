@@ -251,12 +251,12 @@ function renderApp() {
       <div class="nav-brand">FIRE OS</div>
       <button id="hamburger-btn" class="hamburger-btn" aria-label="Toggle Menu">☰</button>
       <div class="nav-tabs">
-        <button class="nav-tab active" data-tab="profile">Profile</button>
-        <button class="nav-tab" data-tab="dashboard">Dashboard</button>
-        <button class="nav-tab" data-tab="calculators">Calculators</button>
-        <button class="nav-tab" data-tab="insurance">Insurance</button>
-        <button class="nav-tab" data-tab="plan">Plan</button>
-        <button class="nav-tab" data-tab="esop">ESOP Tools</button>
+        <a class="nav-tab active" href="/profile" data-tab="profile">Profile</a>
+        <a class="nav-tab" href="/dashboard" data-tab="dashboard">Dashboard</a>
+        <a class="nav-tab" href="/calculators" data-tab="calculators">Calculators</a>
+        <a class="nav-tab" href="/insurance" data-tab="insurance">Insurance</a>
+        <a class="nav-tab" href="/plan" data-tab="plan">Plan</a>
+        <a class="nav-tab" href="/esop" data-tab="esop">ESOP Tools</a>
       </div>
       <div style="display: flex; gap: 1rem; align-items: center;">
         <label class="theme-switch" title="Toggle Theme">
@@ -459,30 +459,47 @@ function setupTabNavigation() {
     });
   }
 
+  const activateTab = (target: string): void => {
+    const tabEl = document.getElementById(target);
+    if (!tabEl || !featureRegistry.get(target)) return;
+
+    document.querySelectorAll('.nav-tab').forEach((tab) => {
+      tab.classList.toggle('active', tab.getAttribute('data-tab') === target);
+    });
+    document.querySelectorAll('.tab').forEach((tab) => tab.classList.remove('active'));
+    tabEl.classList.add('active');
+
+    void featureRegistry.mount(target, tabEl).catch((error) => {
+      console.error(`Failed to load module for tab ${target}:`, error);
+      tabEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading module. Please check your connection.</p>';
+    });
+  };
+
+  const activateLocationTab = (): void => {
+    const path = window.location.pathname.replace(/\/+$/, '') || '/';
+    const pathTarget = path.startsWith('/') ? path.slice(1) : path;
+    const hashTarget = window.location.hash.slice(1);
+    const target = featureRegistry.get(pathTarget)?.id ?? featureRegistry.get(hashTarget)?.id ?? 'profile';
+    activateTab(target);
+  };
+
   document.querySelectorAll('.nav-tab').forEach((tab) => {
-    tab.addEventListener('click', (e) => {
+    tab.addEventListener('click', (event) => {
+      event.preventDefault();
       if (hamburgerBtn && navTabs) {
         hamburgerBtn.classList.remove('open');
         navTabs.classList.remove('open');
       }
-
-      const target = (e.target as HTMLElement).getAttribute('data-tab');
+      const target = tab.getAttribute('data-tab');
       if (target) {
-        document.querySelectorAll('.nav-tab').forEach((t) => t.classList.remove('active'));
-        (e.target as HTMLElement).classList.add('active');
-        document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
-        const tabEl = document.getElementById(target);
-        if (tabEl) tabEl.classList.add('active');
-
-        if (tabEl) {
-          void featureRegistry.mount(target, tabEl).catch((error) => {
-            console.error(`Failed to load module for tab ${target}:`, error);
-            tabEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading module. Please check your connection.</p>';
-          });
-        }
+        window.history.pushState({}, '', `/${target}`);
+        activateTab(target);
       }
     });
   });
+  window.addEventListener('popstate', activateLocationTab);
+  window.addEventListener('hashchange', activateLocationTab);
+  activateLocationTab();
 
   // Logout button
   const logoutBtn = document.getElementById('logout-btn');

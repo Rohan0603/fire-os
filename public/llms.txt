@@ -1,0 +1,21 @@
+# FIRE OS
+
+FIRE OS is a local-first financial independence dashboard. It opens in guest mode without authentication; guest changes remain in browser local storage. Users can optionally sign in to enable Firebase cloud sync.
+
+## Public sections
+
+- [Profile](https://fire-os-dd6d6.web.app/profile): financial profile, holdings, statement import, and portfolio assumptions.
+- [Dashboard](https://fire-os-dd6d6.web.app/dashboard): net worth, asset allocation, SIP status, milestones, and market risk indicators.
+- [Calculators](https://fire-os-dd6d6.web.app/calculators): retirement, SIP, SWP, tax, insurance, emergency runway, rebalancing, and scenario models.
+- [Insurance](https://fire-os-dd6d6.web.app/insurance): life and health insurance requirement estimates.
+- [Plan](https://fire-os-dd6d6.web.app/plan): financial health, actions, milestones, cash flow, and net-worth history.
+- [ESOP Tools](https://fire-os-dd6d6.web.app/esop): generic employee stock option value, exercise, currency, and tax scenarios.
+
+## Privacy
+
+Guest mode does not create an anonymous Firebase account and does not write guest data to Firestore. Do not enter sensitive financial data into public reports or prompts.
+
+## Documentation
+
+- [API documentation](https://github.com/Rohan0603/fire-os/blob/main/docs/API.md)
+- [Architecture documentation](https://github.com/Rohan0603/fire-os/blob/main/docs/ARCHITECTURE.md)
