@@ -46,10 +46,24 @@ export interface AlphaTrackerData {
 /** Portfolio profile information */
 export interface PortfolioProfile {
   name: string;
+  dateOfBirth: string;
   age: number;
   annualExpenses: number;
   fiTarget: number; // FI corpus target
   monthlyIncome: number;
+}
+
+export function calculateAgeFromDateOfBirth(dateOfBirth: string, today = new Date()): number | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return null;
+  const [year, month, day] = dateOfBirth.split('-').map(Number);
+  const birthDate = new Date(Date.UTC(year, month - 1, day));
+  if (birthDate.getUTCFullYear() !== year || birthDate.getUTCMonth() !== month - 1 || birthDate.getUTCDate() !== day) return null;
+
+  let age = today.getUTCFullYear() - year;
+  const birthdayPassed = today.getUTCMonth() > month - 1
+    || (today.getUTCMonth() === month - 1 && today.getUTCDate() >= day);
+  if (!birthdayPassed) age -= 1;
+  return age >= 0 ? age : null;
 }
 
 /** Collection of SIP funds indexed by key (e.g., "sip1", "sip2") */

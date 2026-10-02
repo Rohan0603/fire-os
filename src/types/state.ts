@@ -140,8 +140,9 @@ function isTimestamp(value: unknown): value is string {
 }
 
 function isProfile(value: unknown): boolean {
-  if (!isRecord(value) || !hasOnlyKeys(value, ['name', 'age', 'annualExpenses', 'fiTarget', 'monthlyIncome'])) return false;
+  if (!isRecord(value) || !hasOnlyKeys(value, ['name', 'dateOfBirth', 'age', 'annualExpenses', 'fiTarget', 'monthlyIncome'])) return false;
   return typeof value.name === 'string'
+    && (value.dateOfBirth === undefined || typeof value.dateOfBirth === 'string')
     && isFiniteNumber(value.age)
     && isFiniteNumber(value.annualExpenses)
     && isFiniteNumber(value.fiTarget)
@@ -387,6 +388,7 @@ export function initializeState(): FireOSState {
     // Profile with zero defaults
     profile: {
       name: '',
+      dateOfBirth: '',
       age: 0,
       annualExpenses: 0,
       fiTarget: 0,

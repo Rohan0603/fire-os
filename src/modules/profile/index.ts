@@ -8,6 +8,7 @@ import { createFeatureContext, type FeatureContext } from '../../core/feature-co
 import { parseCASPDF, CASParseResult } from './pdf-parser';
 import { validateFormInput, handleError, ValidationRules } from '../../lib/error-handler';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
+import { calculateAgeFromDateOfBirth } from '../../types/portfolio';
 import './styles.css';
 
 const DEBOUNCE_MS = 500;
@@ -51,8 +52,8 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
             <input type="text" id="name" placeholder="Your name" value="${D.profile.name || ''}">
           </div>
           <div class="form-group">
-            <label for="age">Age</label>
-            <input type="number" id="age" placeholder="Age" value="${D.profile.age || ''}">
+            <label for="date-of-birth">Date of Birth</label>
+            <input type="date" id="date-of-birth" value="${D.profile.dateOfBirth || ''}" max="${new Date().toISOString().slice(0, 10)}">
           </div>
           <div class="form-group">
             <label for="expenses">Monthly Expenses (₹)</label>
@@ -438,14 +439,14 @@ function attachProfileHandlers(context: FeatureContext) {
 function debounceProfileSave() {
   // Check if any form field differs from D (dirty detection)
   const nameInput = document.getElementById('name') as HTMLInputElement;
-  const ageInput = document.getElementById('age') as HTMLInputElement;
+  const dateOfBirthInput = document.getElementById('date-of-birth') as HTMLInputElement;
   const expensesInput = document.getElementById('expenses') as HTMLInputElement;
   const fiTargetInput = document.getElementById('fi-target') as HTMLInputElement;
   const monthlyIncomeInput = document.getElementById('monthly-income') as HTMLInputElement;
 
   let isDirty =
     (nameInput?.value || '') !== (D.profile.name || '') ||
-    (ageInput?.value ? parseInt(ageInput.value) : 0) !== (D.profile.age || 0) ||
+    (dateOfBirthInput?.value || '') !== (D.profile.dateOfBirth || '') ||
     (expensesInput?.value ? parseFloat(expensesInput.value) : 0) !== (D.profile.annualExpenses || 0) ||
     (fiTargetInput?.value ? parseFloat(fiTargetInput.value) : 0) !== (D.profile.fiTarget || 0) ||
     (monthlyIncomeInput?.value ? parseFloat(monthlyIncomeInput.value) : 0) !== (D.profile.monthlyIncome || 0);
@@ -505,7 +506,7 @@ export async function saveProfile(): Promise<boolean> {
 
     // ==================== PROFILE SECTION ====================
     const nameInput = document.getElementById('name') as HTMLInputElement;
-    const ageInput = document.getElementById('age') as HTMLInputElement;
+    const dateOfBirthInput = document.getElementById('date-of-birth') as HTMLInputElement;
     const expensesInput = document.getElementById('expenses') as HTMLInputElement;
     const fiTargetInput = document.getElementById('fi-target') as HTMLInputElement;
     const monthlyIncomeInput = document.getElementById('monthly-income') as HTMLInputElement;
@@ -522,16 +523,17 @@ export async function saveProfile(): Promise<boolean> {
       }
     }
 
-    // Validate age (optional but if provided, must be 0-150)
-    if (ageInput?.value) {
-      const ageError = validateFormInput(parseInt(ageInput.value), [
-        ValidationRules.range('Age', 0, 150),
-      ]);
-      if (ageError) {
-        validationErrors.push({ field: 'age', message: ageError });
+    // Validate date of birth and derive age for existing calculations.
+    if (dateOfBirthInput?.value) {
+      const age = calculateAgeFromDateOfBirth(dateOfBirthInput.value);
+      if (age === null || age > 150) {
+        validationErrors.push({ field: 'date-of-birth', message: 'Date of birth must produce an age between 0 and 150' });
       } else {
-        D.profile.age = parseInt(ageInput.value);
+        D.profile.dateOfBirth = dateOfBirthInput.value;
+        D.profile.age = age;
       }
+    } else {
+      D.profile.dateOfBirth = '';
     }
 
     // Validate expenses (optional but if provided, must be non-negative)
