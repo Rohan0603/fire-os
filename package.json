@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "vitest run src/lib/persistence.test.ts src/lib/authCoordinator.test.ts src/lib/authSession.test.ts src/modules/api/esop.test.ts src/modules/api/nifty-monitor.test.ts src/modules/auth/firebaseAuth.test.ts",
+    "test": "vitest run src --exclude src/lib/firestore.rules.test.ts",
     "test:watch": "vitest",
     "test:rules": "vitest run src/lib/firestore.rules.test.ts",
     "test:rules:emulator": "firebase emulators:exec --only firestore \"npm run test:rules\"",
@@ -44,6 +44,8 @@
     "vitest": "^5.0.0"
   },
   "dependencies": {
-    "firebase": "^11.0.0"
+    "chart.js": "^4.4.0",
+    "firebase": "^11.0.0",
+    "pdfjs-dist": "^3.11.174"
   }
 }

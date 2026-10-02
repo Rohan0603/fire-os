@@ -11,7 +11,6 @@
  */
 
 import { getLogger } from '../../lib/logger';
-import { fetchNAV } from './mfapi';
 import type { NiftyData } from '../../types/api';
 import { CONFIG } from '../../lib/config';
 
@@ -72,60 +71,8 @@ export async function fetchNifty(): Promise<{
     logger.warn('Yahoo Finance fetch failed, attempting ETF fallback', error);
   }
 
-  // ATTEMPT 1.5: Fall back to Gold ETF NAV as Nifty proxy (live fallback)
-  try {
-    const etfNav = await fetchNAV('135106');
-    // Gold ETF NAV is typically 40-300 (ICICI Gold ETF fluctuates with gold prices)
-    if (etfNav && etfNav > 20 && etfNav < 500) {
-      const niftyEst = etfNav * 95;
-      const niftyHigh = niftyEst * 1.08;
-      niftyCache = {
-        level: niftyEst,
-        high52w: niftyHigh,
-        timestamp: new Date().toISOString(),
-        source: 'Gold ETF Proxy (approximation)',
-      };
-      return {
-        level: niftyEst,
-        high52w: niftyHigh,
-        source: 'Gold ETF Proxy (approximation)',
-      };
-    } else {
-      logger.warn('Gold ETF NAV out of range:', etfNav);
-    }
-  } catch (error) {
-    logger.warn('Gold ETF fallback failed', error);
-  }
-
-  // ATTEMPT 2: Return cached value if available (even if expired)
-  if (niftyCache) {
-    logger.warn('Returning cached Nifty data (Yahoo Finance failed)', {
-      level: niftyCache.level,
-      age: Date.now() - new Date(niftyCache.timestamp).getTime(),
-    });
-    return {
-      level: niftyCache.level,
-      high52w: niftyCache.high52w,
-      source: `${niftyCache.source} (cached)`,
-    };
-  }
-
-  // ATTEMPT 3: Return reasonable default Nifty values (as of June 2026)
-  const defaultNifty = {
-    level: 23483.55,
-    high52w: 26373.20,
-    source: 'Default values (manual entry recommended)',
-  };
-
-  niftyCache = {
-    level: defaultNifty.level,
-    high52w: defaultNifty.high52w,
-    timestamp: new Date().toISOString(),
-    source: defaultNifty.source,
-  };
-
-  logger.warn('All Nifty data sources failed, using default values. User can enter manually.', defaultNifty);
-  return defaultNifty;
+  logger.warn('All Nifty data sources failed; manual entry is required');
+  return null;
 }
 
 /**

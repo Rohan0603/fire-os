@@ -101,7 +101,7 @@ featureRegistry.register({
 });
 featureRegistry.register({
   id: 'calculators',
-  label: 'Calculators',
+  label: 'Planning Tools',
   mount(container, context) {
     if (!initializedFeatures.has('calculators')) {
       initCalculatorsModule(container.id, context);
@@ -253,7 +253,7 @@ function renderApp() {
       <div class="nav-tabs">
         <a class="nav-tab active" href="/profile" data-tab="profile">Profile</a>
         <a class="nav-tab" href="/dashboard" data-tab="dashboard">Dashboard</a>
-        <a class="nav-tab" href="/calculators" data-tab="calculators">Calculators</a>
+        <a class="nav-tab" href="/calculators" data-tab="calculators">Planning Tools</a>
         <a class="nav-tab" href="/insurance" data-tab="insurance">Insurance</a>
         <a class="nav-tab" href="/plan" data-tab="plan">Plan</a>
         <a class="nav-tab" href="/esop" data-tab="esop">ESOP Tools</a>
@@ -277,6 +277,7 @@ function renderApp() {
       <div id="plan" class="tab"></div>
       <div id="esop" class="tab"></div>
     </div>
+    <footer class="app-footer">Planning estimates, not investment advice. Guest data is stored unencrypted in this browser.</footer>
   `;
 
   // Initialize and render auth screen

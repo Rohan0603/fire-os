@@ -264,10 +264,10 @@ export async function parseCASPDF(file: File): Promise<CASParseResult> {
         };
         if (!(window as any).pdfjsLib) {
           const script = document.createElement('script');
-          script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+          script.src = '/pdfjs/pdf.min.js';
           script.onload = () => {
             (window as any).pdfjsLib.GlobalWorkerOptions.workerSrc =
-              'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+              '/pdfjs/pdf.worker.min.js';
             run().catch(reject);
           };
           script.onerror = () => reject(new Error('Failed to load PDF.js'));

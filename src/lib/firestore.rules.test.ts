@@ -67,7 +67,7 @@ describe('portfolio Firestore rules', () => {
     await assertFails(getDoc(doc(otherDb, 'users/owner-2/portfolio/state')));
   });
 
-  it('denies unauthenticated state access and owner state deletion', async () => {
+  it('allows owner state deletion and denies unauthenticated state access', async () => {
     const ownerDb = testEnvironment.authenticatedContext('owner-authz').firestore();
     const stateRef = doc(ownerDb, 'users/owner-authz/portfolio/state');
     await assertSucceeds(setDoc(stateRef, validEnvelope));
@@ -75,7 +75,7 @@ describe('portfolio Firestore rules', () => {
     const unauthenticatedDb = testEnvironment.unauthenticatedContext().firestore();
     await assertFails(getDoc(doc(unauthenticatedDb, 'users/owner-authz/portfolio/state')));
     await assertFails(setDoc(doc(unauthenticatedDb, 'users/owner-authz/portfolio/state'), validEnvelope));
-    await assertFails(deleteDoc(stateRef));
+    await assertSucceeds(deleteDoc(stateRef));
   });
 
   it('enforces owner-only holding CRUD and allows valid owner updates', async () => {

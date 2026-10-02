@@ -124,6 +124,7 @@ function renderCrashProtocol(): string {
         <label>Current Nifty Level (₹)</label>
         <input type="number" id="nifty-current" value="${D.niftyData?.level || ''}">
       </div>
+      <p id="nifty-status" class="calc-info">${D.niftyData ? `Source: ${D.niftyData.source}. Fetched: ${new Date(D.niftyData.timestamp).toLocaleString()}` : 'Live Nifty data unavailable. Enter both values manually before interpreting drawdown.'}</p>
       <button id="refresh-nifty-btn" class="btn-primary">⚡ Refresh Nifty</button>
     </div>
   `;
@@ -360,6 +361,8 @@ async function refreshNiftyData(context: FeatureContext = activeContext) {
     // Fetch fresh Nifty data from API
     const niftyData = await context.ports.marketData.fetchNifty();
     if (!niftyData) {
+      const status = document.getElementById('nifty-status');
+      if (status) status.textContent = 'Live Nifty data unavailable. Enter both values manually before interpreting drawdown.';
       context.ports.ui.showToast('✗ Failed to fetch Nifty data. Enter manually.', 2000, 'error');
       return;
     }
@@ -378,6 +381,8 @@ async function refreshNiftyData(context: FeatureContext = activeContext) {
 
     if (niftyHighInput) niftyHighInput.value = String(niftyData.high52w);
     if (niftyCurrentInput) niftyCurrentInput.value = String(niftyData.level);
+    const status = document.getElementById('nifty-status');
+    if (status) status.textContent = `Source: ${niftyData.source}. Fetched: ${new Date().toLocaleString()}`;
 
     // Recalculate crash scenarios
     const highVal = niftyData.high52w;

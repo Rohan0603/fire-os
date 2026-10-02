@@ -290,7 +290,7 @@ service cloud.firestore {
     match /users/{uid}/portfolio/state {
       allow read: if isOwner(uid);
       allow create, update: if isOwner(uid) && validEnvelope();
-      allow delete: if false;
+      allow delete: if isOwner(uid);
     }
 
     match /users/{uid}/portfolio/state/holdings/{holdingId} {
