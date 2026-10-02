@@ -101,6 +101,21 @@ describe('portfolio persistence contracts', () => {
     expect(coordinator.markDirty).toHaveBeenCalledOnce();
   });
 
+  it('keeps guest changes in anonymous local storage without cloud enqueueing', () => {
+    const coordinator = {
+      markDirty: vi.fn(),
+    } as unknown as SyncCoordinator;
+    const state = initializeState();
+    state.profile.name = 'Guest reviewer';
+    configurePortfolioSync(coordinator);
+
+    persistPortfolioState(state, { sync: true });
+
+    expect(localStorage.getItem('fireOS_v2:anonymous')).not.toBeNull();
+    expect(JSON.parse(localStorage.getItem('fireOS_v2:anonymous')!).profile.name).toBe('Guest reviewer');
+    expect(coordinator.markDirty).not.toHaveBeenCalled();
+  });
+
   it('keeps local data when cloud enqueue fails', async () => {
     const coordinator = {
       markDirty: vi.fn(() => { throw new Error('offline'); }),

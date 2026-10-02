@@ -177,6 +177,7 @@ Users can now:
 - **Cross-Device Sync** — Login on desktop/mobile/tablet with same email → all portfolio data syncs instantly
 - **Secure Cloud Storage** — Portfolio data stored in owner-scoped Cloud Firestore documents
 - **Offline Support** — Changes saved locally when offline; auto-sync when connection restored
+- **Guest Mode (Default)** — Start without signing in; changes stay in this browser's anonymous local storage and never sync to Firebase. Choose **Sign in** when cloud sync is needed.
 - **Logout** — Securely sign out; data cleared from browser (saved safely in cloud)
 
 ---
@@ -187,7 +188,7 @@ Users can now:
 - **Cloud Firestore:** (Canonical) Portfolio data stored at `users/{uid}/portfolio/state`; Firestore Rules restrict access to the owner
 - **localStorage + IndexedDB:** Offline cache and pending writes; queued changes sync after reconnect
 - **Cloud Firestore:** Canonical portfolio persistence and realtime sync
-- **localStorage:** (Fallback) Local browser storage when offline or not authenticated
+- **localStorage:** Authenticated cache plus a separate anonymous guest scope when using Guest Mode; guest changes never enqueue Firestore writes
 - **Backup:** Download from Profile tab → "Export" button (exports `fireOS_v2` JSON envelope)
 - **Persistence:** Cloud data survives browser restart/clear; can access from any device after login
 
@@ -196,7 +197,7 @@ Users can now:
 - **Nifty Fetch:** Yahoo Finance (`^NSEI`) via `api.allorigins.win` CORS proxy — fetches current level + 52W high
 - **EUR/INR:** `api.allorigins.win` proxy (Yahoo Finance `EURINR=X`)
 - **PDF.js:** `cdnjs.cloudflare.com` — used for Paytm Money PDF import
-- **SocGen Stock:** Manual entry (no API — use brokerage price)
+- **ESOP stocks:** Configured holdings are valued through Yahoo Finance quotes and converted from each holding currency to INR
 
 All APIs are **CORS-friendly** and work from Firebase Hosting.
 

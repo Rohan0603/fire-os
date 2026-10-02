@@ -1,4 +1,5 @@
 import { createFeatureContext, type FeatureContext } from '../../core/feature-context';
+import type { EsopValuation } from '../api/esop';
 import './styles.css';
 
 let moduleContainerId: string = 'esop';
@@ -8,8 +9,8 @@ const DEBOUNCE_MS = 500;
 let debounceTimer: NodeJS.Timeout | null = null;
 
 // Module level state for fetched values
-let glePrice: number | null = null;
-let eurInrRate: number | null = null;
+let valuationResults: EsopValuation[] = [];
+let hasFetchedValuations = false;
 let isFetching = false;
 let fetchError: string | null = null;
 
@@ -23,6 +24,10 @@ export function initEsopModule(containerId: string, context: FeatureContext = ac
   moduleContainerId = containerId;
   activeContext = context;
   D = context.state;
+  valuationResults = [];
+  hasFetchedValuations = false;
+  isFetching = false;
+  fetchError = null;
   const container = document.getElementById(containerId);
   if (!container) return;
   renderEsop(container, context);
@@ -41,7 +46,7 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
   calcSlabRate = D.profile.taxSlabRate ?? calcSlabRate;
 
   // Trigger live fetching if data is not loaded and not in flight
-  if (glePrice === null && eurInrRate === null && !isFetching) {
+  if (!hasFetchedValuations && !isFetching) {
     isFetching = true;
     fetchError = null;
 
@@ -54,18 +59,16 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
 
     context.ports.marketData.fetchEsopValuations(D.esopDetails.holdings || [])
       .then((results) => {
-        const valuations = results.flatMap(({ value }) => value === null ? [] : [value]);
-        const firstSocGen = results.find(({ holding }) => holding.symbol.toUpperCase().includes('GLE'));
-        glePrice = firstSocGen?.quote?.price ?? null;
-        eurInrRate = firstSocGen?.rate ?? null;
+        valuationResults = results;
+        hasFetchedValuations = true;
         isFetching = false;
 
         if (calcCurrentPrice === null) {
-          calcCurrentPrice = glePrice;
+          calcCurrentPrice = results.find(({ quote }) => quote !== null)?.quote?.price ?? null;
         }
 
         // Sync valuation to main state
-        const computedInrValue = valuations.reduce((total, value) => total + value, 0);
+        const computedInrValue = results.reduce((total, { value }) => total + (value ?? 0), 0);
         D.esop.esop = { amount: computedInrValue, currency: 'INR' };
         context.portfolio.save(D);
 
@@ -74,23 +77,21 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
       .catch((err) => {
         console.error('Error loading live ESOP data:', err);
         fetchError = 'Unable to fetch live market data.';
+        hasFetchedValuations = true;
         isFetching = false;
-        
-        if (calcCurrentPrice === null) {
-          calcCurrentPrice = glePrice;
-        }
-        
         renderEsop(targetContainer);
       });
     return;
   }
 
   // 1. Live Valuation & Exchange Rate Calculations
-  const finalPrice = glePrice;
-  const finalRate = eurInrRate;
-  const grossInr = D.esop.esop?.amount ?? (finalPrice !== null && finalRate !== null
-    ? D.esopDetails.shares * finalPrice * finalRate
-    : 0);
+  const firstValuation = valuationResults.find(({ quote }) => quote !== null);
+  const finalRate = firstValuation?.rate ?? null;
+  const displayCurrency = firstValuation?.holding.currency ?? D.esopDetails.holdings?.[0]?.currency ?? 'local currency';
+  const grossInr = D.esop.esop?.amount ?? valuationResults.reduce(
+    (total, { value }) => total + (value ?? 0),
+    0,
+  );
   
   // Calculate percentage of net worth
   const { netWorth } = context.ports.calculations.totalNetWorth(D);
@@ -132,7 +133,7 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
   const vestedPercent = D.esopDetails.shares > 0 ? (vestedShares / D.esopDetails.shares) * 100 : 0;
 
   // 3. Trigger Monitor Calculations
-  const yearsRemaining = 2031 - currentYear;
+  const yearsRemaining = Math.max(0, 2031 - currentYear);
   const rule5YearFired = currentYear >= 2031;
   const marriageFired = D.esopDetails.triggers.marriage;
   const childFired = D.esopDetails.triggers.childBirth;
@@ -173,13 +174,13 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
               ${rule5YearFired ? '<li><strong>5-Year Holding Period Rule:</strong> 2031 milestone reached (Auto-Alert). Reduce single-stock concentration.</li>' : ''}
               ${marriageFired ? '<li><strong>Marriage Goal:</strong> Triggered. Liquidate shares to meet upcoming expenses.</li>' : ''}
               ${childFired ? '<li><strong>Child Birth:</strong> Triggered. Realize funds for family expansion needs.</li>' : ''}
-              ${jobFired ? '<li><strong>Leaving Societe Generale (Job Change):</strong> Triggered. Vested options must be exercised/liquidated within post-employment window to avoid forfeiture.</li>' : ''}
+              ${jobFired ? '<li><strong>Employment Change:</strong> Triggered. Vested options may need to be exercised or liquidated within the post-employment window to avoid forfeiture.</li>' : ''}
               ${coorgFired ? `<li><strong>Coorg Construction:</strong> Triggered. Allocate up to ₹5.00L to Coorg construction goal.</li>` : ''}
             </ul>
             <div class="alert-recommendation">
               <strong>Recommended Strategy:</strong> 
               ${jobFired 
-                ? 'Liquidate vested shares immediately or within 90 days of exit. Account for perquisite tax on exercise FMV, and deploy net proceeds according to the plan.' 
+                ? 'Review vested shares immediately or within 90 days of exit. Account for applicable India tax on exercise FMV, and deploy net proceeds according to the plan.'
                 : coorgFired 
                   ? 'Proceed with liquidating vested shares up to ₹5.00L for the Coorg construction fund. Invest any surplus in the diversified mutual funds.'
                   : 'Liquidate vested shares to fund your short-to-medium-term goals, or rebalance into the recommended asset allocation model below to manage downside risk.'
@@ -229,10 +230,10 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
           
           <div class="fx-section">
             <div class="fx-header">
-              <span>EUR/INR Exchange Rate</span>
+              <span>${displayCurrency}/INR Conversion</span>
               <span class="fx-change text-success">+2.3% (12m)</span>
             </div>
-            <div class="fx-value">1 € = ${finalRate === null ? 'Unavailable' : `₹${finalRate.toFixed(0)}`}</div>
+            <div class="fx-value">1 ${displayCurrency} = ${finalRate === null ? 'Unavailable' : `₹${finalRate.toFixed(2)}`}</div>
           </div>
         </div>
 
@@ -249,7 +250,7 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
                   ${rule5YearFired ? 'Auto-Alert' : `${yearsRemaining}y remaining`}
                 </span>
               </div>
-              <p class="trigger-desc">Triggers auto-alert in 2031 to avoid over-concentration.</p>
+              <p class="trigger-desc">Triggers auto-alert in 2031 to review single-stock concentration.</p>
             </div>
             
             <div class="trigger-item ${coorgFired ? 'fired' : ''}">
@@ -287,7 +288,7 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
 
             <div class="trigger-item ${jobFired ? 'fired' : ''}">
               <div class="trigger-header">
-                <span class="trigger-title">Leaving SocGen (Job Change)</span>
+                <span class="trigger-title">Employment Change</span>
                 <label class="toggle-switch">
                   <input type="checkbox" id="trigger-job" ${jobFired ? 'checked' : ''}>
                   <span class="slider"></span>
@@ -363,13 +364,13 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
                 <input type="number" id="calc-shares" value="${calcShares || ''}" placeholder="e.g. 95">
               </div>
               <div class="form-group">
-                <label for="calc-fmv">Vesting FMV (€)</label>
+                <label for="calc-fmv">Vesting FMV (${displayCurrency})</label>
                 <input type="number" id="calc-fmv" value="${calcVestingFmv || ''}" placeholder="e.g. 45">
               </div>
             </div>
             <div class="form-row">
               <div class="form-group">
-                <label for="calc-price">Current Price (€)</label>
+                <label for="calc-price">Current Price (${displayCurrency})</label>
                 <input type="number" id="calc-price" value="${calcCurrentPrice || ''}" placeholder="e.g. 65.72">
               </div>
               <div class="form-group">
@@ -389,7 +390,7 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
                 <span id="res-gross" class="result-value">-</span>
               </div>
               <div class="result-box warning">
-                <span class="result-label">Perquisite Tax (Slab)</span>
+                <span class="result-label">India Perquisite Tax (Slab)</span>
                 <span id="res-perq" class="result-value text-danger">-</span>
               </div>
               <div class="result-box warning">
@@ -508,8 +509,8 @@ function attachEsopHandlers() {
   // Manual refresh button handler
   const refreshBtn = document.getElementById('esop-refresh-btn');
   refreshBtn?.addEventListener('click', () => {
-    glePrice = null;
-    eurInrRate = null;
+    valuationResults = [];
+    hasFetchedValuations = false;
     renderEsop();
   });
 }
@@ -544,9 +545,10 @@ function debounceSave() {
 function calculateTaxAndDeployment() {
   const shares = calcShares ?? D.esopDetails.shares;
   const vestingFmv = calcVestingFmv ?? D.esopDetails.grantPrice;
-  const currentPrice = calcCurrentPrice ?? (glePrice || 24.50);
+  const primaryValuation = valuationResults.find(({ quote }) => quote !== null);
+  const currentPrice = calcCurrentPrice ?? primaryValuation?.quote?.price ?? 0;
   const slabRate = calcSlabRate;
-  const rate = eurInrRate || 90.00;
+  const rate = primaryValuation?.rate ?? 1;
 
   const gross = shares * currentPrice * rate;
   const perquisiteTax = shares * vestingFmv * rate * (slabRate / 100);

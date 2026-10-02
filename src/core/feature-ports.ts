@@ -5,7 +5,7 @@ import {
   convertCurrency,
   getNAVCacheMap,
 } from '../modules/api';
-import { fetchCurrencyToInr, fetchEsopValuations, fetchSocGenPrice, fetchStockQuote } from '../modules/api/esop';
+import { fetchCurrencyToInr, fetchEsopValuations, fetchStockQuote } from '../modules/api/esop';
 import { totalNetWorth, sipStatus, fiProgress, floatIndicator, portfolioComposition } from '../modules/dashboard/kpis';
 import { calculateAllocationDrift } from '../modules/calculators/portfolio-rebalancing';
 import { calculateFIAge } from '../modules/calculators/scenario-modeler';
@@ -54,7 +54,6 @@ export interface FeatureWidgetPort {
 
 export interface FeatureMarketDataPort {
   fetchNifty: typeof fetchNifty;
-  fetchSocGenPrice: typeof fetchSocGenPrice;
   fetchStockQuote: typeof fetchStockQuote;
   fetchCurrencyToInr: typeof fetchCurrencyToInr;
   fetchEsopValuations: typeof fetchEsopValuations;
@@ -110,7 +109,6 @@ export function createFeaturePorts(): FeaturePorts {
     },
     marketData: {
       fetchNifty,
-      fetchSocGenPrice,
       fetchStockQuote,
       fetchCurrencyToInr,
       fetchEsopValuations,

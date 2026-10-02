@@ -16,7 +16,9 @@ let containerId = 'auth-screen';
  * Initialize the auth module
  * Called from main.ts on app startup
  */
-export function initAuthModule(container: string = 'auth-screen'): void {
+export function initAuthModule(
+  container: string = 'auth-screen',
+): void {
   containerId = container;
 }
 
@@ -105,6 +107,7 @@ export function renderAuthScreen(): void {
           <button type="submit" class="btn-primary" id="signup-submit">Sign Up</button>
           <button type="button" class="btn-google" id="signup-google">Continue with Google</button>
         </form>
+
       </div>
     </div>
   `;

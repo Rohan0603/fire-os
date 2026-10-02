@@ -1,6 +1,6 @@
 /**
  * ESOP Stock Fetcher
- * Fetches Societe Generale (GLE.PA) stock price from Yahoo Finance Chart API
+ * Fetches stock prices from Yahoo Finance Chart API for configured ESOP holdings
  */
 import { getLogger } from '../../lib/logger';
 import { convertCurrency } from './eurInr';
@@ -136,11 +136,6 @@ export async function fetchStockQuote(symbol: string): Promise<StockQuote | null
   });
   stockQuoteRequests.set(yahooSymbol, request);
   return request;
-}
-
-export async function fetchSocGenPrice(): Promise<number | null> {
-  const quote = await fetchStockQuote('EPA: GLE');
-  return quote?.price ?? null;
 }
 
 export async function fetchCurrencyToInr(currency: string): Promise<number | null> {

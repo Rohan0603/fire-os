@@ -70,6 +70,8 @@ let activePortfolioUnsubscribe: (() => void) | null = null;
 let activeSyncCoordinator: SyncCoordinator | null = null;
 let activePortfolioEnvelope: PortfolioEnvelope | null = null;
 let activeNiftyMonitorCleanup: (() => void) | null = null;
+let guestSessionActive = false;
+let authPromptRequested = false;
 const featureContext = createFeatureContext(appState);
 const featureRegistry = new FeatureRegistry(featureContext);
 const initializedFeatures = new Set<string>();
@@ -282,13 +284,48 @@ function renderApp() {
   renderAuthScreen();
 }
 
+async function startGuestSession(): Promise<void> {
+  if (authCoordinator.getCurrentUser() || guestSessionActive) return;
+
+  authPromptRequested = false;
+  await teardownAuthSession();
+  configurePortfolioStorageScope(null);
+  const cachedState = loadData();
+  if (cachedState) Object.assign(appState, cachedState);
+  appState.currentUser = null;
+  guestSessionActive = true;
+
+  hideAuthScreen();
+  const logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn) {
+    logoutBtn.textContent = 'Sign in';
+    logoutBtn.style.display = 'block';
+  }
+
+  const saveCloudBtn = document.getElementById('save-cloud-btn') as HTMLButtonElement;
+  if (saveCloudBtn) {
+    saveCloudBtn.disabled = true;
+    saveCloudBtn.classList.add('btn-disabled');
+  }
+
+  const profileTab = document.getElementById('profile');
+  if (profileTab) renderProfile(profileTab, featureContext);
+}
+
 // Firebase auth listener
 function setupAuthListener() {
   authCoordinator.start(async ({ generation: sessionGeneration, user }) => {
+    if (guestSessionActive && !user) return;
+    if (!user && authPromptRequested) {
+      showAuthScreen();
+      return;
+    }
     await teardownAuthSession();
     if (!authCoordinator.isCurrent({ generation: sessionGeneration, user })) return;
 
     if (user) {
+      guestSessionActive = false;
+      authPromptRequested = false;
       configurePortfolioStorageScope(user.uid);
       const scopedState = loadData();
       if (scopedState) Object.assign(appState, scopedState);
@@ -387,6 +424,12 @@ function setupAuthListener() {
       }
 
     } else {
+      if (!authPromptRequested) {
+        await startGuestSession();
+        return;
+      }
+
+      guestSessionActive = false;
       appState.currentUser = null;
       showAuthScreen();
       const logoutBtn = document.getElementById('logout-btn');
@@ -446,6 +489,14 @@ function setupTabNavigation() {
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
       try {
+        if (guestSessionActive) {
+          guestSessionActive = false;
+          authPromptRequested = true;
+          await teardownAuthSession();
+          showAuthScreen();
+          logoutBtn.style.display = 'none';
+          return;
+        }
         await teardownAuthSession();
         await authCoordinator.signOut();
       } catch (e) {

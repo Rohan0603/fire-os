@@ -496,20 +496,13 @@ export function initializeState(): FireOSState {
 
     // ESOP details
     esopDetails: {
-      shares: 95,
-      holdings: [{ name: 'Societe Generale SA', symbol: 'EPA: GLE', quantity: 95, currency: 'EUR' }],
-      grantPrice: 45,
-      liquidationShares: 95,
-      vestingFmv: 45,
-      currentPrice: 24.50,
+      shares: 0,
+      holdings: [],
+      grantPrice: 0,
+      liquidationShares: 0,
+      vestingFmv: 0,
       slabRate: 30,
-      vestingSchedule: [
-        { date: '2026-06', shares: 20 },
-        { date: '2027-06', shares: 20 },
-        { date: '2028-06', shares: 20 },
-        { date: '2029-06', shares: 20 },
-        { date: '2030-06', shares: 15 },
-      ],
+      vestingSchedule: [],
       triggers: {
         marriage: false,
         childBirth: false,
