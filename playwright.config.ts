@@ -24,7 +24,7 @@ const requestedChannel = process.env.PLAYWRIGHT_CHANNEL;
 const browserChannel =
   requestedChannel === 'chromium'
     ? undefined
-    : requestedChannel ?? (process.platform === 'win32' ? 'chrome' : undefined);
+    : (requestedChannel ?? (process.platform === 'win32' ? 'chrome' : undefined));
 
 export default defineConfig({
   testDir: './e2e',

@@ -1,25 +1,25 @@
 project:
-  scope_path: "."
+  scope_path: '.'
   loc: 13228
   languages: [TypeScript, CSS, HTML, JSON]
   git: true
   structure:
-    src/lib: "Shared state, persistence, API coordination, calculations, and utilities"
-    src/modules: "Feature modules for auth, dashboard, calculators, ESOP, insurance, plan, profile, trackers, integrations, UI, and watchdogs"
-    src/types: "Shared TypeScript domain and Firebase types"
-    src/styles: "Global layout and design tokens"
-    e2e: "Playwright end-to-end tests"
-  notes: "Vite + TypeScript single-page financial planning application with feature-oriented modules and shared infrastructure."
+    src/lib: 'Shared state, persistence, API coordination, calculations, and utilities'
+    src/modules: 'Feature modules for auth, dashboard, calculators, ESOP, insurance, plan, profile, trackers, integrations, UI, and watchdogs'
+    src/types: 'Shared TypeScript domain and Firebase types'
+    src/styles: 'Global layout and design tokens'
+    e2e: 'Playwright end-to-end tests'
+  notes: 'Vite + TypeScript single-page financial planning application with feature-oriented modules and shared infrastructure.'
 
 assessment:
   change_type: extract
   rationale: |
     User requests modularization and easier code-based feature additions. Existing feature folders provide a useful base, but shared lib modules and cross-feature dependencies need explicit ownership and stable extension seams.
   transformations:
-    - fromStack: "Vite + TypeScript"
-      fromStackVersion: "repository-defined"
-      toStack: "Vite + TypeScript modular feature architecture"
-      toStackVersion: "repository-defined"
+    - fromStack: 'Vite + TypeScript'
+      fromStackVersion: 'repository-defined'
+      toStack: 'Vite + TypeScript modular feature architecture'
+      toStackVersion: 'repository-defined'
   grouping_needed: false
   deep_planning: false
 
