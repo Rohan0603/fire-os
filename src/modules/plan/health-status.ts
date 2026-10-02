@@ -42,7 +42,7 @@ export function assessHealth(state: FireOSState): HealthAssessment {
     const requiredHealth = ins.health.familySize <= 2 ? 2000000 : 5000000;
     if (ins.termLife.currentCover < requiredTerm || ins.health.currentCover < requiredHealth) {
       protectionStatus = 'yellow';
-      protectionDetail = `Insurance gap detected. Need term cover of ₹${(requiredTerm/100000).toFixed(1)}L and health cover of ₹${(requiredHealth/100000).toFixed(1)}L.`;
+      protectionDetail = `Insurance gap detected. Need term cover of ₹${Math.round(requiredTerm / 100000)}L and health cover of ₹${Math.round(requiredHealth / 100000)}L.`;
     }
   }
 
@@ -53,12 +53,12 @@ export function assessHealth(state: FireOSState): HealthAssessment {
     const savingsRate = (annualIncome - annualExpenses) / annualIncome;
     if (savingsRate < 0.15) {
       savingsStatus = 'red';
-      savingsDetail = `Savings rate is critically low at ${(savingsRate * 100).toFixed(1)}%.`;
+      savingsDetail = `Savings rate is critically low at ${Math.round(savingsRate * 100)}%.`;
     } else if (savingsRate < 0.3) {
       savingsStatus = 'yellow';
-      savingsDetail = `Savings rate is ${(savingsRate * 100).toFixed(1)}%, aiming for >30%.`;
+      savingsDetail = `Savings rate is ${Math.round(savingsRate * 100)}%, aiming for >30%.`;
     } else {
-      savingsDetail = `Savings rate is healthy at ${(savingsRate * 100).toFixed(1)}%.`;
+      savingsDetail = `Savings rate is healthy at ${Math.round(savingsRate * 100)}%.`;
     }
   } else {
     savingsStatus = 'red';

@@ -37,7 +37,7 @@ export function checkWatchdogRules(params: WatchdogCheckParams): WatchdogAlert[]
 
   // Check PPFCF AUM breach
   if (params.ppfcfAum > params.ppfcfAumLimit) {
-    const aumCr = (params.ppfcfAum / 10000000000).toFixed(1);
+    const aumCr = Math.round(params.ppfcfAum / 10000000000).toString();
     alerts.push({
       type: 'aum-breach',
       fund: 'PPFCF',

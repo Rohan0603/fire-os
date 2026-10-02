@@ -14,10 +14,10 @@ export function renderPlainEnglishSummary(state: FireOSState): string {
     `;
   }
   
-  const nwStr = `₹${(nw / 100000).toFixed(1)} Lakh`;
+  const nwStr = `₹${(nw / 100000).toFixed(0)} Lakh`;
   const annualExpenses = profile.annualExpenses * 12;
-  const expStr = `₹${(annualExpenses / 100000).toFixed(1)} Lakh`;
-  const targetStr = `₹${(profile.fiTarget / 10000000).toFixed(2)} Crore`;
+  const expStr = `₹${(annualExpenses / 100000).toFixed(0)} Lakh`;
+  const targetStr = `₹${(profile.fiTarget / 10000000).toFixed(0)} Crore`;
   
   let trackStr = "You are currently building your foundation.";
   if (fi.yearsRemaining !== null) {
@@ -27,7 +27,7 @@ export function renderPlainEnglishSummary(state: FireOSState): string {
       trackStr = `You are on track to reach your goal in approximately ${Math.ceil(fi.yearsRemaining)} years.`;
     }
   } else if (fi.progressPercent > 0) {
-     trackStr = `You are ${fi.progressPercent.toFixed(1)}% of the way to your goal.`;
+    trackStr = `You are ${fi.progressPercent.toFixed(0)}% of the way to your goal.`;
   }
 
   return `

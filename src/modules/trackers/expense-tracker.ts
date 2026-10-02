@@ -35,7 +35,7 @@ export function calculateExpenseRate(
 
   const target = 122000; // ₹122K/month at FI
   const variance = parseFloat(
-    (((monthlyAverage - target) / target) * 100).toFixed(1)
+    (((monthlyAverage - target) / target) * 100).toFixed(0)
   );
 
   return {
@@ -63,7 +63,7 @@ export function renderExpenseTracker(state: any): string {
   const contentHtml = expenses.length === 0
     ? "<p style='margin-bottom: 1.5rem; color: var(--text-secondary);'>No expenses tracked yet.</p>"
     : `
-      <p>Monthly Average: ₹${(rate.monthlyAverage / 1000).toFixed(0)}K</p>
+      <p>Monthly Average: ₹${Math.round(rate.monthlyAverage / 1000)}K</p>
       <p>Target: ₹122K (3% SWR)</p>
       <p>${status}</p>
       <p>Total SWP withdrawals: ${rate.totalMonths} months</p>

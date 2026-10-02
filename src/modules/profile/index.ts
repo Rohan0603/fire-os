@@ -919,15 +919,15 @@ async function handlePDFImport(event: Event) {
       html += `<p><strong>${result.investor.name}</strong> | PAN: ${result.investor.pan}</p>`;
       html += '<h5>Mutual Funds:</h5>';
       soaHoldings.forEach(h => {
-        html += `<p>📈 ${h.schemeName}: ${h.balanceUnits.toFixed(3)} units`;
-        html += ` | Invested: ₹${h.investedValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
-        html += ` | Current: ₹${h.marketValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>`;
+        html += `<p>📈 ${h.schemeName}: ${Math.round(h.balanceUnits)} units`;
+        html += ` | Invested: ₹${Math.round(h.investedValue).toLocaleString('en-IN')}`;
+        html += ` | Current: ₹${Math.round(h.marketValue).toLocaleString('en-IN')}</p>`;
       });
       const dematHoldings = result.holdings.filter(h => h.type === 'demat');
       if (dematHoldings.length) {
         html += '<h5>Demat Holdings (not imported — ISIN unavailable in summary):</h5>';
         dematHoldings.forEach(h => {
-          html += `<p>📊 ${h.schemeName}: ${h.balanceUnits.toFixed(3)} units | Current: ₹${h.marketValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</p>`;
+          html += `<p>📊 ${h.schemeName}: ${Math.round(h.balanceUnits)} units | Current: ₹${Math.round(h.marketValue).toLocaleString('en-IN')}</p>`;
         });
       }
       preview.innerHTML = html;

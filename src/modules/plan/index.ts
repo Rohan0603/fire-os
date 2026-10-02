@@ -78,17 +78,17 @@ export function renderPlan(context: FeatureContext = activeContext) {
             <div class="plan-kpi-row">
               <div class="plan-kpi">
                 <span class="plan-kpi-label">Target</span>
-                <span class="plan-kpi-value">${formatCurrency(fiTarget, 2)}</span>
+                <span class="plan-kpi-value">${formatCurrency(fiTarget, 0)}</span>
               </div>
               <div class="plan-kpi">
                 <span class="plan-kpi-label">Progress</span>
-                <span class="plan-kpi-value plan-kpi-value--accent">${fiProgressPct.toFixed(1)}%</span>
+                <span class="plan-kpi-value plan-kpi-value--accent">${fiProgressPct.toFixed(0)}%</span>
               </div>
             </div>
             <div class="plan-progress-bar">
-              <div class="plan-progress-fill" style="width:${fiProgressPct.toFixed(1)}%"></div>
+              <div class="plan-progress-fill" style="width:${fiProgressPct.toFixed(0)}%"></div>
             </div>
-            <p class="plan-progress-note">FI in <strong>${(baseScenario.monthsToFI / 12).toFixed(1)}y</strong> (age ${baseScenario.fiAge.toFixed(1)})</p>
+            <p class="plan-progress-note">FI in <strong>${(baseScenario.monthsToFI / 12).toFixed(0)}y</strong> (age ${baseScenario.fiAge.toFixed(0)})</p>
           </section>
           
           <section class="plan-card plan-coorg-card">
@@ -96,15 +96,15 @@ export function renderPlan(context: FeatureContext = activeContext) {
             <div class="plan-kpi-row">
               <div class="plan-kpi">
                 <span class="plan-kpi-label">Target</span>
-                <span class="plan-kpi-value">${formatCurrency(coorgTarget, 2)}</span>
+                <span class="plan-kpi-value">${formatCurrency(coorgTarget, 0)}</span>
               </div>
               <div class="plan-kpi">
                 <span class="plan-kpi-label">Progress</span>
-                <span class="plan-kpi-value">${coorgProgressPct.toFixed(1)}%</span>
+                <span class="plan-kpi-value">${coorgProgressPct.toFixed(0)}%</span>
               </div>
             </div>
             <div class="plan-progress-bar plan-progress-bar--coorg">
-              <div class="plan-progress-fill plan-progress-fill--coorg" style="width:${coorgProgressPct.toFixed(1)}%"></div>
+              <div class="plan-progress-fill plan-progress-fill--coorg" style="width:${coorgProgressPct.toFixed(0)}%"></div>
             </div>
           </section>
         </div>

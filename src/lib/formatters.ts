@@ -6,13 +6,13 @@
 /**
  * Format a number as Indian currency (₹)
  * Uses crore (Cr) format for values >= 10M, comma separation otherwise
- * Examples: ₹10,00,000 (10 lakh), ₹1.25Cr (1.25 crore)
+ * Examples: ₹10,00,000 (10 lakh), ₹1Cr (1 crore)
  * @param value - Numeric value to format
- * @param decimals - Number of decimal places (default: 2)
+ * @param decimals - Number of decimal places (default: 0)
  * @returns Formatted currency string with ₹ symbol
  */
-export function formatCurrency(value: number, decimals: number = 2): string {
-  if (!isFinite(value)) return '₹0.00';
+export function formatCurrency(value: number, decimals: number = 0): string {
+  if (!isFinite(value)) return '₹0';
 
   const isNegative = value < 0;
   const absValue = Math.abs(value);
@@ -20,7 +20,7 @@ export function formatCurrency(value: number, decimals: number = 2): string {
   // Format in crores for large values (>= 10M)
   if (absValue >= 10000000) {
     const crores = absValue / 10000000;
-    const formatted = crores.toFixed(2);
+    const formatted = crores.toFixed(decimals);
     return isNegative ? `-₹${formatted}Cr` : `₹${formatted}Cr`;
   }
 
@@ -78,10 +78,10 @@ export function formatNumber(value: number, decimals: number = 0): string {
  * Format a decimal as percentage
  * Multiplies by 100 and adds % suffix
  * @param value - Decimal value (e.g., 0.15 for 15%)
- * @param decimals - Number of decimal places (default: 2)
- * @returns Formatted percentage string (e.g., "15.00%")
+ * @param decimals - Number of decimal places (default: 0)
+ * @returns Formatted percentage string (e.g., "15%")
  */
-export function formatPercentage(value: number, decimals: number = 2): string {
+export function formatPercentage(value: number, decimals: number = 0): string {
   if (!isFinite(value)) return '0%';
 
   const percentage = value * 100;

@@ -174,7 +174,7 @@ function renderFIProgressCard(progressPercent: number): string {
   return `
     <div class="kpi-card ${cardClass}">
       <div class="kpi-card-title">FI Progress</div>
-      <div class="kpi-card-value">${displayPercent.toFixed(1)}%</div>
+      <div class="kpi-card-value">${displayPercent.toFixed(0)}%</div>
       <div class="kpi-card-subtitle">${progressPercent >= 100 ? 'Financial Freedom Achieved!' : 'Towards FI goal'}</div>
     </div>
   `;
@@ -186,7 +186,7 @@ function renderFloatIndicatorCard(drawdownPercent: number): string {
   return `
     <div class="kpi-card ${cardClass}">
       <div class="kpi-card-title">Market Drawdown</div>
-      <div class="kpi-card-value">${drawdownPercent.toFixed(2)}%</div>
+      <div class="kpi-card-value">${drawdownPercent.toFixed(0)}%</div>
       <div class="kpi-card-subtitle">From 52-week high</div>
     </div>
   `;
@@ -250,7 +250,7 @@ function renderPortfolioSummary(breakdown: any, sipValue: number, fi: any): stri
         <div class="fi-progress-title">Financial Independence Progress</div>
         <div class="fi-progress-bar-container">
           <div class="fi-progress-bar-fill" style="width: ${Math.min(fi.progressPercent, 100)}%">
-            <span class="fi-progress-percent">${fi.progressPercent.toFixed(1)}%</span>
+            <span class="fi-progress-percent">${fi.progressPercent.toFixed(0)}%</span>
           </div>
         </div>
       </div>
@@ -286,7 +286,7 @@ function renderCompositionChart(composition: any): string {
       <div class="legend-color" style="background-color: ${colors[idx % colors.length]}"></div>
       <div>
         <div style="color: var(--text-primary);">${cat.name}</div>
-        <div style="font-size: 0.8rem; color: var(--text-secondary);">${cat.percentage.toFixed(1)}% • ${formatCurrency(cat.value, 0)}</div>
+        <div style="font-size: 0.8rem; color: var(--text-secondary);">${cat.percentage.toFixed(0)}% • ${formatCurrency(cat.value, 0)}</div>
       </div>
     </div>
   `
@@ -317,7 +317,7 @@ function renderFIProgressChart(fi: any): string {
       <div class="chart-title" style="color: var(--text-primary);">📈 FI Goal Progress</div>
       <div class="line-chart" id="fi-progress-chart">
         <div style="padding: 2rem; text-align: center;">
-          <div style="font-size: 3rem; font-weight: 700; color: var(--accent);">${fi.progressPercent.toFixed(1)}%</div>
+          <div style="font-size: 3rem; font-weight: 700; color: var(--accent);">${fi.progressPercent.toFixed(0)}%</div>
           <div style="color: var(--text-secondary); margin-top: 1rem;">
             <div>${formatCurrency(fi.currentCorpus, 0)} / ${formatCurrency(fi.fiTarget, 0)}</div>
             <div style="font-size: 0.9rem; margin-top: 0.5rem; color: ${remaining > 0 ? 'var(--text-tertiary)' : 'var(--status-good-text)'};">
@@ -584,7 +584,7 @@ function renderTaxOptimizationWidget(state: any): string {
   return `
     <div class="tax-optimization-widget">
       <h3>Tax Optimization</h3>
-      <p>LTCG Harvest Target: ₹${(state.taxCalendar.harvestTarget / 100000).toFixed(2)}L</p>
+            <p>LTCG Harvest Target: ₹${(state.taxCalendar.harvestTarget / 100000).toFixed(0)}L</p>
       <p>Last Harvest: ${state.taxCalendar.lastLTCGHarvestDate || 'None'}</p>
     </div>
   `;

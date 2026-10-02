@@ -23,7 +23,7 @@ export function renderNetWorthHistory(state: FireOSState): string {
     const heightPct = (d.value / maxNetWorth) * 100;
     const dateObj = new Date(d.date);
     const label = dateObj.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
-    const tooltip = `₹${(d.value / 100000).toFixed(2)}L`;
+    const tooltip = `₹${(d.value / 100000).toFixed(0)}L`;
     
     return `
       <div class="nw-chart-bar-container" title="${tooltip}">
@@ -36,7 +36,7 @@ export function renderNetWorthHistory(state: FireOSState): string {
   const trend = displayData.length > 1 
     ? displayData[displayData.length - 1].value - displayData[0].value
     : 0;
-  const trendFmt = `${trend >= 0 ? '+' : ''}₹${(trend / 100000).toFixed(2)}L`;
+  const trendFmt = `${trend >= 0 ? '+' : ''}₹${(trend / 100000).toFixed(0)}L`;
   const trendClass = trend >= 0 ? 'text-green' : 'text-red';
   
   return `

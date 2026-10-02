@@ -80,8 +80,8 @@ export function generateActionItems(state: FireOSState): ActionItem[] {
     const requiredHealth = ins.health.familySize <= 2 ? 2000000 : 5000000;
     
     let gaps = [];
-    if (ins.termLife.currentCover < requiredTerm) gaps.push(`term gap ₹${((requiredTerm - ins.termLife.currentCover)/100000).toFixed(1)}L`);
-    if (ins.health.currentCover < requiredHealth) gaps.push(`health gap ₹${((requiredHealth - ins.health.currentCover)/100000).toFixed(1)}L`);
+    if (ins.termLife.currentCover < requiredTerm) gaps.push(`term gap ₹${Math.round((requiredTerm - ins.termLife.currentCover) / 100000)}L`);
+    if (ins.health.currentCover < requiredHealth) gaps.push(`health gap ₹${Math.round((requiredHealth - ins.health.currentCover) / 100000)}L`);
     
     if (gaps.length > 0) {
       addAction({

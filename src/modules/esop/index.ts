@@ -144,7 +144,7 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
   // Check if Coorg Goal is active
   const isCoorgGoalActive = D.coorgTarget > 0;
   const coorgStatusText = isCoorgGoalActive 
-    ? `Coorg Goal Active: ₹${(D.coorgCorpus / 100000).toFixed(1)}L saved towards ₹${(D.coorgTarget / 10000000).toFixed(1)}Cr target`
+            ? `Coorg Goal Active: ₹${(D.coorgCorpus / 100000).toFixed(0)}L saved towards ₹${(D.coorgTarget / 10000000).toFixed(0)}Cr target`
     : 'Coorg Construction Scheduled';
 
   // Construct UI HTML
@@ -197,7 +197,7 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
             <span class="badge live">Live</span>
           </div>
           <div class="valuation-primary">
-            <span class="value-lakhs">${(grossInr / 100000).toFixed(2)}L</span>
+            <span class="value-lakhs">${(grossInr / 100000).toFixed(0)}L</span>
             <span class="value-currency">INR</span>
           </div>
           <div class="valuation-meta">
@@ -211,7 +211,7 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
             </div>
             <div class="meta-row">
               <span>Net Worth Allocation</span>
-              <strong>${percentNetWorth.toFixed(2)}%</strong>
+              <strong>${percentNetWorth.toFixed(0)}%</strong>
             </div>
             <div class="meta-row border-top">
               <span>Vested Shares</span>
@@ -232,7 +232,7 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
               <span>EUR/INR Exchange Rate</span>
               <span class="fx-change text-success">+2.3% (12m)</span>
             </div>
-            <div class="fx-value">1 € = ${finalRate === null ? 'Unavailable' : `₹${finalRate.toFixed(2)}`}</div>
+            <div class="fx-value">1 € = ${finalRate === null ? 'Unavailable' : `₹${finalRate.toFixed(0)}`}</div>
           </div>
         </div>
 
@@ -307,7 +307,7 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
           <div class="progress-section">
             <div class="progress-labels">
               <span>Vesting Progress</span>
-              <strong>${vestedPercent.toFixed(1)}% Vested</strong>
+              <strong>${vestedPercent.toFixed(0)}% Vested</strong>
             </div>
             <div class="progress-bar-container">
               <div class="progress-bar-fill vested" style="width: ${vestedPercent}%"></div>
@@ -652,5 +652,5 @@ function formatRupeesAndLakhs(amount: number): string {
   const formatter = new Intl.NumberFormat('en-IN', {
     maximumFractionDigits: 0
   });
-  return `₹${formatter.format(Math.round(amount))} (${lakhs.toFixed(2)}L)`;
+  return `₹${formatter.format(Math.round(amount))} (${lakhs.toFixed(0)}L)`;
 }

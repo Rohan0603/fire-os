@@ -100,7 +100,7 @@ export function renderTax(container?: HTMLElement, context: FeatureContext = act
                   <td class="num-col">${formatCurrency(rec.longTermValue)}</td>
                   <td class="num-col">${formatCurrency(rec.ltcgGains)}</td>
                   <td class="num-col highlighted-value">${formatCurrency(rec.recommendedHarvestAmount)}</td>
-                  <td class="num-col">${rec.recommendedHarvestUnits.toFixed(3)}</td>
+                  <td class="num-col">${rec.recommendedHarvestUnits.toFixed(0)}</td>
                 </tr>
               `).join('')}
             </tbody>
@@ -144,7 +144,7 @@ export function renderTax(container?: HTMLElement, context: FeatureContext = act
               <div class="progress-bar-bg">
                 <div class="progress-bar-fill" style="width: ${progressPercent80C}%"></div>
               </div>
-              <div class="progress-percentage">${progressPercent80C.toFixed(1)}% Completed</div>
+              <div class="progress-percentage">${progressPercent80C.toFixed(0)}% Completed</div>
             </div>
 
             <div class="remaining-card">
@@ -269,7 +269,7 @@ export function renderTax(container?: HTMLElement, context: FeatureContext = act
       if (progressBar) progressBar.style.width = `${updatedProgressPercent}%`;
 
       const progressPercentLabel = targetContainer.querySelector('.progress-percentage');
-      if (progressPercentLabel) progressPercentLabel.textContent = `${updatedProgressPercent.toFixed(1)}% Completed`;
+      if (progressPercentLabel) progressPercentLabel.textContent = `${updatedProgressPercent.toFixed(0)}% Completed`;
 
       const remainingVal = targetContainer.querySelector('.remaining-value');
       if (remainingVal) remainingVal.textContent = formatCurrency(updatedRemaining);

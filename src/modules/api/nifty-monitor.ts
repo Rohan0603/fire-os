@@ -69,7 +69,7 @@ export function detectCrashAlert(params: CrashAlertParams): CrashAlert {
 
   // Calculate crash percentage: ((high - current) / high) * 100
   const crashPercentage = parseFloat(
-    (((current52WeekHigh - currentLevel) / current52WeekHigh) * 100).toFixed(1)
+    (((current52WeekHigh - currentLevel) / current52WeekHigh) * 100).toFixed(0)
   );
 
   // Determine severity and deploy amount

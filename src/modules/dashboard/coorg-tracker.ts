@@ -102,15 +102,15 @@ export function renderCoorgWidget(D: Pick<FireOSState, 'coorgCorpus' | 'coorgTar
 
   // Format currency in Lac (₹ 1 Lac = 100,000)
   // Explicitly check corpus > 0 for clarity
-  const corpusInLac = params.currentCorpus > 0 ? (params.currentCorpus / 100000).toFixed(1) : "0.0";
+  const corpusInLac = params.currentCorpus > 0 ? Math.round(params.currentCorpus / 100000).toString() : '0';
 
   // Format target in Cr (₹ 1 Cr = 10,000,000)
-  const targetInCr = (D.coorgTarget / 10000000).toFixed(1);
+  const targetInCr = Math.round(D.coorgTarget / 10000000).toString();
 
   // Generate status message
   let statusMessage = "";
   if (progress.status === "planning") {
-    statusMessage = `SIP starts in ${progress.yearsUntilStart} years`;
+    statusMessage = `SIP starts in ${Math.round(progress.yearsUntilStart)} years`;
   } else if (progress.status === "in_progress") {
     statusMessage = "SIP in progress";
   } else {
@@ -124,12 +124,12 @@ export function renderCoorgWidget(D: Pick<FireOSState, 'coorgCorpus' | 'coorgTar
       <div class="fi-progress-title">Coorg Goal Progress (₹${targetInCr}Cr by 2036)</div>
       <div class="fi-progress-bar-container">
         <div class="fi-progress-bar-fill" style="width: ${progressBarWidth}%; background: linear-gradient(90deg, var(--color-gold), #ffd700);">
-          <span class="fi-progress-percent">${progress.percentage}%</span>
+          <span class="fi-progress-percent">${Math.round(progress.percentage)}%</span>
         </div>
       </div>
       <div style="display: flex; justify-content: space-between; margin-top: 0.5rem; font-size: 0.85rem; color: var(--text-secondary);">
         <span>₹${corpusInLac}L / ₹${targetInCr}Cr</span>
-        <span>${progress.remainingAmount > 0 ? `₹${(progress.remainingAmount / 100000).toFixed(1)}L remaining` : '✨ Target Achieved!'}</span>
+        <span>${progress.remainingAmount > 0 ? `₹${Math.round(progress.remainingAmount / 100000)}L remaining` : '✨ Target Achieved!'}</span>
       </div>
       <div style="margin-top: 0.25rem; font-size: 0.8rem; color: var(--text-tertiary);">
         ${statusMessage}

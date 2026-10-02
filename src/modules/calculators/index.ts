@@ -392,7 +392,7 @@ async function refreshNiftyData(context: FeatureContext = activeContext) {
         scenarioDiv.innerHTML = `
           <div class="scenario-info">
             <p><strong>Nifty: ${currentVal} | 52W High: ${highVal}</strong></p>
-            <p><strong>Current Drawdown: ${drawdown.toFixed(2)}%</strong></p>
+            <p><strong>Current Drawdown: ${drawdown.toFixed(0)}%</strong></p>
             <p style="font-size: 12px; color: #666;">Source: ${niftyData.source}</p>
           </div>
           <div class="scenario">

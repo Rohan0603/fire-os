@@ -36,7 +36,7 @@ export function renderCashflowSummary(state: FireOSState): string {
          </div>
          <div style="display:flex; justify-content:space-between; margin-top: 0.5rem; font-size: 0.9rem;">
            <span class="text-secondary">Savings Rate</span>
-           <span class="text-primary">${savingsRate.toFixed(1)}%</span>
+           <span class="text-primary">${savingsRate.toFixed(0)}%</span>
          </div>
        </div>
     </div>
