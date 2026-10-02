@@ -1,6 +1,6 @@
 /**
  * EUR/INR Exchange Rate Fetching Module
- * Fetches latest EUR to INR exchange rate from Frankfurter
+ * Fetches latest exchange rates from Yahoo Finance through CorsProxy
  * Used for ESOP Tools valuation in Indian Rupees
  */
 
@@ -31,29 +31,44 @@ export async function convertCurrency(
   if (!/^[A-Z]{3}$/.test(source) || !/^[A-Z]{3}$/.test(desired)) return null;
   if (source === desired) return amount;
 
-  const apiUrl = `https://api.frankfurter.app/latest?amount=${encodeURIComponent(amount)}&from=${source}&to=${desired}`;
-  console.log('[Currency API] Conversion request', { amount, source, desired, url: apiUrl });
+  const proxyKey = import.meta.env.VITE_CORSPROXY_API_KEY;
+  if (!proxyKey) {
+    logger.warn('Currency conversion skipped: VITE_CORSPROXY_API_KEY is not configured');
+    return null;
+  }
 
+  const yahooSymbol = `${source}${desired}=X`;
+  const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?interval=1d&range=1d`;
+  const apiUrl = `https://corsproxy.io/?key=${encodeURIComponent(proxyKey)}&url=${encodeURIComponent(yahooUrl)}`;
+  console.log('[Currency API] Conversion request', { amount, source, desired });
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10_000);
   try {
-    const response = await fetch(apiUrl);
+    const response = await fetch(apiUrl, { signal: controller.signal });
     console.log('[Currency API] Conversion response', { status: response.status, ok: response.ok });
     if (!response.ok) return null;
 
-    const data = await response.json() as { rates?: Record<string, unknown> };
-    const converted = data.rates?.[desired];
-    if (typeof converted !== 'number' || !Number.isFinite(converted)) return null;
+    const data = await response.json() as {
+      chart?: { result?: Array<{ meta?: { regularMarketPrice?: unknown } } | null> };
+    };
+    const rate = data.chart?.result?.[0]?.meta?.regularMarketPrice;
+    if (typeof rate !== 'number' || !Number.isFinite(rate)) return null;
 
+    const converted = amount * rate;
     console.log('[Currency API] Conversion result', { amount, source, desired, converted });
     return converted;
   } catch (error) {
     logger.warn(`Currency conversion failed: ${error instanceof Error ? error.message : 'unknown error'}`);
     return null;
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
 
 /**
  * Fetch current EUR/INR exchange rate
- * Fetches through Frankfurter's public daily-rates API
+ * Fetches through Yahoo Finance via CorsProxy
  * Returns cached value if fetch fails
  * Returns cached value even if expired as fallback
  *

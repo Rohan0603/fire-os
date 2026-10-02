@@ -149,7 +149,15 @@ async function fetchNiftyFromYahoo(): Promise<{
 
   for (const proxy of proxies) {
     try {
-      let proxyUrl = `${proxy.url}${encodeURIComponent(yahooApiUrl)}`;
+      const proxyKey = import.meta.env.VITE_CORSPROXY_API_KEY;
+      if (proxy.name === 'corsproxy' && !proxyKey) {
+        logger.warn('Nifty corsproxy request skipped: VITE_CORSPROXY_API_KEY is not configured');
+        continue;
+      }
+
+      const proxyUrl = proxy.name === 'corsproxy'
+        ? `${proxy.url}key=${encodeURIComponent(proxyKey!)}&url=${encodeURIComponent(yahooApiUrl)}`
+        : `${proxy.url}${encodeURIComponent(yahooApiUrl)}`;
 
       logger.log(`Nifty fetch via ${proxy.name}:`, proxyUrl);
 
