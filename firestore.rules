@@ -136,11 +136,15 @@ service cloud.firestore {
 
     function validEsopDetails(value) {
       return value is map
-        && value.keys().hasOnly(['shares', 'grantPrice', 'vestingSchedule', 'triggers'])
+        && value.keys().hasOnly(['shares', 'grantPrice', 'liquidationShares', 'vestingFmv', 'currentPrice', 'slabRate', 'vestingSchedule', 'triggers'])
         && value.keys().hasAll(['shares', 'grantPrice', 'vestingSchedule', 'triggers'])
-        && value.size() <= 4
+        && value.size() <= 8
         && value.shares is number
         && value.grantPrice is number
+        && (!('liquidationShares' in value) || value.liquidationShares is number)
+        && (!('vestingFmv' in value) || value.vestingFmv is number)
+        && (!('currentPrice' in value) || value.currentPrice is number)
+        && (!('slabRate' in value) || value.slabRate is number)
         && isBoundedList(value.vestingSchedule, 200)
         && value.triggers is map
         && value.triggers.keys().hasOnly(['marriage', 'childBirth', 'jobChange', 'coorgConstruction'])

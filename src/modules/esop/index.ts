@@ -35,8 +35,10 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
   if (!targetContainer) return;
 
   // Initialize calculator inputs if they are null
-  if (calcShares === null) calcShares = D.esopDetails.shares;
-  if (calcVestingFmv === null) calcVestingFmv = D.esopDetails.grantPrice;
+  if (calcShares === null) calcShares = D.esopDetails.liquidationShares ?? D.esopDetails.shares;
+  if (calcVestingFmv === null) calcVestingFmv = D.esopDetails.vestingFmv ?? D.esopDetails.grantPrice;
+  if (calcCurrentPrice === null && D.esopDetails.currentPrice !== undefined) calcCurrentPrice = D.esopDetails.currentPrice;
+  calcSlabRate = D.esopDetails.slabRate ?? calcSlabRate;
 
   // Trigger live fetching if data is not loaded and not in flight
   if (glePrice === null && eurInrRate === null && !isFetching) {
@@ -489,8 +491,13 @@ function attachEsopHandlers() {
       calcVestingFmv = fmvVal;
       calcCurrentPrice = priceVal;
       calcSlabRate = slabVal;
+      D.esopDetails.liquidationShares = sharesVal;
+      D.esopDetails.vestingFmv = fmvVal;
+      D.esopDetails.currentPrice = priceVal;
+      D.esopDetails.slabRate = slabVal;
 
       updateCalculationUI();
+      debounceSave();
     }
   };
 

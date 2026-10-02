@@ -25,6 +25,10 @@ export interface EsopTriggers {
 export interface EsopDetails {
   shares: number;
   grantPrice: number;
+  liquidationShares?: number;
+  vestingFmv?: number;
+  currentPrice?: number;
+  slabRate?: number;
   vestingSchedule: EsopVestingItem[];
   triggers: EsopTriggers;
 }
@@ -327,9 +331,13 @@ function isInsurance(value: unknown): boolean {
 }
 
 function isEsopDetails(value: unknown): boolean {
-  if (!isRecord(value) || !hasOnlyKeys(value, ['shares', 'grantPrice', 'vestingSchedule', 'triggers'])) return false;
+  if (!isRecord(value) || !hasOnlyKeys(value, ['shares', 'grantPrice', 'liquidationShares', 'vestingFmv', 'currentPrice', 'slabRate', 'vestingSchedule', 'triggers'])) return false;
   return isFiniteNumber(value.shares)
     && isFiniteNumber(value.grantPrice)
+    && (value.liquidationShares === undefined || isFiniteNumber(value.liquidationShares))
+    && (value.vestingFmv === undefined || isFiniteNumber(value.vestingFmv))
+    && (value.currentPrice === undefined || isFiniteNumber(value.currentPrice))
+    && (value.slabRate === undefined || isFiniteNumber(value.slabRate))
     && Array.isArray(value.vestingSchedule)
     && value.vestingSchedule.every((item) =>
       isRecord(item)
@@ -472,6 +480,10 @@ export function initializeState(): FireOSState {
     esopDetails: {
       shares: 95,
       grantPrice: 45,
+      liquidationShares: 95,
+      vestingFmv: 45,
+      currentPrice: 24.50,
+      slabRate: 30,
       vestingSchedule: [
         { date: '2026-06', shares: 20 },
         { date: '2027-06', shares: 20 },

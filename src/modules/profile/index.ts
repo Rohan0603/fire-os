@@ -86,6 +86,13 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
       </div>
 
       <div class="profile-section">
+        <h3>ESOP</h3>
+        <div id="esop-profile-fields" class="esop-profile-fields">
+          ${renderEsopProfileFields()}
+        </div>
+      </div>
+
+      <div class="profile-section">
         <h3>Other Holdings</h3>
         <div id="other-holdings-list" class="other-holdings-list">
           ${renderOtherHoldingsFields()}
@@ -252,6 +259,40 @@ function renderOtherHoldingsFields(): string {
   `;
 }
 
+function renderEsopProfileFields(): string {
+  const details = D.esopDetails;
+  const schedule = details.vestingSchedule.length ? details.vestingSchedule : [{ date: '', shares: 0 }];
+  return `
+    <div class="profile-form">
+      <div class="form-group"><label for="esop-shares">Total Shares</label><input type="number" id="esop-shares" min="0" step="1" value="${details.shares || ''}"></div>
+      <div class="form-group"><label for="esop-grant-price">Grant / Vesting FMV (€)</label><input type="number" id="esop-grant-price" min="0" step="0.01" value="${details.grantPrice || ''}"></div>
+      <div class="form-group"><label for="esop-liquidation-shares">Shares to Liquidate</label><input type="number" id="esop-liquidation-shares" min="0" step="1" value="${details.liquidationShares ?? details.shares}"></div>
+      <div class="form-group"><label for="esop-current-price">Current Price (€)</label><input type="number" id="esop-current-price" min="0" step="0.01" value="${details.currentPrice ?? ''}"></div>
+      <div class="form-group"><label for="esop-slab-rate">Income Tax Slab (%)</label><input type="number" id="esop-slab-rate" min="0" max="100" step="0.1" value="${details.slabRate ?? 30}"></div>
+    </div>
+    <h4>Vesting Schedule</h4>
+    <div class="sip-table-wrapper" style="overflow-x: auto; margin-bottom: 1rem;">
+      <table class="sip-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+        <thead><tr><th>Vest Date</th><th>Shares</th><th>Actions</th></tr></thead>
+        <tbody>${schedule.map((item, index) => `
+          <tr>
+            <td><input type="month" class="esop-vest-date" data-index="${index}" value="${item.date || ''}"></td>
+            <td><input type="number" class="esop-vest-shares" data-index="${index}" min="0" step="1" value="${item.shares || ''}"></td>
+            <td><button type="button" class="btn-secondary delete-esop-vest-btn" data-index="${index}">Delete</button></td>
+          </tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <button id="add-esop-vest-btn" class="btn-secondary" type="button">+ Add Vesting Tranche</button>
+    <h4>Liquidation Triggers</h4>
+    <div class="esop-trigger-fields">
+      <label><input type="checkbox" id="esop-trigger-marriage" ${details.triggers.marriage ? 'checked' : ''}> Marriage</label>
+      <label><input type="checkbox" id="esop-trigger-child" ${details.triggers.childBirth ? 'checked' : ''}> Child birth</label>
+      <label><input type="checkbox" id="esop-trigger-job" ${details.triggers.jobChange ? 'checked' : ''}> Job change</label>
+      <label><input type="checkbox" id="esop-trigger-coorg" ${details.triggers.coorgConstruction ? 'checked' : ''}> Coorg construction</label>
+    </div>
+  `;
+}
+
 /**
  * Render demat holdings list
  */
@@ -337,6 +378,19 @@ function attachProfileHandlers(context: FeatureContext) {
       });
     });
   }
+
+  const esopFields = document.getElementById('esop-profile-fields');
+  esopFields?.querySelectorAll('input').forEach((input) => input.addEventListener('blur', debounceProfileSave));
+  esopFields?.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach((input) => input.addEventListener('change', debounceProfileSave));
+  esopFields?.querySelectorAll<HTMLButtonElement>('.delete-esop-vest-btn').forEach((button) => button.addEventListener('click', () => {
+    D.esopDetails.vestingSchedule.splice(Number(button.dataset.index), 1);
+    renderProfile(document.getElementById('profile') || document.body, context);
+    saveProfile();
+  }));
+  document.getElementById('add-esop-vest-btn')?.addEventListener('click', () => {
+    D.esopDetails.vestingSchedule.push({ date: '', shares: 0 });
+    renderProfile(document.getElementById('profile') || document.body, context);
+  });
 
   const addOtherHoldingBtn = document.getElementById('add-other-holding-btn');
   if (addOtherHoldingBtn) {
@@ -453,6 +507,22 @@ function debounceProfileSave() {
 
   // Check SIP fields
   if (!isDirty) {
+    const esopInputs = {
+      shares: document.getElementById('esop-shares') as HTMLInputElement,
+      grantPrice: document.getElementById('esop-grant-price') as HTMLInputElement,
+      liquidationShares: document.getElementById('esop-liquidation-shares') as HTMLInputElement,
+      currentPrice: document.getElementById('esop-current-price') as HTMLInputElement,
+      slabRate: document.getElementById('esop-slab-rate') as HTMLInputElement,
+    };
+    const esopDetails = D.esopDetails;
+    isDirty = (parseFloat(esopInputs.shares?.value || '0') || 0) !== esopDetails.shares
+      || (parseFloat(esopInputs.grantPrice?.value || '0') || 0) !== esopDetails.grantPrice
+      || (parseFloat(esopInputs.liquidationShares?.value || '0') || 0) !== (esopDetails.liquidationShares ?? esopDetails.shares)
+      || (parseFloat(esopInputs.currentPrice?.value || '0') || 0) !== (esopDetails.currentPrice ?? 0)
+      || (parseFloat(esopInputs.slabRate?.value || '0') || 0) !== (esopDetails.slabRate ?? 30);
+  }
+
+  if (!isDirty) {
     for (let i = 1; i <= 10; i++) {
       const nameEl = document.querySelector(`.sip-name[data-index="${i}"]`) as HTMLInputElement;
       const codeEl = document.querySelector(`.sip-code[data-index="${i}"]`) as HTMLInputElement;
@@ -472,6 +542,15 @@ function debounceProfileSave() {
         break;
       }
     }
+  }
+
+  if (!isDirty) {
+    const schedule = D.esopDetails.vestingSchedule;
+    const dates = document.querySelectorAll<HTMLInputElement>('.esop-vest-date');
+    const shares = document.querySelectorAll<HTMLInputElement>('.esop-vest-shares');
+    isDirty = dates.length !== schedule.length || Array.from(dates).some((date, index) =>
+      date.value !== (schedule[index]?.date || '')
+      || (parseFloat(shares[index]?.value || '0') || 0) !== (schedule[index]?.shares || 0));
   }
 
   if (!isDirty) {
@@ -571,6 +650,44 @@ export async function saveProfile(): Promise<boolean> {
         D.profile.monthlyIncome = parseFloat(monthlyIncomeInput.value);
       }
     }
+
+    // ==================== ESOP SECTION ====================
+    const esopShares = parseFloat((document.getElementById('esop-shares') as HTMLInputElement)?.value || '0') || 0;
+    const esopGrantPrice = parseFloat((document.getElementById('esop-grant-price') as HTMLInputElement)?.value || '0') || 0;
+    const esopLiquidationShares = parseFloat((document.getElementById('esop-liquidation-shares') as HTMLInputElement)?.value || '0') || 0;
+    const esopCurrentPrice = parseFloat((document.getElementById('esop-current-price') as HTMLInputElement)?.value || '0') || 0;
+    const esopSlabRate = parseFloat((document.getElementById('esop-slab-rate') as HTMLInputElement)?.value || '0') || 0;
+    if (esopShares < 0 || esopGrantPrice < 0 || esopLiquidationShares < 0 || esopCurrentPrice < 0 || esopSlabRate < 0 || esopSlabRate > 100) {
+      validationErrors.push({ field: 'esop', message: 'ESOP values must be non-negative and tax slab must be 0-100%' });
+    }
+    const vestingSchedule: Array<{ date: string; shares: number }> = [];
+    document.querySelectorAll<HTMLInputElement>('.esop-vest-date').forEach((dateInput, index) => {
+      const sharesInput = document.querySelector<HTMLInputElement>(`.esop-vest-shares[data-index="${index}"]`);
+      const date = dateInput.value;
+      const shares = parseFloat(sharesInput?.value || '0') || 0;
+      if (!date && shares === 0) return;
+      if (!/^\d{4}-\d{2}$/.test(date) || shares < 0) {
+        validationErrors.push({ field: `esop-vesting-${index}`, message: `Vesting tranche ${index + 1} needs valid date and non-negative shares` });
+        return;
+      }
+      vestingSchedule.push({ date, shares });
+    });
+    D.esopDetails = {
+      ...D.esopDetails,
+      shares: esopShares,
+      grantPrice: esopGrantPrice,
+      liquidationShares: esopLiquidationShares,
+      vestingFmv: esopGrantPrice,
+      currentPrice: esopCurrentPrice,
+      slabRate: esopSlabRate,
+      vestingSchedule,
+      triggers: {
+        marriage: (document.getElementById('esop-trigger-marriage') as HTMLInputElement)?.checked || false,
+        childBirth: (document.getElementById('esop-trigger-child') as HTMLInputElement)?.checked || false,
+        jobChange: (document.getElementById('esop-trigger-job') as HTMLInputElement)?.checked || false,
+        coorgConstruction: (document.getElementById('esop-trigger-coorg') as HTMLInputElement)?.checked || false,
+      },
+    };
 
     // ==================== SIP SECTION ====================
     for (let i = 1; i <= 10; i++) {
