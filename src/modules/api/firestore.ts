@@ -105,30 +105,31 @@ export async function loadPortfolio(uid: string): Promise<PortfolioEnvelope | nu
 export async function savePortfolio(uid: string, envelope: PortfolioEnvelope): Promise<void> {
   if (!services) throw new Error('Firestore has not been initialized');
   const initializedServices = services;
-  const { data, entryUpdatedAt, ...envelopeWithoutDynamicMetadata } = envelope;
+  const { data, entryUpdatedAt: _entryUpdatedAt, ...envelopeWithoutDynamicMetadata } = envelope;
   const { mf, ...stateData } = data;
-  const { holdings, ...stateEntryUpdatedAt } = entryUpdatedAt ?? {};
-  const batch = writeBatch(initializedServices.db);
-  batch.set(portfolioRef(initializedServices.db, uid), {
+  void _entryUpdatedAt;
+  const stateBatch = writeBatch(initializedServices.db);
+  stateBatch.set(portfolioRef(initializedServices.db, uid), {
     ...envelopeWithoutDynamicMetadata,
     schemaVersion: 'fireOS_v4',
     data: stateData,
-    ...(Object.keys(stateEntryUpdatedAt).length > 0 ? { entryUpdatedAt: stateEntryUpdatedAt } : {}),
   });
+  await stateBatch.commit();
 
   const existingHoldings = await getDocs(holdingsRef(initializedServices.db, uid));
   const currentEntries = mf ?? {};
+  const holdingsBatch = writeBatch(initializedServices.db);
   for (const holding of existingHoldings.docs) {
-    if (!(holding.id in currentEntries)) batch.delete(holding.ref);
+    if (!(holding.id in currentEntries)) holdingsBatch.delete(holding.ref);
   }
   for (const [id, value] of Object.entries(currentEntries)) {
-    batch.set(doc(holdingsRef(initializedServices.db, uid), id), {
+    holdingsBatch.set(doc(holdingsRef(initializedServices.db, uid), id), {
       kind: 'mf',
       value,
-      updatedAt: holdings?.[id] ?? envelope.lastSavedAt,
+      updatedAt: envelope.lastSavedAt,
     });
   }
-  await batch.commit();
+  if (existingHoldings.size > 0 || Object.keys(currentEntries).length > 0) await holdingsBatch.commit();
 }
 
 export function onPortfolioChange(

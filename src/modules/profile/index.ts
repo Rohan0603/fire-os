@@ -11,6 +11,12 @@ import { getFundSchemeCode } from '../../lib/fundMatcher';
 import './styles.css';
 
 const DEBOUNCE_MS = 500;
+const CORE_HOLDING_ROWS = {
+  51: { name: 'Fixed Deposits', stateKey: 'fd' },
+  52: { name: 'EPF', stateKey: 'epf' },
+  53: { name: 'Bonds', stateKey: 'bonds' },
+  54: { name: 'ESOP', stateKey: 'esop' },
+} as const;
 let debounceTimer: NodeJS.Timeout | null = null;
 let activeContext = createFeatureContext();
 let D = activeContext.state;
@@ -32,6 +38,7 @@ export function initProfileModule(containerId: string, context: FeatureContext =
 export function renderProfile(container: HTMLElement, context: FeatureContext = activeContext) {
   activeContext = context;
   D = context.state;
+  ensureCoreHoldingRows();
   container.innerHTML = `
     <div class="profile-container">
       <h2>Portfolio Profile</h2>
@@ -63,6 +70,13 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
       </div>
 
       <div class="profile-section">
+        <h3>Demat Holdings</h3>
+        <div id="demat-list" class="demat-list">
+          ${renderDematHoldings()}
+        </div>
+      </div>
+
+      <div class="profile-section">
         <h3>Mutual Funds & SIPs</h3>
         <form id="sip-form" class="sip-form">
           ${renderSIPFields()}
@@ -76,32 +90,6 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
           ${renderOtherHoldingsFields()}
         </div>
         <button id="add-other-holding-btn" class="btn-secondary" type="button">+ Add Holding</button>
-        <h4>Core Holdings</h4>
-        <form id="holdings-form" class="holdings-form">
-          <div class="form-group">
-            <label for="fd">Fixed Deposits (₹)</label>
-            <input type="number" id="fd" placeholder="FD amount" value="${D.fd.fd?.amount || ''}">
-          </div>
-          <div class="form-group">
-            <label for="epf">EPF Balance (₹)</label>
-            <input type="number" id="epf" placeholder="EPF balance" value="${D.epf.epf?.amount || ''}">
-          </div>
-          <div class="form-group">
-            <label for="bonds">Bonds (₹)</label>
-            <input type="number" id="bonds" placeholder="Bonds value" value="${D.bonds.bonds?.amount || ''}">
-          </div>
-          <div class="form-group">
-            <label for="esop">ESOP Value (₹)</label>
-            <input type="number" id="esop" placeholder="ESOP value" value="${D.esop.esop?.amount || ''}">
-          </div>
-        </form>
-      </div>
-
-      <div class="profile-section">
-        <h3>Demat Holdings</h3>
-        <div id="demat-list" class="demat-list">
-          ${renderDematHoldings()}
-        </div>
       </div>
 
       <div class="profile-section">
@@ -206,6 +194,17 @@ function escapeHtml(value: string): string {
   }[character] || character));
 }
 
+function ensureCoreHoldingRows(): void {
+  if (!D.otherHoldings || typeof D.otherHoldings !== 'object') D.otherHoldings = {};
+  for (const [index, config] of Object.entries(CORE_HOLDING_ROWS)) {
+    const key = `otherHolding${index}`;
+    if (D.otherHoldings[key]) continue;
+    const source = D[config.stateKey][config.stateKey];
+    const amount = source?.amount || 0;
+    if (amount > 0) D.otherHoldings[key] = { name: config.name, amount, annualReturn: 0 };
+  }
+}
+
 function renderOtherHoldingsFields(): string {
   const otherHoldings = D.otherHoldings || {};
   const indices = Object.keys(otherHoldings)
@@ -238,7 +237,7 @@ function renderOtherHoldingsFields(): string {
                   <input type="number" class="other-holding-amount" data-index="${index}" min="0" step="0.01" placeholder="₹0" value="${holding?.amount || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
                 </td>
                 <td style="padding: 8px 16px;">
-                  <input type="number" class="other-holding-return" data-index="${index}" min="0" max="100" step="0.1" placeholder="0" value="${holding?.annualReturn || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+                  <input type="number" class="other-holding-return" data-index="${index}" min="0" max="100" step="0.1" placeholder="0" value="${holding?.annualReturn ?? ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
                 </td>
                 <td style="padding: 8px 16px;">
                   <button type="button" class="btn-secondary delete-other-holding-btn" data-index="${index}" aria-label="Delete ${escapeHtml(holding?.name || 'holding')}">Delete</button>
@@ -318,14 +317,6 @@ function attachProfileHandlers(context: FeatureContext) {
     }, true); // Use capture phase for blur event
   }
 
-  // Holdings form inputs
-  const holdingsForm = document.getElementById('holdings-form');
-  if (holdingsForm) {
-    holdingsForm.querySelectorAll('input').forEach((input) => {
-      input.addEventListener('blur', debounceProfileSave);
-    });
-  }
-
   // Other holdings form inputs and row actions
   const otherHoldingsList = document.getElementById('other-holdings-list');
   if (otherHoldingsList) {
@@ -335,7 +326,10 @@ function attachProfileHandlers(context: FeatureContext) {
 
     otherHoldingsList.querySelectorAll<HTMLButtonElement>('.delete-other-holding-btn').forEach((button) => {
       button.addEventListener('click', () => {
-        delete D.otherHoldings[`otherHolding${button.dataset.index}`];
+        const index = Number(button.dataset.index);
+        const core = CORE_HOLDING_ROWS[index as keyof typeof CORE_HOLDING_ROWS];
+        if (core) D[core.stateKey][core.stateKey] = { amount: 0, currency: 'INR' };
+        delete D.otherHoldings[`otherHolding${index}`];
         const container = document.getElementById('profile');
         if (container) renderProfile(container, context);
         saveProfile();
@@ -427,6 +421,7 @@ function attachProfileHandlers(context: FeatureContext) {
       } catch (e) {
         console.error('[Profile] Firestore save failed:', e);
         context.ports.ui.showToast('✗ Firestore sync failed', 3000, 'warning');
+        saveCloudBtn.textContent = '☁ Save to Firestore';
         updateButtonState();
       } finally {
         setTimeout(() => {
@@ -479,7 +474,7 @@ function debounceProfileSave() {
   }
 
   if (!isDirty) {
-    for (let i = 1; i <= 50; i++) {
+    for (let i = 1; i <= 54; i++) {
       const nameEl = document.querySelector(`.other-holding-name[data-index="${i}"]`) as HTMLInputElement;
       const amountEl = document.querySelector(`.other-holding-amount[data-index="${i}"]`) as HTMLInputElement;
       const returnEl = document.querySelector(`.other-holding-return[data-index="${i}"]`) as HTMLInputElement;
@@ -493,22 +488,7 @@ function debounceProfileSave() {
     }
   }
 
-  // Check holdings fields
-  if (!isDirty) {
-    const fdInput = document.getElementById('fd') as HTMLInputElement;
-    const epfInput = document.getElementById('epf') as HTMLInputElement;
-    const bondsInput = document.getElementById('bonds') as HTMLInputElement;
-    const esopInput = document.getElementById('esop') as HTMLInputElement;
-
-    if ((fdInput?.value ? parseFloat(fdInput.value) : 0) !== (D.fd.fd?.amount || 0) ||
-        (epfInput?.value ? parseFloat(epfInput.value) : 0) !== (D.epf.epf?.amount || 0) ||
-        (bondsInput?.value ? parseFloat(bondsInput.value) : 0) !== (D.bonds.bonds?.amount || 0) ||
-        (esopInput?.value ? parseFloat(esopInput.value) : 0) !== (D.esop.esop?.amount || 0)) {
-      // Form changed, save
-    } else {
-      return; // No changes detected
-    }
-  }
+  if (!isDirty) return;
 
   // Form changed - debounce save
   if (debounceTimer) clearTimeout(debounceTimer);
@@ -668,77 +648,9 @@ export async function saveProfile(): Promise<boolean> {
       }
     }
 
-    // ==================== HOLDINGS SECTION ====================
-    const fdInput = document.getElementById('fd') as HTMLInputElement;
-    const epfInput = document.getElementById('epf') as HTMLInputElement;
-    const bondsInput = document.getElementById('bonds') as HTMLInputElement;
-    const esopInput = document.getElementById('esop') as HTMLInputElement;
-
-    // Ensure holdings are objects (defensive for corrupted data)
-    if (typeof D.fd !== 'object' || D.fd === null) D.fd = {};
-    if (typeof D.epf !== 'object' || D.epf === null) D.epf = {};
-    if (typeof D.bonds !== 'object' || D.bonds === null) D.bonds = {};
-    if (typeof D.esop !== 'object' || D.esop === null) D.esop = {};
-    if (typeof D.otherHoldings !== 'object' || D.otherHoldings === null) D.otherHoldings = {};
-
-    // Validate FD
-    if (fdInput?.value) {
-      const fdError = validateFormInput(fdInput.value, [
-        ValidationRules.positiveNumber('Fixed Deposits'),
-      ]);
-      if (fdError) {
-        validationErrors.push({ field: 'fd', message: fdError });
-      } else {
-        D.fd.fd = { amount: parseFloat(fdInput.value), currency: 'INR' };
-      }
-    } else {
-      D.fd.fd = { amount: 0, currency: 'INR' };
-    }
-
-    // Validate EPF
-    if (epfInput?.value) {
-      const epfError = validateFormInput(epfInput.value, [
-        ValidationRules.positiveNumber('EPF Balance'),
-      ]);
-      if (epfError) {
-        validationErrors.push({ field: 'epf', message: epfError });
-      } else {
-        D.epf.epf = { amount: parseFloat(epfInput.value), currency: 'INR' };
-      }
-    } else {
-      D.epf.epf = { amount: 0, currency: 'INR' };
-    }
-
-    // Validate Bonds
-    if (bondsInput?.value) {
-      const bondsError = validateFormInput(bondsInput.value, [
-        ValidationRules.positiveNumber('Bonds'),
-      ]);
-      if (bondsError) {
-        validationErrors.push({ field: 'bonds', message: bondsError });
-      } else {
-        D.bonds.bonds = { amount: parseFloat(bondsInput.value), currency: 'INR' };
-      }
-    } else {
-      D.bonds.bonds = { amount: 0, currency: 'INR' };
-    }
-
-    // Validate ESOP
-    if (esopInput?.value) {
-      const esopError = validateFormInput(esopInput.value, [
-        ValidationRules.positiveNumber('ESOP Value'),
-      ]);
-      if (esopError) {
-        validationErrors.push({ field: 'esop', message: esopError });
-      } else {
-        D.esop.esop = { amount: parseFloat(esopInput.value), currency: 'INR' };
-      }
-    } else {
-      D.esop.esop = { amount: 0, currency: 'INR' };
-    }
-
     // ==================== OTHER HOLDINGS SECTION ====================
-    for (let i = 1; i <= 50; i++) {
+    if (typeof D.otherHoldings !== 'object' || D.otherHoldings === null) D.otherHoldings = {};
+    for (let i = 1; i <= 54; i++) {
       const nameEl = document.querySelector(`.other-holding-name[data-index="${i}"]`) as HTMLInputElement;
       const amountEl = document.querySelector(`.other-holding-amount[data-index="${i}"]`) as HTMLInputElement;
       const returnEl = document.querySelector(`.other-holding-return[data-index="${i}"]`) as HTMLInputElement;
@@ -747,6 +659,8 @@ export async function saveProfile(): Promise<boolean> {
       const annualReturn = parseFloat(returnEl?.value || '0');
 
       if (!name && !amountEl?.value && !returnEl?.value) {
+        const core = CORE_HOLDING_ROWS[i as keyof typeof CORE_HOLDING_ROWS];
+        if (core) D[core.stateKey][core.stateKey] = { amount: 0, currency: 'INR' };
         delete D.otherHoldings[`otherHolding${i}`];
         continue;
       }
@@ -764,6 +678,9 @@ export async function saveProfile(): Promise<boolean> {
       }
 
       D.otherHoldings[`otherHolding${i}`] = { name, amount, annualReturn };
+
+      const core = CORE_HOLDING_ROWS[i as keyof typeof CORE_HOLDING_ROWS];
+      if (core) D[core.stateKey][core.stateKey] = { amount, currency: 'INR' };
     }
 
     // ==================== SHOW VALIDATION ERRORS ====================
