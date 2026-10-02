@@ -1,6 +1,6 @@
 /**
  * EUR/INR Exchange Rate Fetching Module
- * Fetches latest EUR to INR exchange rate from Yahoo Finance via CORS proxy
+ * Fetches latest EUR to INR exchange rate from Frankfurter
  * Used for ESOP Tools valuation in Indian Rupees
  */
 
@@ -15,17 +15,45 @@ let eurInrCache: EURINRData | null = null;
 
 // Constants
 const EUR_INR_CACHE_TTL = CONFIG.cacheTtl.eurInr;
-const CORS_PROXIES = [
-  { url: 'https://corsproxy.io/?', name: 'corsproxy' }
-];
-
 // Valid exchange rate range (sanity check)
 const MIN_RATE = 80;
 const MAX_RATE = 150;
 
+export async function convertCurrency(
+  amount: number,
+  sourceCurrency: string,
+  desiredCurrency: string,
+): Promise<number | null> {
+  if (!Number.isFinite(amount)) return null;
+
+  const source = sourceCurrency.trim().toUpperCase();
+  const desired = desiredCurrency.trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(source) || !/^[A-Z]{3}$/.test(desired)) return null;
+  if (source === desired) return amount;
+
+  const apiUrl = `https://api.frankfurter.app/latest?amount=${encodeURIComponent(amount)}&from=${source}&to=${desired}`;
+  console.log('[Currency API] Conversion request', { amount, source, desired, url: apiUrl });
+
+  try {
+    const response = await fetch(apiUrl);
+    console.log('[Currency API] Conversion response', { status: response.status, ok: response.ok });
+    if (!response.ok) return null;
+
+    const data = await response.json() as { rates?: Record<string, unknown> };
+    const converted = data.rates?.[desired];
+    if (typeof converted !== 'number' || !Number.isFinite(converted)) return null;
+
+    console.log('[Currency API] Conversion result', { amount, source, desired, converted });
+    return converted;
+  } catch (error) {
+    logger.warn(`Currency conversion failed: ${error instanceof Error ? error.message : 'unknown error'}`);
+    return null;
+  }
+}
+
 /**
  * Fetch current EUR/INR exchange rate
- * Attempts Yahoo Finance fetch via CORS proxy
+ * Fetches through Frankfurter's public daily-rates API
  * Returns cached value if fetch fails
  * Returns cached value even if expired as fallback
  *
@@ -38,7 +66,7 @@ export async function fetchEURINR(): Promise<number | null> {
   }
 
   try {
-    const rate = await fetchEURINRFromYahoo();
+    const rate = await convertCurrency(1, 'EUR', 'INR');
 
     if (rate !== null) {
       // Validate rate is in reasonable range
@@ -56,62 +84,11 @@ export async function fetchEURINR(): Promise<number | null> {
       return rate;
     }
   } catch (error) {
-    logger.error('EUR/INR fetch from Yahoo Finance failed', error);
+    logger.error('EUR/INR fetch from Frankfurter failed', error);
   }
 
   // Fall back to cached value (even if expired)
   return getCachedEURINR();
-}
-
-/**
- * Fetch EUR/INR from Yahoo Finance via CORS proxy
- * Tries multiple proxies for redundancy, parses HTML for current exchange rate
- *
- * @returns Exchange rate or null if fetch/parse fails
- */
-async function fetchEURINRFromYahoo(): Promise<number | null> {
-  const yahooApiUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/EURINR=X?interval=1d&range=1y';
-
-  for (const proxy of CORS_PROXIES) {
-    try {
-      const proxyUrl = `${proxy.url}${encodeURIComponent(yahooApiUrl)}`;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-      const response = await fetch(proxyUrl, {
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        logger.warn(`EUR/INR ${proxy.name} proxy failed: HTTP ${response.status}`);
-        continue;
-      }
-
-      let data: any;
-      if (proxy.name === 'allorigins') {
-        const alloriginsResponse = await response.json();
-        data = JSON.parse(alloriginsResponse.contents);
-      } else {
-        data = await response.json();
-      }
-
-      const meta = data?.chart?.result?.[0]?.meta;
-      if (!meta || typeof meta.regularMarketPrice !== 'number') {
-        logger.warn('EUR/INR: Could not parse rate from Yahoo JSON');
-        continue;
-      }
-
-      return meta.regularMarketPrice;
-    } catch (error) {
-      logger.warn(`EUR/INR proxy fetch failed: ${error instanceof Error ? error.message : 'unknown error'}`);
-      continue;
-    }
-  }
-
-  logger.error('EUR/INR: All proxy attempts failed');
-  return null;
 }
 
 /**

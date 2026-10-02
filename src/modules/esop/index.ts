@@ -48,17 +48,16 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
     targetContainer.innerHTML = `
       <div class="esop-container loading-container">
         <div class="loader-circle"></div>
-        <p class="loader-text">Fetching live Societe Generale (GLE.PA) price & EUR/INR rates...</p>
+        <p class="loader-text">Fetching live stock prices and currency rates...</p>
       </div>
     `;
 
-    Promise.all([
-      context.ports.marketData.fetchSocGenPrice(),
-      context.ports.marketData.fetchEURINR(),
-    ])
-      .then(([price, rate]) => {
-        glePrice = price || 24.50; // Fallback price
-        eurInrRate = rate || 90.00; // Fallback rate
+    context.ports.marketData.fetchEsopValuations(D.esopDetails.holdings || [])
+      .then((results) => {
+        const valuations = results.flatMap(({ value }) => value === null ? [] : [value]);
+        const firstSocGen = results.find(({ holding }) => holding.symbol.toUpperCase().includes('GLE'));
+        glePrice = firstSocGen?.quote?.price ?? null;
+        eurInrRate = firstSocGen?.rate ?? null;
         isFetching = false;
 
         if (calcCurrentPrice === null) {
@@ -66,7 +65,7 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
         }
 
         // Sync valuation to main state
-        const computedInrValue = D.esopDetails.shares * glePrice * eurInrRate;
+        const computedInrValue = valuations.reduce((total, value) => total + value, 0);
         D.esop.esop = { amount: computedInrValue, currency: 'INR' };
         context.portfolio.save(D);
 
@@ -74,9 +73,7 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
       })
       .catch((err) => {
         console.error('Error loading live ESOP data:', err);
-        fetchError = 'Unable to fetch live market data. Using fallbacks.';
-        glePrice = glePrice || 24.50;
-        eurInrRate = eurInrRate || 90.00;
+        fetchError = 'Unable to fetch live market data.';
         isFetching = false;
         
         if (calcCurrentPrice === null) {
@@ -89,9 +86,11 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
   }
 
   // 1. Live Valuation & Exchange Rate Calculations
-  const finalPrice = glePrice || 24.50;
-  const finalRate = eurInrRate || 90.00;
-  const grossInr = D.esopDetails.shares * finalPrice * finalRate;
+  const finalPrice = glePrice;
+  const finalRate = eurInrRate;
+  const grossInr = D.esop.esop?.amount ?? (finalPrice !== null && finalRate !== null
+    ? D.esopDetails.shares * finalPrice * finalRate
+    : 0);
   
   // Calculate percentage of net worth
   const { netWorth } = context.ports.calculations.totalNetWorth(D);
@@ -154,7 +153,7 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
       <div class="esop-header">
         <div>
           <h2>ESOP Valuation & Liquidation Planner</h2>
-          <p class="esop-subtitle">Manage, track, and plan Societe Generale (GLE.PA) employee shares</p>
+          <p class="esop-subtitle">Manage, track, and plan employee stock holdings</p>
         </div>
         <button id="esop-refresh-btn" class="btn-refresh" title="Refresh live rates">
           <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2" fill="none"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
@@ -203,12 +202,12 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
           </div>
           <div class="valuation-meta">
             <div class="meta-row">
-              <span>Shares Owned</span>
-              <strong>${D.esopDetails.shares} shares</strong>
+              <span>Holdings</span>
+              <strong>${D.esopDetails.holdings?.length || 0} positions</strong>
             </div>
             <div class="meta-row">
-              <span>GLE.PA Price</span>
-              <strong>€${finalPrice.toFixed(2)}</strong>
+              <span>Total Quantity</span>
+              <strong>${D.esopDetails.shares} shares</strong>
             </div>
             <div class="meta-row">
               <span>Net Worth Allocation</span>
@@ -233,7 +232,7 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
               <span>EUR/INR Exchange Rate</span>
               <span class="fx-change text-success">+2.3% (12m)</span>
             </div>
-            <div class="fx-value">1 € = ₹${finalRate.toFixed(2)}</div>
+            <div class="fx-value">1 € = ${finalRate === null ? 'Unavailable' : `₹${finalRate.toFixed(2)}`}</div>
           </div>
         </div>
 

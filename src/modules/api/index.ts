@@ -37,6 +37,7 @@ export {
 } from './nifty';
 
 export {
+  convertCurrency,
   fetchEURINR,
   getCachedEURINR,
   getCachedEURINRData,

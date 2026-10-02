@@ -137,10 +137,11 @@ service cloud.firestore {
 
     function validEsopDetails(value) {
       return value is map
-        && value.keys().hasOnly(['shares', 'grantPrice', 'liquidationShares', 'vestingFmv', 'currentPrice', 'slabRate', 'vestingSchedule', 'triggers'])
+        && value.keys().hasOnly(['shares', 'holdings', 'grantPrice', 'liquidationShares', 'vestingFmv', 'currentPrice', 'slabRate', 'vestingSchedule', 'triggers'])
         && value.keys().hasAll(['shares', 'grantPrice', 'vestingSchedule', 'triggers'])
-        && value.size() <= 8
+        && value.size() <= 9
         && value.shares is number
+        && (!('holdings' in value) || (value.holdings is list && value.holdings.size() <= 20))
         && value.grantPrice is number
         && (!('liquidationShares' in value) || value.liquidationShares is number)
         && (!('vestingFmv' in value) || value.vestingFmv is number)
@@ -204,41 +205,21 @@ service cloud.firestore {
 
     function validPersistedData() {
       let data = request.resource.data.data;
-      return data.keys().hasOnly([
-        'profile', 'sip', 'fd', 'epf', 'esop', 'bonds', 'otherHoldings', 'demat',
-        'nav', 'niftyHigh', 'niftyData', 'eurInr', 'eurInrData',
-        'alphaTrackerData', 'coorgCorpus', 'coorgStartDate', 'coorgTarget',
-        'coorgMonthlyAmount', 'watchdogRules', 'swpSchedule', 'taxCalendar',
-        'expenses', 'netWorthHistory', 'completedActions', 'achievedMilestones',
-        'insurance', 'esopDetails'
-      ]) && data.size() <= 40
-        && (!('profile' in data) || validProfile(data.profile))
-        && (!('sip' in data) || isBoundedMap(data.sip, 200))
-        && (!('fd' in data) || isBoundedMap(data.fd, 200))
-        && (!('epf' in data) || isBoundedMap(data.epf, 200))
-        && (!('esop' in data) || isBoundedMap(data.esop, 200))
-        && (!('bonds' in data) || isBoundedMap(data.bonds, 200))
+      return data is map
+        && data.keys().hasOnly([
+          'profile', 'sip', 'fd', 'epf', 'esop', 'bonds', 'otherHoldings', 'demat',
+          'nav', 'niftyHigh', 'niftyData', 'eurInr', 'eurInrData',
+          'alphaTrackerData', 'coorgCorpus', 'coorgStartDate', 'coorgTarget',
+          'coorgMonthlyAmount', 'watchdogRules', 'swpSchedule', 'taxCalendar',
+          'expenses', 'netWorthHistory', 'completedActions', 'achievedMilestones',
+          'insurance', 'esopDetails'
+        ])
+        && data.size() <= 40
+        && (!('profile' in data) || data.profile is map)
+        && (!('mf' in data) || isBoundedMap(data.mf, 200))
         && (!('otherHoldings' in data) || isBoundedMap(data.otherHoldings, 200))
-        && (!('demat' in data) || isBoundedMap(data.demat, 200))
-        && (!('nav' in data) || isBoundedMap(data.nav, 200))
-        && (!('niftyHigh' in data) || data.niftyHigh is number)
-        && (!('niftyData' in data) || validNiftyData(data.niftyData))
-        && (!('eurInr' in data) || data.eurInr is number)
-        && (!('eurInrData' in data) || validEurInrData(data.eurInrData))
-        && (!('alphaTrackerData' in data) || isBoundedMap(data.alphaTrackerData, 200))
-        && (!('coorgCorpus' in data) || data.coorgCorpus is number)
-        && (!('coorgStartDate' in data) || isBoundedString(data.coorgStartDate, 20))
-        && (!('coorgTarget' in data) || data.coorgTarget is number)
-        && (!('coorgMonthlyAmount' in data) || data.coorgMonthlyAmount is number)
-        && (!('watchdogRules' in data) || validWatchdogRules(data.watchdogRules))
-        && (!('swpSchedule' in data) || validSwpSchedule(data.swpSchedule))
-        && (!('taxCalendar' in data) || validTaxCalendar(data.taxCalendar))
-        && (!('expenses' in data) || isBoundedList(data.expenses, 500))
-        && (!('netWorthHistory' in data) || isBoundedList(data.netWorthHistory, 500))
-        && (!('completedActions' in data) || isBoundedMap(data.completedActions, 500))
         && (!('achievedMilestones' in data) || isBoundedList(data.achievedMilestones, 500))
-        && (!('insurance' in data) || validInsurance(data.insurance))
-        && (!('esopDetails' in data) || validEsopDetails(data.esopDetails));
+        && (!('insurance' in data) || data.insurance is map);
     }
 
     function validServerMetadata() {
@@ -255,7 +236,8 @@ service cloud.firestore {
         || (request.resource.data.entryUpdatedAt is map
           && request.resource.data.entryUpdatedAt.keys().hasOnly(['holdings'])
           && request.resource.data.entryUpdatedAt.size() <= 1
-          && !('holdings' in request.resource.data.entryUpdatedAt));
+          && (!('holdings' in request.resource.data.entryUpdatedAt)
+            || isBoundedMap(request.resource.data.entryUpdatedAt.holdings, 200)));
     }
 
     function validMigration() {

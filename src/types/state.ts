@@ -22,8 +22,16 @@ export interface EsopTriggers {
   coorgConstruction: boolean;
 }
 
+export interface EsopHolding {
+  name: string;
+  symbol: string;
+  quantity: number;
+  currency: string;
+}
+
 export interface EsopDetails {
   shares: number;
+  holdings?: EsopHolding[];
   grantPrice: number;
   liquidationShares?: number;
   vestingFmv?: number;
@@ -332,8 +340,16 @@ function isInsurance(value: unknown): boolean {
 }
 
 function isEsopDetails(value: unknown): boolean {
-  if (!isRecord(value) || !hasOnlyKeys(value, ['shares', 'grantPrice', 'liquidationShares', 'vestingFmv', 'currentPrice', 'slabRate', 'vestingSchedule', 'triggers'])) return false;
+  if (!isRecord(value) || !hasOnlyKeys(value, ['shares', 'holdings', 'grantPrice', 'liquidationShares', 'vestingFmv', 'currentPrice', 'slabRate', 'vestingSchedule', 'triggers'])) return false;
   return isFiniteNumber(value.shares)
+    && (value.holdings === undefined || (Array.isArray(value.holdings) && value.holdings.length <= 20 && value.holdings.every((holding) =>
+      isRecord(holding)
+      && hasOnlyKeys(holding, ['name', 'symbol', 'quantity', 'currency'])
+      && typeof holding.name === 'string'
+      && typeof holding.symbol === 'string'
+      && isFiniteNumber(holding.quantity)
+      && typeof holding.currency === 'string',
+    )))
     && isFiniteNumber(value.grantPrice)
     && (value.liquidationShares === undefined || isFiniteNumber(value.liquidationShares))
     && (value.vestingFmv === undefined || isFiniteNumber(value.vestingFmv))
@@ -481,6 +497,7 @@ export function initializeState(): FireOSState {
     // ESOP details
     esopDetails: {
       shares: 95,
+      holdings: [{ name: 'Societe Generale SA', symbol: 'EPA: GLE', quantity: 95, currency: 'EUR' }],
       grantPrice: 45,
       liquidationShares: 95,
       vestingFmv: 45,

@@ -9,6 +9,7 @@ import { parseCASPDF, CASParseResult } from './pdf-parser';
 import { validateFormInput, handleError, ValidationRules } from '../../lib/error-handler';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
 import { calculateAgeFromDateOfBirth } from '../../types/portfolio';
+import type { EsopHolding } from '../../types/state';
 import './styles.css';
 
 const DEBOUNCE_MS = 500;
@@ -22,6 +23,8 @@ let debounceTimer: NodeJS.Timeout | null = null;
 let activeContext = createFeatureContext();
 let D = activeContext.state;
 let esopValueRequest: Promise<void> | null = null;
+const editingEsopIndices = new Set<number>();
+const editingOtherHoldingIndices = new Set<number>();
 
 /**
  * Initialize profile module
@@ -133,24 +136,24 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
 }
 
 async function refreshEsopProfileValue(context: FeatureContext): Promise<void> {
-  const valueElement = document.getElementById('esop-inr-value');
-  if (!valueElement) return;
+  const valueElements = Array.from(document.querySelectorAll<HTMLElement>('.esop-value'));
+  if (valueElements.length === 0) return;
   if (!esopValueRequest) {
-    esopValueRequest = Promise.all([
-      context.ports.marketData.fetchSocGenPrice(),
-      context.ports.marketData.fetchEURINR(),
-    ]).then(([sharePrice, eurInr]) => {
-      const resolvedPrice = sharePrice ?? 24.5;
-      const resolvedRate = eurInr ?? (D.eurInr || 90);
-      if (resolvedRate > 0) {
-        D.esop.esop = { amount: D.esopDetails.shares * resolvedPrice * resolvedRate, currency: 'INR' };
-        const source = sharePrice !== null && eurInr !== null ? 'live' : 'fallback';
-        valueElement.textContent = `Current value: ${formatCurrency(D.esop.esop.amount)} (${source})`;
-      } else {
-        valueElement.textContent = 'Current value unavailable';
+    esopValueRequest = (async () => {
+      const holdings = D.esopDetails.holdings || [];
+      const valuations = await context.ports.marketData.fetchEsopValuations(holdings);
+      const validValuations = valuations.filter((valuation) => valuation.value !== null);
+      valuations.forEach(({ value }, index) => {
+        const element = valueElements[index];
+        if (element) element.textContent = value === null ? 'Unavailable' : formatCurrency(value);
+      });
+      if (validValuations.length > 0) {
+        const amount = validValuations.reduce((total, valuation) => total + valuation.value!, 0);
+        D.esop.esop = { amount, currency: 'INR' };
+        syncEsopCoreHolding(amount);
       }
-    }).catch(() => {
-      valueElement.textContent = 'Current value unavailable';
+    })().catch(() => {
+      valueElements.forEach((element) => { element.textContent = 'Unavailable'; });
     }).finally(() => {
       esopValueRequest = null;
     });
@@ -245,6 +248,20 @@ function ensureCoreHoldingRows(): void {
   }
 }
 
+function syncEsopCoreHolding(amount: number): void {
+  const key = 'otherHolding54';
+  const holding = D.otherHoldings[key];
+  if (!holding) {
+    D.otherHoldings[key] = { name: 'ESOP', amount, annualReturn: 0 };
+  } else {
+    holding.name = 'ESOP';
+    holding.amount = amount;
+  }
+
+  const amountInput = document.querySelector<HTMLInputElement>('.other-holding-amount[data-index="54"]');
+  if (amountInput && document.activeElement !== amountInput) amountInput.value = String(amount);
+}
+
 function renderOtherHoldingsFields(): string {
   const otherHoldings = D.otherHoldings || {};
   const indices = Object.keys(otherHoldings)
@@ -271,15 +288,16 @@ function renderOtherHoldingsFields(): string {
             return `
               <tr style="border-bottom: 1px solid var(--border-primary);">
                 <td style="padding: 8px 16px;">
-                  <input type="text" class="other-holding-name" data-index="${index}" placeholder="e.g. Gold, Crypto" value="${escapeHtml(holding?.name || '')}" style="width: 100%; min-width: 200px; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+                  <input type="text" class="other-holding-name" data-index="${index}" placeholder="e.g. Gold, Crypto" value="${escapeHtml(holding?.name || '')}" ${editingOtherHoldingIndices.has(index) ? '' : 'readonly'} style="width: 100%; min-width: 200px; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
                 </td>
                 <td style="padding: 8px 16px;">
-                  <input type="number" class="other-holding-amount" data-index="${index}" min="0" step="0.01" placeholder="₹0" value="${holding?.amount || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+                  <input type="number" class="other-holding-amount" data-index="${index}" min="0" step="0.01" placeholder="₹0" value="${holding?.amount || ''}" ${editingOtherHoldingIndices.has(index) ? '' : 'readonly'} style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
                 </td>
                 <td style="padding: 8px 16px;">
-                  <input type="number" class="other-holding-return" data-index="${index}" min="0" max="100" step="0.1" placeholder="0" value="${holding?.annualReturn ?? ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+                  <input type="number" class="other-holding-return" data-index="${index}" min="0" max="100" step="0.1" placeholder="0" value="${holding?.annualReturn ?? ''}" ${editingOtherHoldingIndices.has(index) ? '' : 'readonly'} style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
                 </td>
                 <td style="padding: 8px 16px;">
+                  <button type="button" class="btn-secondary edit-other-holding-btn" data-index="${index}" aria-label="${editingOtherHoldingIndices.has(index) ? 'Save' : 'Modify'} ${escapeHtml(holding?.name || 'holding')}" title="${editingOtherHoldingIndices.has(index) ? 'Save changes' : 'Modify holding'}">${editingOtherHoldingIndices.has(index) ? '✓' : '✎'}</button>
                   <button type="button" class="btn-secondary delete-other-holding-btn" data-index="${index}" aria-label="Delete ${escapeHtml(holding?.name || 'holding')}" title="Delete holding">🗑</button>
                 </td>
               </tr>
@@ -293,11 +311,29 @@ function renderOtherHoldingsFields(): string {
 
 function renderEsopProfileFields(): string {
   const details = D.esopDetails;
+  const holdings = details.holdings || [];
   return `
-    <div class="profile-form">
-      <div class="form-group"><label for="esop-shares">Total Shares</label><input type="number" id="esop-shares" min="0" step="1" value="${details.shares || ''}"></div>
+    <div id="esop-holdings-list" class="sip-table-wrapper" style="overflow-x: auto; margin-bottom: 1rem;">
+      <table class="sip-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+        <thead><tr><th>Name</th><th>Quantity</th><th>Current value</th><th>Actions</th></tr></thead>
+        <tbody>
+          ${holdings.map((holding, index) => `
+            <tr>
+              <td><input class="esop-name" data-index="${index}" type="text" value="${escapeHtml(holding.name)}" placeholder="Company name" ${editingEsopIndices.has(index) ? '' : 'readonly'}></td>
+              <td><input class="esop-quantity" data-index="${index}" type="number" min="0" step="1" value="${holding.quantity}" ${editingEsopIndices.has(index) ? '' : 'readonly'}></td>
+              <td><span class="esop-value" data-index="${index}">Fetching...</span></td>
+              <td>
+                <button type="button" class="btn-secondary edit-esop-holding-btn" data-index="${index}" aria-label="${editingEsopIndices.has(index) ? 'Save' : 'Modify'} ${escapeHtml(holding.name || 'holding')}" title="${editingEsopIndices.has(index) ? 'Save changes' : 'Modify holding'}">${editingEsopIndices.has(index) ? '✓' : '✎'}</button>
+                <button type="button" class="btn-secondary delete-esop-holding-btn" data-index="${index}" aria-label="Delete ${escapeHtml(holding.name || 'holding')}" title="Delete holding">🗑</button>
+              </td>
+              <input class="esop-symbol" data-index="${index}" type="hidden" value="${escapeHtml(holding.symbol)}">
+              <input class="esop-currency" data-index="${index}" type="hidden" value="${escapeHtml(holding.currency)}">
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
     </div>
-    <p id="esop-inr-value" class="esop-inr-value">Fetching live value in INR...</p>
+    <button type="button" id="add-esop-holding-btn" class="btn-secondary">+ Add Stock</button>
   `;
 }
 
@@ -380,15 +416,72 @@ function attachProfileHandlers(context: FeatureContext) {
         const core = CORE_HOLDING_ROWS[index as keyof typeof CORE_HOLDING_ROWS];
         if (core) D[core.stateKey][core.stateKey] = { amount: 0, currency: 'INR' };
         delete D.otherHoldings[`otherHolding${index}`];
+        editingOtherHoldingIndices.clear();
         const container = document.getElementById('profile');
         if (container) renderProfile(container, context);
         saveProfile();
+      });
+    });
+
+    otherHoldingsList.querySelectorAll<HTMLButtonElement>('.edit-other-holding-btn').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const index = Number(button.dataset.index);
+        if (!editingOtherHoldingIndices.has(index)) {
+          editingOtherHoldingIndices.add(index);
+          const container = document.getElementById('profile');
+          if (container) renderProfile(container, context);
+          return;
+        }
+
+        const valid = await saveProfile();
+        if (!valid) return;
+        editingOtherHoldingIndices.delete(index);
+        const container = document.getElementById('profile');
+        if (container) renderProfile(container, context);
       });
     });
   }
 
   const esopFields = document.getElementById('esop-profile-fields');
   esopFields?.querySelectorAll('input').forEach((input) => input.addEventListener('blur', debounceProfileSave));
+  esopFields?.querySelectorAll<HTMLButtonElement>('.delete-esop-holding-btn').forEach((button) => {
+    button.addEventListener('click', () => {
+      const index = Number(button.dataset.index);
+      D.esopDetails.holdings?.splice(index, 1);
+      editingEsopIndices.clear();
+      D.esopDetails.shares = (D.esopDetails.holdings || []).reduce((total, holding) => total + holding.quantity, 0);
+      const container = document.getElementById('profile');
+      if (container) renderProfile(container, context);
+      saveProfile();
+    });
+  });
+
+  esopFields?.querySelectorAll<HTMLButtonElement>('.edit-esop-holding-btn').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const index = Number(button.dataset.index);
+      if (!editingEsopIndices.has(index)) {
+        editingEsopIndices.add(index);
+        const container = document.getElementById('profile');
+        if (container) renderProfile(container, context);
+        return;
+      }
+
+      const valid = await saveProfile();
+      if (!valid) return;
+      editingEsopIndices.delete(index);
+      const container = document.getElementById('profile');
+      if (container) renderProfile(container, context);
+    });
+  });
+
+  const addEsopHoldingBtn = document.getElementById('add-esop-holding-btn');
+  addEsopHoldingBtn?.addEventListener('click', () => {
+    if (!D.esopDetails.holdings) D.esopDetails.holdings = [];
+    D.esopDetails.holdings.push({ name: '', symbol: '', quantity: 0, currency: 'INR' });
+    editingEsopIndices.add(D.esopDetails.holdings.length - 1);
+    const container = document.getElementById('profile');
+    if (container) renderProfile(container, context);
+  });
 
   const addOtherHoldingBtn = document.getElementById('add-other-holding-btn');
   if (addOtherHoldingBtn) {
@@ -397,6 +490,7 @@ function attachProfileHandlers(context: FeatureContext) {
       for (let i = 1; i <= 50; i++) {
         if (!D.otherHoldings[`otherHolding${i}`]) {
           D.otherHoldings[`otherHolding${i}`] = { name: '', amount: 0, annualReturn: 0 };
+          editingOtherHoldingIndices.add(i);
           const container = document.getElementById('profile');
           if (container) renderProfile(container, context);
           return;
@@ -507,8 +601,16 @@ function debounceProfileSave() {
 
   // Check SIP fields
   if (!isDirty) {
-    const esopSharesInput = document.getElementById('esop-shares') as HTMLInputElement;
-    isDirty = (parseFloat(esopSharesInput?.value || '0') || 0) !== D.esopDetails.shares;
+    const holdings = D.esopDetails.holdings || [];
+    const rows = Array.from(document.querySelectorAll('#esop-holdings-list tbody tr'));
+    isDirty = rows.length !== holdings.length || rows.some((row, index) => {
+      const holding = holdings[index];
+      const input = (selector: string) => row.querySelector<HTMLInputElement>(selector)?.value || '';
+      return input('.esop-name') !== holding?.name
+        || input('.esop-symbol') !== holding?.symbol
+        || (parseFloat(input('.esop-quantity')) || 0) !== holding?.quantity
+        || input('.esop-currency').toUpperCase() !== holding?.currency.toUpperCase();
+    });
   }
 
   if (!isDirty) {
@@ -640,11 +742,27 @@ export async function saveProfile(): Promise<boolean> {
     }
 
     // ==================== ESOP SECTION ====================
-    const esopShares = parseFloat((document.getElementById('esop-shares') as HTMLInputElement)?.value || '0') || 0;
-    if (esopShares < 0) {
-      validationErrors.push({ field: 'esop', message: 'ESOP shares must be non-negative' });
-    }
-    D.esopDetails.shares = esopShares;
+    const esopRows = Array.from(document.querySelectorAll('#esop-holdings-list tbody tr'));
+    const esopHoldings: EsopHolding[] = [];
+    esopRows.forEach((row, index) => {
+      const input = (selector: string) => row.querySelector<HTMLInputElement>(selector);
+      const name = input('.esop-name')?.value.trim() || '';
+      const symbol = input('.esop-symbol')?.value.trim().toUpperCase() || name;
+      const quantity = parseFloat(input('.esop-quantity')?.value || '0') || 0;
+      const currency = input('.esop-currency')?.value.trim().toUpperCase() || 'INR';
+      if (!name && quantity === 0) return;
+      if (!name) {
+        validationErrors.push({ field: `esop-${index}`, message: `ESOP holding ${index + 1}: name is required` });
+        return;
+      }
+      if (quantity < 0) {
+        validationErrors.push({ field: `esop-${index}`, message: `ESOP holding ${index + 1}: quantity must be non-negative` });
+        return;
+      }
+      esopHoldings.push({ name, symbol, quantity, currency });
+    });
+    D.esopDetails.holdings = esopHoldings;
+    D.esopDetails.shares = esopHoldings.reduce((total, holding) => total + holding.quantity, 0);
     refreshEsopProfileValue(activeContext);
 
     // ==================== SIP SECTION ====================
@@ -769,7 +887,7 @@ export async function saveProfile(): Promise<boolean> {
     }
 
     // ==================== SAVE DATA ====================
-    activeContext.portfolio.save(D, { sync: false });
+    activeContext.portfolio.save(D);
 
     // Fetch NAVs for SIPs that now have units
     activeContext.ports.marketData.refreshPortfolioNAVs(D).catch(e => console.warn('[Profile] Failed to fetch SIP NAVs after save:', e));

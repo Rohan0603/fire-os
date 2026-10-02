@@ -2,9 +2,10 @@ import {
   fetchNAV,
   fetchNifty,
   fetchEURINR,
+  convertCurrency,
   getNAVCacheMap,
 } from '../modules/api';
-import { fetchSocGenPrice } from '../modules/api/esop';
+import { fetchCurrencyToInr, fetchEsopValuations, fetchSocGenPrice, fetchStockQuote } from '../modules/api/esop';
 import { totalNetWorth, sipStatus, fiProgress, floatIndicator, portfolioComposition } from '../modules/dashboard/kpis';
 import { calculateAllocationDrift } from '../modules/calculators/portfolio-rebalancing';
 import { calculateFIAge } from '../modules/calculators/scenario-modeler';
@@ -54,7 +55,11 @@ export interface FeatureWidgetPort {
 export interface FeatureMarketDataPort {
   fetchNifty: typeof fetchNifty;
   fetchSocGenPrice: typeof fetchSocGenPrice;
+  fetchStockQuote: typeof fetchStockQuote;
+  fetchCurrencyToInr: typeof fetchCurrencyToInr;
+  fetchEsopValuations: typeof fetchEsopValuations;
   fetchEURINR: typeof fetchEURINR;
+  convertCurrency: typeof convertCurrency;
   refreshPortfolioNAVs: (state: FireOSState) => Promise<void>;
 }
 
@@ -106,7 +111,11 @@ export function createFeaturePorts(): FeaturePorts {
     marketData: {
       fetchNifty,
       fetchSocGenPrice,
+      fetchStockQuote,
+      fetchCurrencyToInr,
+      fetchEsopValuations,
       fetchEURINR,
+      convertCurrency,
       refreshPortfolioNAVs,
     },
   };

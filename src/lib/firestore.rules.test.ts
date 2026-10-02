@@ -8,6 +8,8 @@ import {
   assertSucceeds,
   initializeTestEnvironment,
 } from '@firebase/rules-unit-testing';
+import { buildEnvelopeFromState } from './merge';
+import { initializeState } from '../types/state';
 
 const projectId = 'fire-os-rules-test';
 const validEnvelope = {
@@ -37,6 +39,24 @@ describe('portfolio Firestore rules', () => {
   it('allows an owner to create a valid envelope', async () => {
     const db = testEnvironment.authenticatedContext('owner-1').firestore();
     await assertSucceeds(setDoc(doc(db, 'users/owner-1/portfolio/state'), validEnvelope));
+  });
+
+  it('allows the production default portfolio envelope', async () => {
+    const db = testEnvironment.authenticatedContext('owner-default-state').firestore();
+    const envelope = buildEnvelopeFromState(
+      initializeState(),
+      { clientId: 'browser', appVersion: '2.2.0', platform: 'web' },
+      '2026-01-01T00:00:00.000Z',
+    );
+    const { mf: _mf, ...stateData } = envelope.data;
+    const { entryUpdatedAt: _entryUpdatedAt, ...envelopeWithoutDynamicMetadata } = envelope;
+    void _mf;
+    void _entryUpdatedAt;
+    await assertSucceeds(setDoc(doc(db, 'users/owner-default-state/portfolio/state'), {
+      ...envelopeWithoutDynamicMetadata,
+      schemaVersion: 'fireOS_v4',
+      data: stateData,
+    }));
   });
 
   it('denies another user access to the portfolio', async () => {
@@ -108,7 +128,7 @@ describe('portfolio Firestore rules', () => {
     }));
   });
 
-  it('denies inline dynamic map values and timestamp values', async () => {
+  it('denies inline dynamic map values and malformed timestamp maps', async () => {
     const db = testEnvironment.authenticatedContext('owner-dynamic').firestore();
     await assertFails(setDoc(doc(db, 'users/owner-dynamic/portfolio/state'), {
       ...validEnvelope,
@@ -116,7 +136,15 @@ describe('portfolio Firestore rules', () => {
     }));
     await assertFails(setDoc(doc(db, 'users/owner-dynamic/portfolio/state'), {
       ...validEnvelope,
-      entryUpdatedAt: { holdings: { badEntry: 'not-an-iso-timestamp' } },
+      entryUpdatedAt: { holdings: 'not-a-map' },
+    }));
+  });
+
+  it('allows valid entry timestamps from an existing portfolio envelope', async () => {
+    const db = testEnvironment.authenticatedContext('owner-entry-timestamps').firestore();
+    await assertSucceeds(setDoc(doc(db, 'users/owner-entry-timestamps/portfolio/state'), {
+      ...validEnvelope,
+      entryUpdatedAt: { holdings: { 'fund-1': '2026-01-01T00:00:00.000Z' } },
     }));
   });
 
