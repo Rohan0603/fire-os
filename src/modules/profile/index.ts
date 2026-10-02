@@ -21,6 +21,7 @@ const CORE_HOLDING_ROWS = {
 let debounceTimer: NodeJS.Timeout | null = null;
 let activeContext = createFeatureContext();
 let D = activeContext.state;
+let esopValueRequest: Promise<void> | null = null;
 
 /**
  * Initialize profile module
@@ -66,6 +67,10 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
           <div class="form-group">
             <label for="monthly-income">Monthly Income (₹)</label>
             <input type="number" id="monthly-income" placeholder="Monthly income" value="${D.profile.monthlyIncome || ''}">
+          </div>
+          <div class="form-group">
+            <label for="tax-slab-rate">Income Tax Slab (%)</label>
+            <input type="number" id="tax-slab-rate" min="0" max="100" step="0.1" value="${D.profile.taxSlabRate ?? 30}">
           </div>
         </form>
       </div>
@@ -124,6 +129,33 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
   `;
 
   attachProfileHandlers(context);
+  refreshEsopProfileValue(context);
+}
+
+async function refreshEsopProfileValue(context: FeatureContext): Promise<void> {
+  const valueElement = document.getElementById('esop-inr-value');
+  if (!valueElement) return;
+  if (!esopValueRequest) {
+    esopValueRequest = Promise.all([
+      context.ports.marketData.fetchSocGenPrice(),
+      context.ports.marketData.fetchEURINR(),
+    ]).then(([sharePrice, eurInr]) => {
+      const resolvedPrice = sharePrice ?? 24.5;
+      const resolvedRate = eurInr ?? (D.eurInr || 90);
+      if (resolvedRate > 0) {
+        D.esop.esop = { amount: D.esopDetails.shares * resolvedPrice * resolvedRate, currency: 'INR' };
+        const source = sharePrice !== null && eurInr !== null ? 'live' : 'fallback';
+        valueElement.textContent = `Current value: ${formatCurrency(D.esop.esop.amount)} (${source})`;
+      } else {
+        valueElement.textContent = 'Current value unavailable';
+      }
+    }).catch(() => {
+      valueElement.textContent = 'Current value unavailable';
+    }).finally(() => {
+      esopValueRequest = null;
+    });
+  }
+  await esopValueRequest;
 }
 
 /**
@@ -261,35 +293,11 @@ function renderOtherHoldingsFields(): string {
 
 function renderEsopProfileFields(): string {
   const details = D.esopDetails;
-  const schedule = details.vestingSchedule.length ? details.vestingSchedule : [{ date: '', shares: 0 }];
   return `
     <div class="profile-form">
       <div class="form-group"><label for="esop-shares">Total Shares</label><input type="number" id="esop-shares" min="0" step="1" value="${details.shares || ''}"></div>
-      <div class="form-group"><label for="esop-grant-price">Grant / Vesting FMV (€)</label><input type="number" id="esop-grant-price" min="0" step="0.01" value="${details.grantPrice || ''}"></div>
-      <div class="form-group"><label for="esop-liquidation-shares">Shares to Liquidate</label><input type="number" id="esop-liquidation-shares" min="0" step="1" value="${details.liquidationShares ?? details.shares}"></div>
-      <div class="form-group"><label for="esop-current-price">Current Price (€)</label><input type="number" id="esop-current-price" min="0" step="0.01" value="${details.currentPrice ?? ''}"></div>
-      <div class="form-group"><label for="esop-slab-rate">Income Tax Slab (%)</label><input type="number" id="esop-slab-rate" min="0" max="100" step="0.1" value="${details.slabRate ?? 30}"></div>
     </div>
-    <h4>Vesting Schedule</h4>
-    <div class="sip-table-wrapper" style="overflow-x: auto; margin-bottom: 1rem;">
-      <table class="sip-table" style="width: 100%; border-collapse: collapse; text-align: left;">
-        <thead><tr><th>Vest Date</th><th>Shares</th><th>Actions</th></tr></thead>
-        <tbody>${schedule.map((item, index) => `
-          <tr>
-            <td><input type="month" class="esop-vest-date" data-index="${index}" value="${item.date || ''}"></td>
-            <td><input type="number" class="esop-vest-shares" data-index="${index}" min="0" step="1" value="${item.shares || ''}"></td>
-            <td><button type="button" class="btn-secondary delete-esop-vest-btn" data-index="${index}">Delete</button></td>
-          </tr>`).join('')}</tbody>
-      </table>
-    </div>
-    <button id="add-esop-vest-btn" class="btn-secondary" type="button">+ Add Vesting Tranche</button>
-    <h4>Liquidation Triggers</h4>
-    <div class="esop-trigger-fields">
-      <label><input type="checkbox" id="esop-trigger-marriage" ${details.triggers.marriage ? 'checked' : ''}> Marriage</label>
-      <label><input type="checkbox" id="esop-trigger-child" ${details.triggers.childBirth ? 'checked' : ''}> Child birth</label>
-      <label><input type="checkbox" id="esop-trigger-job" ${details.triggers.jobChange ? 'checked' : ''}> Job change</label>
-      <label><input type="checkbox" id="esop-trigger-coorg" ${details.triggers.coorgConstruction ? 'checked' : ''}> Coorg construction</label>
-    </div>
+    <p id="esop-inr-value" class="esop-inr-value">Fetching live value in INR...</p>
   `;
 }
 
@@ -381,16 +389,6 @@ function attachProfileHandlers(context: FeatureContext) {
 
   const esopFields = document.getElementById('esop-profile-fields');
   esopFields?.querySelectorAll('input').forEach((input) => input.addEventListener('blur', debounceProfileSave));
-  esopFields?.querySelectorAll<HTMLInputElement>('input[type="checkbox"]').forEach((input) => input.addEventListener('change', debounceProfileSave));
-  esopFields?.querySelectorAll<HTMLButtonElement>('.delete-esop-vest-btn').forEach((button) => button.addEventListener('click', () => {
-    D.esopDetails.vestingSchedule.splice(Number(button.dataset.index), 1);
-    renderProfile(document.getElementById('profile') || document.body, context);
-    saveProfile();
-  }));
-  document.getElementById('add-esop-vest-btn')?.addEventListener('click', () => {
-    D.esopDetails.vestingSchedule.push({ date: '', shares: 0 });
-    renderProfile(document.getElementById('profile') || document.body, context);
-  });
 
   const addOtherHoldingBtn = document.getElementById('add-other-holding-btn');
   if (addOtherHoldingBtn) {
@@ -497,29 +495,20 @@ function debounceProfileSave() {
   const expensesInput = document.getElementById('expenses') as HTMLInputElement;
   const fiTargetInput = document.getElementById('fi-target') as HTMLInputElement;
   const monthlyIncomeInput = document.getElementById('monthly-income') as HTMLInputElement;
+  const taxSlabRateInput = document.getElementById('tax-slab-rate') as HTMLInputElement;
 
   let isDirty =
     (nameInput?.value || '') !== (D.profile.name || '') ||
     (dateOfBirthInput?.value || '') !== (D.profile.dateOfBirth || '') ||
     (expensesInput?.value ? parseFloat(expensesInput.value) : 0) !== (D.profile.annualExpenses || 0) ||
     (fiTargetInput?.value ? parseFloat(fiTargetInput.value) : 0) !== (D.profile.fiTarget || 0) ||
-    (monthlyIncomeInput?.value ? parseFloat(monthlyIncomeInput.value) : 0) !== (D.profile.monthlyIncome || 0);
+    (monthlyIncomeInput?.value ? parseFloat(monthlyIncomeInput.value) : 0) !== (D.profile.monthlyIncome || 0) ||
+    (taxSlabRateInput?.value ? parseFloat(taxSlabRateInput.value) : 0) !== (D.profile.taxSlabRate ?? 30);
 
   // Check SIP fields
   if (!isDirty) {
-    const esopInputs = {
-      shares: document.getElementById('esop-shares') as HTMLInputElement,
-      grantPrice: document.getElementById('esop-grant-price') as HTMLInputElement,
-      liquidationShares: document.getElementById('esop-liquidation-shares') as HTMLInputElement,
-      currentPrice: document.getElementById('esop-current-price') as HTMLInputElement,
-      slabRate: document.getElementById('esop-slab-rate') as HTMLInputElement,
-    };
-    const esopDetails = D.esopDetails;
-    isDirty = (parseFloat(esopInputs.shares?.value || '0') || 0) !== esopDetails.shares
-      || (parseFloat(esopInputs.grantPrice?.value || '0') || 0) !== esopDetails.grantPrice
-      || (parseFloat(esopInputs.liquidationShares?.value || '0') || 0) !== (esopDetails.liquidationShares ?? esopDetails.shares)
-      || (parseFloat(esopInputs.currentPrice?.value || '0') || 0) !== (esopDetails.currentPrice ?? 0)
-      || (parseFloat(esopInputs.slabRate?.value || '0') || 0) !== (esopDetails.slabRate ?? 30);
+    const esopSharesInput = document.getElementById('esop-shares') as HTMLInputElement;
+    isDirty = (parseFloat(esopSharesInput?.value || '0') || 0) !== D.esopDetails.shares;
   }
 
   if (!isDirty) {
@@ -542,15 +531,6 @@ function debounceProfileSave() {
         break;
       }
     }
-  }
-
-  if (!isDirty) {
-    const schedule = D.esopDetails.vestingSchedule;
-    const dates = document.querySelectorAll<HTMLInputElement>('.esop-vest-date');
-    const shares = document.querySelectorAll<HTMLInputElement>('.esop-vest-shares');
-    isDirty = dates.length !== schedule.length || Array.from(dates).some((date, index) =>
-      date.value !== (schedule[index]?.date || '')
-      || (parseFloat(shares[index]?.value || '0') || 0) !== (schedule[index]?.shares || 0));
   }
 
   if (!isDirty) {
@@ -589,6 +569,7 @@ export async function saveProfile(): Promise<boolean> {
     const expensesInput = document.getElementById('expenses') as HTMLInputElement;
     const fiTargetInput = document.getElementById('fi-target') as HTMLInputElement;
     const monthlyIncomeInput = document.getElementById('monthly-income') as HTMLInputElement;
+    const taxSlabRateInput = document.getElementById('tax-slab-rate') as HTMLInputElement;
 
     // Validate name (optional but if provided, must be 2+ chars)
     if (nameInput?.value) {
@@ -651,43 +632,20 @@ export async function saveProfile(): Promise<boolean> {
       }
     }
 
+    const taxSlabRate = parseFloat(taxSlabRateInput?.value || '0') || 0;
+    if (taxSlabRate < 0 || taxSlabRate > 100) {
+      validationErrors.push({ field: 'tax-slab-rate', message: 'Tax slab must be between 0% and 100%' });
+    } else {
+      D.profile.taxSlabRate = taxSlabRate;
+    }
+
     // ==================== ESOP SECTION ====================
     const esopShares = parseFloat((document.getElementById('esop-shares') as HTMLInputElement)?.value || '0') || 0;
-    const esopGrantPrice = parseFloat((document.getElementById('esop-grant-price') as HTMLInputElement)?.value || '0') || 0;
-    const esopLiquidationShares = parseFloat((document.getElementById('esop-liquidation-shares') as HTMLInputElement)?.value || '0') || 0;
-    const esopCurrentPrice = parseFloat((document.getElementById('esop-current-price') as HTMLInputElement)?.value || '0') || 0;
-    const esopSlabRate = parseFloat((document.getElementById('esop-slab-rate') as HTMLInputElement)?.value || '0') || 0;
-    if (esopShares < 0 || esopGrantPrice < 0 || esopLiquidationShares < 0 || esopCurrentPrice < 0 || esopSlabRate < 0 || esopSlabRate > 100) {
-      validationErrors.push({ field: 'esop', message: 'ESOP values must be non-negative and tax slab must be 0-100%' });
+    if (esopShares < 0) {
+      validationErrors.push({ field: 'esop', message: 'ESOP shares must be non-negative' });
     }
-    const vestingSchedule: Array<{ date: string; shares: number }> = [];
-    document.querySelectorAll<HTMLInputElement>('.esop-vest-date').forEach((dateInput, index) => {
-      const sharesInput = document.querySelector<HTMLInputElement>(`.esop-vest-shares[data-index="${index}"]`);
-      const date = dateInput.value;
-      const shares = parseFloat(sharesInput?.value || '0') || 0;
-      if (!date && shares === 0) return;
-      if (!/^\d{4}-\d{2}$/.test(date) || shares < 0) {
-        validationErrors.push({ field: `esop-vesting-${index}`, message: `Vesting tranche ${index + 1} needs valid date and non-negative shares` });
-        return;
-      }
-      vestingSchedule.push({ date, shares });
-    });
-    D.esopDetails = {
-      ...D.esopDetails,
-      shares: esopShares,
-      grantPrice: esopGrantPrice,
-      liquidationShares: esopLiquidationShares,
-      vestingFmv: esopGrantPrice,
-      currentPrice: esopCurrentPrice,
-      slabRate: esopSlabRate,
-      vestingSchedule,
-      triggers: {
-        marriage: (document.getElementById('esop-trigger-marriage') as HTMLInputElement)?.checked || false,
-        childBirth: (document.getElementById('esop-trigger-child') as HTMLInputElement)?.checked || false,
-        jobChange: (document.getElementById('esop-trigger-job') as HTMLInputElement)?.checked || false,
-        coorgConstruction: (document.getElementById('esop-trigger-coorg') as HTMLInputElement)?.checked || false,
-      },
-    };
+    D.esopDetails.shares = esopShares;
+    refreshEsopProfileValue(activeContext);
 
     // ==================== SIP SECTION ====================
     for (let i = 1; i <= 10; i++) {

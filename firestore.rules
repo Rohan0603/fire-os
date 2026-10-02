@@ -26,12 +26,13 @@ service cloud.firestore {
 
     function validProfile(value) {
       return value is map
-        && value.keys().hasOnly(['name', 'dateOfBirth', 'age', 'annualExpenses', 'fiTarget', 'monthlyIncome'])
+        && value.keys().hasOnly(['name', 'dateOfBirth', 'age', 'taxSlabRate', 'annualExpenses', 'fiTarget', 'monthlyIncome'])
         && value.keys().hasAll(['name', 'age', 'annualExpenses', 'fiTarget', 'monthlyIncome'])
-        && value.size() <= 6
+        && value.size() <= 7
         && isBoundedString(value.name, 200)
         && (!('dateOfBirth' in value) || isBoundedString(value.dateOfBirth, 10))
         && value.age is number
+        && (!('taxSlabRate' in value) || value.taxSlabRate is number)
         && value.annualExpenses is number
         && value.fiTarget is number
         && value.monthlyIncome is number;

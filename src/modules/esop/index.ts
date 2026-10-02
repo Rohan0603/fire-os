@@ -38,7 +38,7 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
   if (calcShares === null) calcShares = D.esopDetails.liquidationShares ?? D.esopDetails.shares;
   if (calcVestingFmv === null) calcVestingFmv = D.esopDetails.vestingFmv ?? D.esopDetails.grantPrice;
   if (calcCurrentPrice === null && D.esopDetails.currentPrice !== undefined) calcCurrentPrice = D.esopDetails.currentPrice;
-  calcSlabRate = D.esopDetails.slabRate ?? calcSlabRate;
+  calcSlabRate = D.profile.taxSlabRate ?? calcSlabRate;
 
   // Trigger live fetching if data is not loaded and not in flight
   if (glePrice === null && eurInrRate === null && !isFetching) {

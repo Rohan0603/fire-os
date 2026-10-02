@@ -48,6 +48,7 @@ export interface PortfolioProfile {
   name: string;
   dateOfBirth: string;
   age: number;
+  taxSlabRate: number;
   annualExpenses: number;
   fiTarget: number; // FI corpus target
   monthlyIncome: number;
