@@ -63,12 +63,17 @@ describe('buildContextSummary', () => {
   it('includes exact block only when sendExact is true', () => {
     const state = initializeState();
     state.fd = { fd1: { amount: 750000, currency: 'INR' } };
+    state.sip = {
+      sip1: { name: 'Fund 1', units: 100, startDate: '2024-01', monthlyAmount: 12000 },
+      sip2: { name: 'Fund 2', units: 50, startDate: '2024-01', monthlyAmount: 18000 },
+    };
 
     const ctx = buildContextSummary(state, true);
     expect(ctx.sendExact).toBe(true);
     expect(ctx.exact?.holdings.fd).toBe(750000);
     expect(ctx.exact?.fiTarget).toBe(state.profile.fiTarget);
     expect(ctx.exact?.netWorth).toBe(750000);
+    expect(ctx.exact?.monthlySipContribution).toBe(30000);
     expect(ctx.netWorthRange).toBe('5–25L');
   });
 

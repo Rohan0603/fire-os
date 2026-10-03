@@ -2,7 +2,8 @@
 
 ## Subagents
 
-- Every spawned subagent MUST use model `GPT-5.6 Luna`.
+- Never spawn subagents or delegate work to other agents.
+- If spawning subagents, every spawned subagent MUST use model `GPT-5.6 Luna`.
 - Never silently substitute another model. If `GPT-5.6 Luna` is unavailable, report the blocker and ask how to proceed.
 
 ## Coding Standards

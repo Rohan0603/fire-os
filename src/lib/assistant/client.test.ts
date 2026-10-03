@@ -25,7 +25,8 @@ describe('queryAssistant client', () => {
     expect(result.proposedChanges).toBeUndefined();
 
     const [url, init] = fetchMock.mock.calls[0];
-    expect(url).toBe('/api/assistant/query');
+    const baseUrl = import.meta.env.VITE_ASSISTANT_API_URL?.replace(/\/$/, '') ?? '';
+    expect(url).toBe(`${baseUrl}/api/assistant/query`);
     const body = JSON.parse(init.body);
     expect(body.question).toBe('How am I doing?');
     expect(body.contextSummary).toEqual({ netWorthRange: '5–25L' });

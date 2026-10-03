@@ -14,7 +14,7 @@
     "format:check": "prettier --check .",
     "test:metadata": "node scripts/verify-routes.mjs",
     "test:http": "node scripts/verify-http.mjs",
-    "test": "vitest run src --exclude src/lib/firestore.rules.test.ts",
+    "test": "vitest run --exclude=**/firestore.rules.test.ts",
     "test:watch": "vitest",
     "test:server": "npm run test --prefix server",
     "deploy:worker": "npx --yes wrangler@latest deploy --config worker/wrangler.toml",

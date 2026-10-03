@@ -18,6 +18,7 @@ export interface ExactContext {
   netWorth: number;
   fiTarget: number;
   annualExpenses: number;
+  monthlySipContribution: number;
   holdings: Record<string, number>;
 }
 
@@ -120,6 +121,10 @@ export function buildContextSummary(
   const ageBand = age < 30 ? '20s' : age < 40 ? '30s' : age < 50 ? '40s' : '50s+';
 
   const { netWorth, breakdown } = totalNetWorth(state);
+  const monthlySipContribution = Object.values(state.sip).reduce(
+    (sum, fund) => sum + (Number.isFinite(fund.monthlyAmount) ? fund.monthlyAmount : 0),
+    0,
+  );
   const now = Date.now();
 
   const holdingsSummary: Record<string, { count: number; totalRange: BalanceRange }> = {};
@@ -155,6 +160,7 @@ export function buildContextSummary(
       netWorth,
       fiTarget,
       annualExpenses,
+      monthlySipContribution,
       holdings: exactHoldings,
     };
   }
