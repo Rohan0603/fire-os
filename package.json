@@ -4,7 +4,8 @@
   "description": "A comprehensive personal finance dashboard for FIRE (Financial Independence, Retire Early) planning with TypeScript + Vite. Track investments, simulate market crashes, calculate retirement timelines, and manage tax-efficient strategies.",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "node scripts/dev.mjs",
+    "dev:ui": "vite",
     "dev:server": "node server/server.js",
     "build": "tsc --noEmit && vite build",
     "postbuild": "node scripts/prerender-routes.mjs",
