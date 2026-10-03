@@ -9,7 +9,9 @@ describe('buildSystemPrompt', () => {
     expect(prompt).toContain('friendly, thoughtful guide');
     expect(prompt).toMatch(/precise and concise/i);
     expect(prompt).toMatch(/avoid drama/i);
-    expect(prompt).toMatch(/separate observed facts, derived calculations, and optional recommendations/i);
+    expect(prompt).toMatch(
+      /separate observed facts, derived calculations, and optional recommendations/i,
+    );
     expect(prompt).toMatch(/80 words or fewer/i);
     expect(prompt).toMatch(/exactly 1–3 numbered actions/i);
     expect(prompt).toMatch(/never invent/i);

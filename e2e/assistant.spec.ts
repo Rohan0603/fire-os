@@ -16,7 +16,9 @@ function mockQuery(page: Page, body: Record<string, unknown>, status = 200): Pro
 
 async function askQuestion(page: Page, text: string): Promise<void> {
   await page.locator('deep-chat').evaluate((element, message) => {
-    (element as HTMLElement & { submitUserMessage: (value: { text: string }) => void }).submitUserMessage({ text: message });
+    (
+      element as HTMLElement & { submitUserMessage: (value: { text: string }) => void }
+    ).submitUserMessage({ text: message });
   }, text);
 }
 
@@ -48,7 +50,9 @@ test('read-only query renders the reply and a proposal diff', async ({ page }) =
   await enableWrites(page);
 
   await askQuestion(page, 'Bump my FI target');
-  await expect(page.locator('deep-chat').getByText('Consider raising your FI target')).toBeVisible();
+  await expect(
+    page.locator('deep-chat').getByText('Consider raising your FI target'),
+  ).toBeVisible();
   await expect(page.locator('.assistant-proposal')).toBeVisible();
   await expect(page.locator('.assistant-proposal-summary')).toContainText('1 field');
   await expect(page.locator('.assistant-proposal-diff code').first()).toContainText(
