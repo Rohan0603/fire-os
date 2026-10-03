@@ -1,6 +1,7 @@
 /**
  * Client for POST /api/assistant/query.
- * Same-origin only (Vite dev proxy / Firebase Hosting rewrite) - never exposes API keys.
+ * Uses same-origin by default. VITE_ASSISTANT_API_URL may point at a public
+ * proxy such as Cloudflare Workers; API keys remain server-side.
  */
 
 export interface AssistantQueryResponse {
@@ -25,6 +26,11 @@ export class AssistantRequestError extends Error {
 
 const DEFAULT_TIMEOUT_MS = 30000;
 
+function assistantQueryUrl(): string {
+  const base = import.meta.env.VITE_ASSISTANT_API_URL?.trim();
+  return `${base ? base.replace(/\/$/, '') : ''}/api/assistant/query`;
+}
+
 /**
  * Send a question + sanitized context summary to the assistant proxy.
  * Throws AssistantRequestError on non-2xx responses.
@@ -41,7 +47,7 @@ export async function queryAssistant(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
   try {
-    const resp = await fetch('/api/assistant/query', {
+    const resp = await fetch(assistantQueryUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

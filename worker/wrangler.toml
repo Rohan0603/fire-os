@@ -1,0 +1,7 @@
+name = "fire-os-assistant"
+main = "src/index.ts"
+compatibility_date = "2026-03-01"
+
+[vars]
+ALLOWED_ORIGIN = "https://fire-os-dd6d6.web.app"
+OPENROUTER_HTTP_REFERER = "https://fire-os-dd6d6.web.app"

@@ -41,6 +41,7 @@ jobs:
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
           VITE_FIREBASE_MEASUREMENT_ID: ${{ vars.VITE_FIREBASE_MEASUREMENT_ID }}
+          VITE_ASSISTANT_API_URL: ${{ vars.VITE_ASSISTANT_API_URL }}
 
       - name: Verify generated route metadata
         run: npm run test:metadata
@@ -66,10 +67,8 @@ jobs:
       - name: Validate Firestore rules
         run: npm run test:rules:emulator
 
-      # Requires the OPENROUTER_API_KEY secret to be provisioned once:
-      #   firebase functions:secrets:set OPENROUTER_API_KEY
       - name: Deploy to Firebase
-        run: npx --no-install firebase-tools deploy --only hosting,functions,firestore:rules,firestore:indexes --project fire-os-dd6d6 --token "$FIREBASE_TOKEN"
+        run: npx --no-install firebase-tools deploy --only hosting,firestore:rules,firestore:indexes --project fire-os-dd6d6 --token "$FIREBASE_TOKEN"
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 

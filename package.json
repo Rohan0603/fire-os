@@ -17,6 +17,7 @@
     "test": "vitest run src --exclude src/lib/firestore.rules.test.ts",
     "test:watch": "vitest",
     "test:server": "npm run test --prefix server",
+    "deploy:worker": "npx --yes wrangler@latest deploy --config worker/wrangler.toml",
     "test:rules": "vitest run src/lib/firestore.rules.test.ts",
     "test:rules:emulator": "firebase emulators:exec --only firestore \"npm run test:rules\"",
     "test:e2e": "playwright test"
@@ -49,6 +50,7 @@
   },
   "dependencies": {
     "chart.js": "^4.4.0",
+    "deep-chat": "^2.5.1",
     "firebase": "^11.0.0"
   }
 }

@@ -12,8 +12,28 @@ Browser  →  POST /api/assistant/query  →  Express proxy  →  OpenRouter
 ```
 
 - **Dev:** Vite proxy forwards `/api/assistant` to `http://127.0.0.1:3001`.
-- **Prod:** Firebase Hosting rewrite `/api/assistant/**` → Cloud Function `assistantProxy` (same-origin; CSP `connect-src 'self'` unchanged).
+- **Prod:** Firebase Hosting serves the frontend; the configured `VITE_ASSISTANT_API_URL` points to the Cloudflare Worker proxy (same response contract).
 - The browser never holds `OPENROUTER_API_KEY`; no `VITE_OPENROUTER_*` keys exist.
+
+### Zero-cost production path
+
+Deep Chat is bundled as a vanilla web component. Its handler keeps the existing request contract,
+while `VITE_ASSISTANT_API_URL` can point to a Cloudflare Worker such as
+`https://fire-os-assistant.<account>.workers.dev`. The Worker handles
+`POST /api/assistant/query`, keeps `OPENROUTER_API_KEY` in a Worker Secret, and returns the same
+`{ reply, proposedChanges? }` response. Set the Firebase repository variable
+`VITE_ASSISTANT_API_URL` before building.
+
+Provision and deploy the Worker:
+
+```sh
+npx wrangler login
+npx wrangler secret put OPENROUTER_API_KEY --config worker/wrangler.toml
+npm run deploy:worker
+```
+
+Set GitHub Actions secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` for the optional
+`.github/workflows/deploy-worker.yml` workflow. Never put the OpenRouter key in `VITE_*` variables.
 
 ## Consent model
 
@@ -33,6 +53,7 @@ Portfolio reads and exact balance context are enabled by default. Existing store
 - Balances bucketed: `<1L`, `1–5L`, `5–25L`, `25L–1Cr`, `1Cr+`.
 - Valuation reuses `totalNetWorth` (dashboard KPI) so context matches what the user sees.
 - `exact` block is included for the assistant's read-only portfolio analysis.
+- `exact.holdings.sip` is current SIP portfolio value; `exact.monthlySipContribution` is the monthly SIP amount.
 
 ## Guarded write flow (PR2)
 
@@ -126,9 +147,10 @@ of the working directory you start the server from.
 | `500 OpenRouter API key not configured` | `.env` not loaded / key missing | put key in `server/.env` or root `.env` |
 
 
-## Production deployment (Cloud Function)
+## Optional Firebase Functions deployment
 
-- `server/index.js` wraps the Express app as the `assistantProxy` Cloud Function
+- `server/index.js` wraps the Express app as the `assistantProxy` Cloud Function.
+- This path requires Firebase Blaze billing; use the Cloudflare Worker path above for zero-cost hosting.
   (2nd gen, `us-central1`, 256MiB, 60s timeout, CORS disabled for same-origin use).
 - `firebase.json` rewrites `/api/assistant/**` → `assistantProxy` before the SPA
   catch-all; the function codebase packages `server/` with `.env*` excluded.
@@ -149,7 +171,8 @@ of the working directory you start the server from.
 | `src/lib/assistant/sanitize.ts` | Pure sanitization + range bucketing |
 | `src/lib/assistant/contextBuilder.ts` | Context entry point |
 | `src/lib/assistant/consent.ts` | Write-access consent read/write/toggle |
-| `src/lib/assistant/client.ts` | `queryAssistant()` fetch wrapper (same-origin) |
+| `src/lib/assistant/client.ts` | `queryAssistant()` fetch wrapper (same-origin or Worker URL) |
+| `src/modules/assistant/index.ts` | Deep Chat handler plus guarded proposal attachments |
 | `src/lib/assistant/proposal.ts` | Validation, diff, classification, apply, `stripRuntime` |
 | `src/lib/assistant/audit.ts` | Local audit ring buffer + `hasConfirmedAssistantAction` |
 | `src/lib/assistant/reauth.ts` | Google popup / password re-auth helpers |
@@ -159,6 +182,7 @@ of the working directory you start the server from.
 | `server/prompts/assistant.md` | Maintainable system instructions loaded by the server |
 | `server/lib/policy.js` | Request validation, prompt policy, proposal allowlist |
 | `server/lib/prompt.js` | System prompt + message construction |
+| `worker/src/index.ts` | Cloudflare Worker equivalent of assistant proxy |
 | `e2e/assistant.spec.ts` | Browser tests: consent gating, proposal flows, undo |
 
 ## Testing

@@ -1,19 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const CONSENT_FLAGS = [
-  'readPortfolio',
-  'suggestChanges',
-  'applyChanges',
-  'sendExactBalances',
-] as const;
-
-function consentBox(page: Page, flag: string) {
-  return page.locator(`input[data-consent="${flag}"]`);
-}
-
-async function enableReadAndSuggest(page: Page): Promise<void> {
-  await consentBox(page, 'readPortfolio').check();
-  await consentBox(page, 'suggestChanges').check();
+async function enableWrites(page: Page): Promise<void> {
+  await page.locator('#assistant-write-consent').click();
 }
 
 function mockQuery(page: Page, body: Record<string, unknown>, status = 200): Promise<void> {
@@ -27,8 +15,9 @@ function mockQuery(page: Page, body: Record<string, unknown>, status = 200): Pro
 }
 
 async function askQuestion(page: Page, text: string): Promise<void> {
-  await page.locator('#question-input').fill(text);
-  await page.locator('#send-question').click();
+  await page.locator('deep-chat').evaluate((element, message) => {
+    (element as HTMLElement & { submitUserMessage: (value: { text: string }) => void }).submitUserMessage({ text: message });
+  }, text);
 }
 
 async function readAnonymousState(page: Page): Promise<Record<string, unknown> | null> {
@@ -36,30 +25,17 @@ async function readAnonymousState(page: Page): Promise<Record<string, unknown> |
   return raw ? (JSON.parse(raw) as Record<string, unknown>) : null;
 }
 
-test('consent starts all-off and readPortfolio gates the chat panel', async ({ page }) => {
+test('consent enables reads by default and keeps writes opt-in', async ({ page }) => {
   await page.goto('/assistant');
 
   await expect(page.locator('.assistant-consent')).toBeVisible();
-  await expect(page.locator('input[data-consent]')).toHaveCount(4);
-  for (const flag of CONSENT_FLAGS) {
-    await expect(consentBox(page, flag)).not.toBeChecked();
-  }
-
-  await expect(page.locator('.assistant-chat')).toBeHidden();
-  await expect(page.locator('.consent-note')).toBeVisible();
+  await expect(page.locator('#assistant-write-consent')).toContainText('Agree to write access');
+  await expect(page.locator('.assistant-chat')).toBeVisible();
   await expect(page.locator('#assistant-audit')).toBeHidden();
 
-  await consentBox(page, 'readPortfolio').check();
-  await expect(page.locator('.assistant-chat')).toBeVisible();
-  await expect(page.locator('.consent-note')).toBeHidden();
-
-  await consentBox(page, 'readPortfolio').uncheck();
-  await expect(page.locator('.assistant-chat')).toBeHidden();
-
-  await consentBox(page, 'readPortfolio').check();
+  await enableWrites(page);
   await page.reload();
-  await expect(consentBox(page, 'readPortfolio')).toBeChecked();
-  await expect(consentBox(page, 'suggestChanges')).not.toBeChecked();
+  await expect(page.locator('#assistant-write-consent')).toContainText('Revoke write access');
   await expect(page.locator('.assistant-chat')).toBeVisible();
 });
 
@@ -69,10 +45,10 @@ test('read-only query renders the reply and a proposal diff', async ({ page }) =
     proposedChanges: { profile: { fiTarget: 500000 } },
   });
   await page.goto('/assistant');
-  await enableReadAndSuggest(page);
+  await enableWrites(page);
 
   await askQuestion(page, 'Bump my FI target');
-  await expect(page.locator('.assistant-reply')).toContainText('Consider raising your FI target');
+  await expect(page.locator('deep-chat').getByText('Consider raising your FI target')).toBeVisible();
   await expect(page.locator('.assistant-proposal')).toBeVisible();
   await expect(page.locator('.assistant-proposal-summary')).toContainText('1 field');
   await expect(page.locator('.assistant-proposal-diff code').first()).toContainText(
@@ -89,7 +65,7 @@ test('rejecting a proposal changes nothing and records a local audit entry', asy
     proposedChanges: { profile: { fiTarget: 500000 } },
   });
   await page.goto('/assistant');
-  await enableReadAndSuggest(page);
+  await enableWrites(page);
 
   await askQuestion(page, 'Bump my FI target');
   await expect(page.locator('.assistant-proposal')).toBeVisible();
@@ -114,7 +90,7 @@ test('confirming a non-destructive proposal persists locally and undo restores i
     proposedChanges: { profile: { fiTarget: 500000 } },
   });
   await page.goto('/assistant');
-  await enableReadAndSuggest(page);
+  await enableWrites(page);
 
   await askQuestion(page, 'Set my FI target to 5 lakhs');
   await expect(page.locator('.assistant-proposal')).toBeVisible();
@@ -146,7 +122,7 @@ test('destructive proposals require a typed confirmation for guests', async ({ p
     proposedChanges: { profile: { fiTarget: 2000000 } },
   });
   await page.goto('/assistant');
-  await enableReadAndSuggest(page);
+  await enableWrites(page);
 
   await askQuestion(page, 'Set my FI target to 20 lakhs');
   await expect(page.locator('.assistant-proposal')).toBeVisible();
@@ -155,7 +131,7 @@ test('destructive proposals require a typed confirmation for guests', async ({ p
   );
 
   await page.locator('.btn-confirm').click();
-  await expect(page.getByRole('heading', { name: 'Confirm destructive change' })).toBeVisible();
+  await expect(page.locator('.modal h2')).toContainText('Confirm destructive change');
 
   // Wrong phrase keeps the proposal but logs the attempt
   await page.locator('#reauth-phrase').fill('nope');
@@ -180,10 +156,8 @@ test('destructive proposals require a typed confirmation for guests', async ({ p
 test('assistant request failures surface an inline error', async ({ page }) => {
   await mockQuery(page, { error: 'Assistant unavailable' }, 500);
   await page.goto('/assistant');
-  await consentBox(page, 'readPortfolio').check();
-
   await askQuestion(page, 'Hello?');
   await expect(page.locator('.assistant-error')).toContainText('Assistant unavailable');
-  await expect(page.locator('.assistant-reply')).toHaveCount(0);
+  await expect(page.locator('deep-chat').getByText('Assistant unavailable')).toHaveCount(0);
   await expect(page.locator('.assistant-proposal')).toHaveCount(0);
 });

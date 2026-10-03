@@ -22,7 +22,6 @@ import {
   stripRuntime,
   toggleConsent,
   AssistantRequestError,
-  type AssistantConversationMessage,
   type ConsentState,
   type ProposalDiffEntry,
 } from '../../lib/assistant';
@@ -33,14 +32,28 @@ import {
 } from '../../lib/storage';
 import { recordPortfolioSnapshot } from '../../lib/snapshot-history';
 import { showToast, createModal, closeModal } from '../ui';
+import 'deep-chat';
 import './styles.css';
+
+type DeepChatMessage = { role?: string; text?: string };
+type DeepChatResponse = { text?: string; error?: string };
+type DeepChatElement = HTMLElement & {
+  connect: {
+    handler: (
+      body: { messages: DeepChatMessage[] },
+      signals: { onResponse: (response: DeepChatResponse) => void }
+    ) => void;
+  };
+  onMessage: (body: { message: DeepChatMessage; isHistory: boolean }) => void;
+  submitUserMessage: (message: { text: string }) => void;
+};
 
 // Module state
 let activeContext: FeatureContext | null = null;
 let consent: ConsentState = { ...defaultConsent };
 let inFlight = false;
-let conversationHistory: AssistantConversationMessage[] = [];
 let conversationScope: string | null = null;
+let pendingProposal: { question: string; proposedChanges: Record<string, unknown> } | null = null;
 const MAX_CONVERSATION_MESSAGES = 12;
 
 function getScope(): string {
@@ -53,7 +66,6 @@ function getScope(): string {
 export function initAssistantModule(container: HTMLElement, context: FeatureContext): void {
   activeContext = context;
   consent = readConsent(getScope());
-  conversationHistory = [];
   conversationScope = getScope();
   container.innerHTML = buildAssistantHTML();
   wireListeners(container);
@@ -73,14 +85,7 @@ export function renderAssistant(context?: FeatureContext): void {
   if (!root) return;
 
   const chatPanel = root.querySelector('.assistant-chat') as HTMLElement | null;
-  const input = root.querySelector('#question-input') as HTMLTextAreaElement | null;
-  const sendBtn = root.querySelector('#send-question') as HTMLButtonElement | null;
-  const note = root.querySelector('.consent-note') as HTMLElement | null;
-
   if (chatPanel) chatPanel.style.display = 'flex';
-  if (input) input.disabled = inFlight;
-  if (sendBtn) sendBtn.disabled = inFlight;
-  if (note) note.style.display = 'none';
 
   root.querySelectorAll<HTMLInputElement>('input[data-consent]').forEach((box) => {
     const flag = box.dataset.consent as keyof ConsentState;
@@ -116,23 +121,13 @@ function buildAssistantHTML(): string {
             consent.allowWrites ? 'Writes need confirmation' : 'Read-only'
           }</span>
         </div>
-        <div class="assistant-messages" role="log" aria-live="polite">
-          <div class="assistant-empty-state">
-            <span class="assistant-empty-kicker">FIRE OS GUIDE</span>
-            <h2>Your portfolio, in focus.</h2>
-            <p>Ask for a precise calculation, comparison, or next action.</p>
-            <div class="assistant-starters">
-              <button type="button" data-assistant-starter="What is my current net worth breakdown?">Net worth breakdown</button>
-              <button type="button" data-assistant-starter="What is the single most important next step for my FIRE plan?">Next best step</button>
-              <button type="button" data-assistant-starter="How concentrated is my portfolio?">Portfolio concentration</button>
-            </div>
-          </div>
+        <div class="assistant-starters">
+          <button type="button" data-assistant-starter="What is my current net worth breakdown?">Net worth breakdown</button>
+          <button type="button" data-assistant-starter="What is the single most important next step for my FIRE plan?">Next best step</button>
+          <button type="button" data-assistant-starter="How concentrated is my portfolio?">Portfolio concentration</button>
         </div>
-        <form class="assistant-input" id="assistant-form">
-          <textarea id="question-input" rows="1" placeholder="Ask about your portfolio..." aria-label="Ask about your portfolio"></textarea>
-          <button type="submit" id="send-question" aria-label="Send question" title="Send question">Send</button>
-        </form>
-        <p class="assistant-input-hint">Enter to send · Shift+Enter for new line</p>
+        <deep-chat id="fireos-deep-chat"></deep-chat>
+        <div class="assistant-attachments" aria-live="polite"></div>
       </div>
 
       <div class="assistant-audit" id="assistant-audit" style="display:none">
@@ -155,46 +150,41 @@ function wireListeners(root: HTMLElement): void {
     renderAssistant();
   });
 
-  const form = root.querySelector('#assistant-form') as HTMLFormElement | null;
+  const chat = root.querySelector('#fireos-deep-chat') as DeepChatElement | null;
+  if (chat) {
+    chat.connect = {
+      handler: (body, signals) => {
+        void handleDeepChatRequest(body.messages, signals);
+      },
+    };
+    chat.onMessage = ({ message, isHistory }) => {
+      if (isHistory || message.role !== 'ai' || !pendingProposal) return;
+      const proposal = pendingProposal;
+      pendingProposal = null;
+      const attachments = root.querySelector('.assistant-attachments') as HTMLElement | null;
+      if (attachments) renderProposalCard(attachments, proposal.question, proposal.proposedChanges);
+    };
+  }
+
   root.querySelectorAll<HTMLButtonElement>('[data-assistant-starter]').forEach((button) => {
     button.addEventListener('click', () => {
-      const input = root.querySelector('#question-input') as HTMLTextAreaElement | null;
-      if (!input) return;
-      input.value = button.dataset.assistantStarter ?? '';
-      input.focus();
+      chat?.submitUserMessage({ text: button.dataset.assistantStarter ?? '' });
     });
-  });
-
-  root.querySelector('#question-input')?.addEventListener('keydown', (event) => {
-    if (event instanceof KeyboardEvent && event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      form?.requestSubmit();
-    }
-  });
-
-  form?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    void handleSendQuestion(root);
   });
 
   root.querySelector('#undo-assistant-btn')?.addEventListener('click', handleUndo);
 }
 
-async function handleSendQuestion(root: HTMLElement): Promise<void> {
-  if (inFlight) return;
-  const input = root.querySelector('#question-input') as HTMLTextAreaElement;
-  const sendBtn = root.querySelector('#send-question') as HTMLButtonElement;
-  const messages = root.querySelector('.assistant-messages') as HTMLElement;
-  const question = input.value.trim();
-  if (!question || !activeContext) return;
+async function handleDeepChatRequest(
+  deepChatMessages: DeepChatMessage[],
+  signals: { onResponse: (response: DeepChatResponse) => void }
+): Promise<void> {
+  if (inFlight || !activeContext) return;
+  const latest = deepChatMessages[deepChatMessages.length - 1];
+  const question = latest?.text?.trim() ?? '';
+  if (!question) return;
 
-  input.value = '';
   inFlight = true;
-  input.disabled = true;
-  sendBtn.disabled = true;
-
-  appendMessage(messages, 'assistant-user', question);
-  const pending = appendMessage(messages, 'assistant-pending', 'Thinking…');
 
   try {
     // Refresh Nifty on demand, retain the last persisted value if the fetch fails,
@@ -214,42 +204,37 @@ async function handleSendQuestion(root: HTMLElement): Promise<void> {
       activeContext.state,
       true
     );
-    const requestMessages = [
-      ...conversationHistory.slice(-(MAX_CONVERSATION_MESSAGES - 2)),
-      { role: 'user' as const, content: question },
-    ];
+    const requestMessages = deepChatMessages
+      .filter((message) => message.role === 'user' || message.role === 'ai')
+      .map((message) => ({
+        role: message.role === 'ai' ? ('assistant' as const) : ('user' as const),
+        content: message.text ?? '',
+      }))
+      .filter((message) => message.content.trim())
+      .slice(-MAX_CONVERSATION_MESSAGES);
     const data = await queryAssistant(question, contextSummary, {
       sendExact: sendExactFlag,
       messages: requestMessages,
     });
 
-    pending.remove();
     const reply = data.reply || 'No reply received.';
-    appendMessage(messages, 'assistant-reply', reply);
-    conversationHistory = [
-      ...requestMessages,
-      { role: 'assistant' as const, content: reply.slice(0, 6000) },
-    ].slice(-MAX_CONVERSATION_MESSAGES);
-
-    if (data.proposedChanges) {
-      renderProposalCard(messages, question, data.proposedChanges);
-    }
+    pendingProposal = data.proposedChanges
+      ? { question, proposedChanges: data.proposedChanges }
+      : null;
+    signals.onResponse({ text: reply });
   } catch (err) {
-    pending.remove();
     const message =
       err instanceof AssistantRequestError
         ? err.message
         : err instanceof DOMException && err.name === 'AbortError'
           ? 'Request timed out.'
           : 'Could not reach the assistant service.';
-    appendMessage(messages, 'assistant-error', message);
+    signals.onResponse({ error: message });
+    const attachments = document.querySelector('.assistant-attachments') as HTMLElement | null;
+    if (attachments) appendMessage(attachments, 'assistant-error', message);
     showToast(message, 5000, 'error');
   } finally {
     inFlight = false;
-    input.disabled = false;
-    sendBtn.disabled = false;
-    input.focus();
-    messages.scrollTop = messages.scrollHeight;
   }
 }
 
@@ -257,8 +242,8 @@ function resetConversationForScopeChange(): void {
   const nextScope = getScope();
   if (conversationScope === nextScope) return;
   conversationScope = nextScope;
-  conversationHistory = [];
-  document.querySelector('.assistant-messages')?.replaceChildren();
+  pendingProposal = null;
+  document.querySelector('.assistant-attachments')?.replaceChildren();
 }
 
 /* ------------------------------------------------------------------ *

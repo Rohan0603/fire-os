@@ -193,8 +193,10 @@ export function classifyProposal(
     if (isPlainObject(value)) {
       const currentSection = isPlainObject(currentRec[key]) ? currentRec[key] : {};
       for (const [sub, afterVal] of Object.entries(value)) {
-        if (typeof afterVal === 'number' && typeof currentSection[sub] === 'number') {
-          const delta = Math.abs(afterVal - (currentSection[sub] as number));
+        if (typeof afterVal === 'number') {
+          const beforeVal = currentSection[sub];
+          const delta =
+            typeof beforeVal === 'number' ? Math.abs(afterVal - beforeVal) : Math.abs(afterVal);
           if (delta >= HIGH_VALUE_THRESHOLD) {
             reasons.push(`Large value change at "${key}.${sub}" (Δ ₹${Math.round(delta).toLocaleString('en-IN')})`);
           }

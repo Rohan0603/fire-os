@@ -133,7 +133,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.6rem;
-  margin-top: 1.5rem;
+  margin: 1rem clamp(1rem, 5vw, 4rem) 0;
 }
 
 .assistant-starters button {
@@ -153,6 +153,18 @@
 .assistant-starters button:focus-visible {
   border-color: #d97706;
   outline: none;
+}
+
+deep-chat {
+  display: block;
+  width: 100%;
+  height: 480px;
+  margin-top: 0.75rem;
+  --deep-chat-primary-color: #d97706;
+}
+
+.assistant-attachments {
+  padding: 0 clamp(1rem, 5vw, 4rem) 1rem;
 }
 
 .assistant-pending {
@@ -282,6 +294,10 @@
 
   .assistant-starters {
     grid-template-columns: 1fr;
+  }
+
+  deep-chat {
+    height: 460px;
   }
 
   .assistant-empty-state {
