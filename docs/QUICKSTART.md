@@ -69,6 +69,9 @@ npx --no-install firebase-tools use fire-os-dd6d6
 npx --no-install firebase-tools deploy --only hosting,firestore:rules,firestore:indexes
 ```
 
+The Hosting deployment includes the CSP and `same-origin-allow-popups` policy
+required for Google sign-in; redeploy Hosting after changing those headers.
+
 ### Verify locally
 
 ```bash
