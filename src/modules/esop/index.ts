@@ -97,42 +97,8 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
   const { netWorth } = context.ports.calculations.totalNetWorth(D);
   const percentNetWorth = netWorth > 0 ? (grossInr / netWorth) * 100 : 0;
 
-  // 2. Vesting schedule calculations
-  const schedule = [...D.esopDetails.vestingSchedule].sort((a, b) => a.date.localeCompare(b.date));
-  const today = new Date();
-  const currentYear = today.getFullYear();
-  const currentMonth = today.getMonth() + 1; // 1-indexed
-
-  let vestedShares = 0;
-  let lockedShares = 0;
-
-  const processedSchedule = schedule.map(item => {
-    const [itemYear, itemMonth] = item.date.split('-').map(Number);
-    // Compare YYYY-MM
-    const isVested = itemYear < currentYear || (itemYear === currentYear && itemMonth <= currentMonth);
-
-    if (isVested) {
-      vestedShares += item.shares;
-    } else {
-      lockedShares += item.shares;
-    }
-
-    return {
-      date: item.date,
-      shares: item.shares,
-      status: isVested ? 'Vested' : 'Pending',
-      isVested
-    };
-  });
-
-  const nextUnlockItem = processedSchedule.find(item => !item.isVested);
-  const nextUnlockText = nextUnlockItem 
-    ? `${nextUnlockItem.date} (${nextUnlockItem.shares} shares)`
-    : 'All shares vested';
-
-  const vestedPercent = D.esopDetails.shares > 0 ? (vestedShares / D.esopDetails.shares) * 100 : 0;
-
-  // 3. Trigger Monitor Calculations
+  // 2. Trigger Monitor Calculations
+  const currentYear = new Date().getFullYear();
   const yearsRemaining = Math.max(0, 2031 - currentYear);
   const rule5YearFired = currentYear >= 2031;
   const marriageFired = D.esopDetails.triggers.marriage;
@@ -214,18 +180,6 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
               <span>Net Worth Allocation</span>
               <strong>${percentNetWorth.toFixed(0)}%</strong>
             </div>
-            <div class="meta-row border-top">
-              <span>Vested Shares</span>
-              <span class="text-success">${vestedShares} shares</span>
-            </div>
-            <div class="meta-row">
-              <span>Locked Shares</span>
-              <span class="text-warning">${lockedShares} shares</span>
-            </div>
-            <div class="meta-row">
-              <span>Next Unlock</span>
-              <strong>${nextUnlockText}</strong>
-            </div>
           </div>
           
           <div class="fx-section">
@@ -301,57 +255,6 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
       </div>
 
       <div class="esop-grid secondary-grid">
-        <!-- Vesting Schedule Card -->
-        <div class="esop-card vesting-card">
-          <h3>Vesting Schedule & Progress</h3>
-          
-          <div class="progress-section">
-            <div class="progress-labels">
-              <span>Vesting Progress</span>
-              <strong>${vestedPercent.toFixed(0)}% Vested</strong>
-            </div>
-            <div class="progress-bar-container">
-              <div class="progress-bar-fill vested" style="width: ${vestedPercent}%"></div>
-              <div class="progress-bar-fill locked" style="width: ${100 - vestedPercent}%"></div>
-            </div>
-            <div class="progress-legend">
-              <span class="legend-item"><span class="dot vested"></span>Vested (${vestedShares} shares)</span>
-              <span class="legend-item"><span class="dot locked"></span>Locked (${lockedShares} shares)</span>
-            </div>
-          </div>
-
-          <table class="vesting-table">
-            <thead>
-              <tr>
-                <th>Vest Date</th>
-                <th>Shares</th>
-                <th>Status</th>
-                <th>Cumulative Vested</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${(() => {
-                let runningVested = 0;
-                return processedSchedule.map(item => {
-                  if (item.isVested) {
-                    runningVested += item.shares;
-                  }
-                  return `
-                    <tr class="${item.isVested ? 'row-vested' : 'row-pending'}">
-                      <td>${item.date}</td>
-                      <td>${item.shares}</td>
-                      <td>
-                        <span class="status-pill ${item.status.toLowerCase()}">${item.status}</span>
-                      </td>
-                      <td>${item.isVested ? `${runningVested} shares` : '-'}</td>
-                    </tr>
-                  `;
-                }).join('');
-              })()}
-            </tbody>
-          </table>
-        </div>
-
         <!-- Tax Calculator & Liquidation Planner Card -->
         <div class="esop-card planner-card">
           <h3>Tax Calculator & Liquidation Planner</h3>
