@@ -39,6 +39,9 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: Assistant Worker tests
+        run: npm run test:worker
+
       - name: Firestore rules tests
         run: npm run test:rules:emulator
 

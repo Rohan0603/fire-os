@@ -1,24 +1,21 @@
 import {
-  clearPortfolioStorageScope,
-  configurePortfolioStorageScope,
-  configurePortfolioSync,
   loadData,
   persistPortfolioState,
 } from './lib/storage';
 import { CONFIG } from './lib/config';
 import { getFirebaseServices } from './lib/firebase';
 import { AuthCoordinator } from './lib/authCoordinator';
-import { applyEnvelopeToState, buildEnvelopeFromState, mergeEnvelopes } from './lib/merge';
-import { SyncCoordinator } from './lib/syncCoordinator';
+import { AuthSessionController } from './app/auth-session-controller';
+import { configurePortfolioStorageScope } from './lib/storage';
 import { initFirestore, loadPortfolio, onPortfolioChange, savePortfolio } from './modules/api/firestore';
 
 // Import types
 import { initializeState } from './types/state';
 import type { FireOSState } from './types/state';
-import type { PortfolioEnvelope } from './types/firebase';
 import { appState } from './lib/appState';
 import { createFeatureContext } from './core/feature-context';
 import { FeatureRegistry } from './app/feature-registry';
+import { PortfolioSession } from './app/portfolio-session';
 
 // Import auth module
 import { renderAuthScreen, hideAuthScreen, showAuthScreen, initAuthModule } from './modules/auth';
@@ -36,7 +33,7 @@ import { initAPIModule } from './modules/api';
 import { monitorNiftyLevel } from './modules/api/nifty-monitor';
 
 // Static imports for tab modules and other deferred modules to prevent dynamic import warnings
-import { initDashboardModule, renderDashboard, fetchSIPNAVs, updateCrashAlert } from './modules/dashboard';
+import { initDashboardModule, renderDashboard, fetchSIPNAVs, teardownDashboard, updateCrashAlert } from './modules/dashboard';
 import { initCalculatorsModule, renderCalculators } from './modules/calculators';
 import { initInsuranceModule, renderInsurance } from './modules/insurance';
 import { initPlanModule, renderPlan } from './modules/plan';
@@ -67,14 +64,29 @@ const firebaseConfig = CONFIG.firebaseConfig;
 export const auth = getFirebaseServices(firebaseConfig).auth;
 const authCoordinator = new AuthCoordinator(auth);
 
-let activePortfolioUnsubscribe: (() => void) | null = null;
-let activeSyncCoordinator: SyncCoordinator | null = null;
-let activePortfolioEnvelope: PortfolioEnvelope | null = null;
-let activeNiftyMonitorCleanup: (() => void) | null = null;
-let guestSessionActive = false;
-let authPromptRequested = false;
 const featureContext = createFeatureContext(appState);
 const featureRegistry = new FeatureRegistry(featureContext);
+const portfolioSession = new PortfolioSession({ resetState: resetLiveAppState });
+const sessionController = new AuthSessionController({
+  authCoordinator,
+  portfolioSession,
+  state: appState,
+  context: featureContext,
+  firebaseConfig,
+  loadData,
+  configureStorageScope: configurePortfolioStorageScope,
+  initFirestore,
+  loadPortfolio,
+  onPortfolioChange,
+  savePortfolio,
+  hideAuthScreen,
+  showAuthScreen,
+  renderProfile,
+  fetchSIPNAVs: async () => fetchSIPNAVs(),
+  checkDailyTasks,
+  monitorNiftyLevel,
+  updateCrashAlert,
+});
 const initializedFeatures = new Set<string>();
 
 featureRegistry.register({
@@ -98,6 +110,9 @@ featureRegistry.register({
       initializedFeatures.add('dashboard');
     }
     return renderDashboard(context);
+  },
+  unmount() {
+    teardownDashboard();
   },
 });
 featureRegistry.register({
@@ -166,50 +181,6 @@ function resetLiveAppState(): void {
   delete appState.niftyData;
 }
 
-async function teardownAuthSession(): Promise<void> {
-  activePortfolioUnsubscribe?.();
-  activePortfolioUnsubscribe = null;
-
-  const coordinator = activeSyncCoordinator;
-  activeSyncCoordinator = null;
-  if (coordinator) {
-    coordinator.pause();
-    try {
-      await coordinator.flush({ timeoutMs: 5000 });
-    } catch (error) {
-      console.warn('[Auth] Failed to flush pending portfolio changes:', error);
-    }
-    coordinator.dispose();
-  }
-
-  activeNiftyMonitorCleanup?.();
-  activeNiftyMonitorCleanup = null;
-  activePortfolioEnvelope = null;
-  configurePortfolioSync(null, null);
-  clearPortfolioStorageScope();
-  resetLiveAppState();
-}
-
-function hasLocalPortfolioData(state: FireOSState): boolean {
-  return Boolean(
-    state.profile.name.trim()
-    || state.profile.age
-    || state.profile.annualExpenses
-    || state.profile.fiTarget
-    || state.profile.monthlyIncome
-    || Object.keys(state.mf).length
-    || Object.keys(state.sip).length
-    || Object.keys(state.fd).length
-    || Object.keys(state.epf).length
-    || Object.keys(state.esop).length
-    || Object.keys(state.bonds).length
-    || Object.keys(state.demat).length
-    || state.niftyData
-    || state.netWorthHistory.length
-    || state.achievedMilestones.length
-  );
-}
-
 
 // Initialize app on startup
 function initApp() {
@@ -238,7 +209,7 @@ function initApp() {
       });
     }
 
-    setupAuthListener();
+    sessionController.start();
     setupTabNavigation();
     setupDashboardAutoRefresh();
     setupBackgroundNAVRefresh();
@@ -299,169 +270,6 @@ function renderApp() {
   renderAuthScreen();
 }
 
-async function startGuestSession(): Promise<void> {
-  if (authCoordinator.getCurrentUser() || guestSessionActive) return;
-
-  authPromptRequested = false;
-  await teardownAuthSession();
-  configurePortfolioStorageScope(null);
-  const cachedState = loadData();
-  if (cachedState) Object.assign(appState, cachedState);
-  appState.currentUser = null;
-  guestSessionActive = true;
-
-  hideAuthScreen();
-  const logoutBtn = document.getElementById('logout-btn');
-  if (logoutBtn) {
-    logoutBtn.textContent = 'Sign in';
-    logoutBtn.style.display = 'block';
-  }
-
-  const saveCloudBtn = document.getElementById('save-cloud-btn') as HTMLButtonElement;
-  if (saveCloudBtn) {
-    saveCloudBtn.disabled = true;
-    saveCloudBtn.classList.add('btn-disabled');
-  }
-
-  const profileTab = document.getElementById('profile');
-  if (profileTab) renderProfile(profileTab, featureContext);
-}
-
-// Firebase auth listener
-function setupAuthListener() {
-  authCoordinator.start(async ({ generation: sessionGeneration, user }) => {
-    if (guestSessionActive && !user) return;
-    if (!user && authPromptRequested) {
-      showAuthScreen();
-      return;
-    }
-    await teardownAuthSession();
-    if (!authCoordinator.isCurrent({ generation: sessionGeneration, user })) return;
-
-    if (user) {
-      guestSessionActive = false;
-      authPromptRequested = false;
-      configurePortfolioStorageScope(user.uid);
-      const scopedState = loadData();
-      if (scopedState) Object.assign(appState, scopedState);
-      appState.currentUser = user;
-      const logoutBtn = document.getElementById('logout-btn');
-      if (logoutBtn) logoutBtn.style.display = 'block';
-
-      try {
-        await initFirestore(firebaseConfig);
-        const localEnvelope = hasLocalPortfolioData(appState)
-          ? buildEnvelopeFromState(appState, { clientId: 'browser', appVersion: '2.2.0', platform: 'web' }, appState._lastSavedAt)
-          : null;
-        const remoteEnvelope = await loadPortfolio(user.uid);
-        if (!authCoordinator.isCurrent({ generation: sessionGeneration, user })) return;
-
-        const merged = remoteEnvelope && localEnvelope
-          ? mergeEnvelopes(localEnvelope, remoteEnvelope)
-          : {
-            envelope: remoteEnvelope ?? localEnvelope ?? buildEnvelopeFromState(appState),
-            conflicts: [],
-            dirtySections: [],
-          };
-        applyEnvelopeToState(appState, merged.envelope);
-        appState.currentUser = user;
-        activePortfolioEnvelope = merged.envelope;
-          persistPortfolioState(appState, { sync: false });
-        hideAuthScreen();
-        activeSyncCoordinator = new SyncCoordinator({
-          uid: user.uid,
-          save: savePortfolio,
-          onStatusChange: (status) => document.dispatchEvent(new CustomEvent('syncStatusChanged', { detail: status })),
-        });
-        configurePortfolioSync(activeSyncCoordinator, merged.envelope);
-        activePortfolioUnsubscribe?.();
-        activePortfolioUnsubscribe = onPortfolioChange(user.uid, (remote) => {
-          if (!authCoordinator.isCurrent({ generation: sessionGeneration, user })) return;
-          const current = buildEnvelopeFromState(
-            appState,
-            { clientId: 'browser', appVersion: '2.2.0', platform: 'web' },
-            appState._lastSavedAt,
-            activePortfolioEnvelope ?? undefined,
-          );
-          const mergedSnapshot = mergeEnvelopes(current, remote).envelope;
-          applyEnvelopeToState(appState, mergedSnapshot);
-          appState.currentUser = user;
-          activePortfolioEnvelope = mergedSnapshot;
-          configurePortfolioSync(activeSyncCoordinator, mergedSnapshot);
-          persistPortfolioState(appState, { sync: false });
-          document.dispatchEvent(new CustomEvent('profileUpdated', { detail: appState }));
-        }, (error) => console.warn('[Auth] Firestore snapshot failed:', error));
-
-        fetchSIPNAVs().catch(e => console.warn('[Auth] Failed to fetch SIP NAVs:', e));
-        const profileTab = document.getElementById('profile');
-        const profileNavTab = document.querySelector('[data-tab="profile"]');
-        if (profileTab && profileNavTab?.classList.contains('active')) renderProfile(profileTab, featureContext);
-          checkDailyTasks(appState);
-      } catch (e) {
-        console.warn('[Auth] Failed to load from Firebase:', e);
-        hideAuthScreen();
-      }
-
-      // Update Save button state if profile tab is visible
-      const saveCloudBtn = document.getElementById('save-cloud-btn') as HTMLButtonElement;
-      if (saveCloudBtn) {
-        saveCloudBtn.disabled = false;
-        saveCloudBtn.classList.remove('btn-disabled');
-        const hint = document.querySelector('.save-cloud-hint') as HTMLElement;
-        if (hint) hint.style.display = 'none';
-      }
-
-      // Start Nifty monitoring when user logs in
-      try {
-        activeNiftyMonitorCleanup = monitorNiftyLevel((alert) => {
-          if (!authCoordinator.isCurrent({ generation: sessionGeneration, user })) return;
-          if (alert) {
-            // Calculate dynamic deploy amount based on Bonds
-            const totalBonds = Object.values(appState.bonds || {}).reduce((sum, b) => sum + b.amount, 0);
-            if (alert.severity === 'medium') alert.deployAmount = totalBonds * 0.10;
-            else if (alert.severity === 'high') alert.deployAmount = totalBonds * 0.15;
-            else if (alert.severity === 'critical') alert.deployAmount = totalBonds * 0.25;
-
-            console.info('Crash alert detected:', {
-              crashPercentage: alert.crashPercentage,
-              severity: alert.severity,
-              deployAmount: alert.deployAmount,
-            });
-            // Update dashboard with alert (dashboard will re-render if visible)
-            updateCrashAlert(alert);
-          } else {
-            // Alert cleared
-            updateCrashAlert(null);
-          }
-        });
-      } catch (e) {
-        console.warn('Failed to start Nifty monitoring:', e);
-      }
-
-    } else {
-      if (!authPromptRequested) {
-        await startGuestSession();
-        return;
-      }
-
-      guestSessionActive = false;
-      appState.currentUser = null;
-      showAuthScreen();
-      const logoutBtn = document.getElementById('logout-btn');
-      if (logoutBtn) logoutBtn.style.display = 'none';
-
-      // Update Save button state if profile tab is visible
-      const saveCloudBtn = document.getElementById('save-cloud-btn') as HTMLButtonElement;
-      if (saveCloudBtn) {
-        saveCloudBtn.disabled = true;
-        saveCloudBtn.classList.add('btn-disabled');
-        const hint = document.querySelector('.save-cloud-hint') as HTMLElement;
-        if (hint) hint.style.display = '';
-      }
-    }
-  });
-}
-
 // Tab navigation
 function setupTabNavigation() {
   const hamburgerBtn = document.getElementById('hamburger-btn');
@@ -477,6 +285,13 @@ function setupTabNavigation() {
   const activateTab = (target: string): void => {
     const tabEl = document.getElementById(target);
     if (!tabEl || !featureRegistry.get(target)) return;
+
+    const currentTab = document.querySelector<HTMLElement>('.tab.active');
+    if (currentTab && currentTab.id !== target) {
+      void featureRegistry.unmount(currentTab.id, currentTab).catch((error) => {
+        console.warn(`Failed to unmount feature ${currentTab.id}:`, error);
+      });
+    }
 
     document.querySelectorAll('.nav-tab').forEach((tab) => {
       tab.classList.toggle('active', tab.getAttribute('data-tab') === target);
@@ -521,16 +336,11 @@ function setupTabNavigation() {
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
       try {
-        if (guestSessionActive) {
-          guestSessionActive = false;
-          authPromptRequested = true;
-          await teardownAuthSession();
-          showAuthScreen();
-          logoutBtn.style.display = 'none';
+        if (sessionController.isGuestSessionActive) {
+          await sessionController.requestSignIn();
           return;
         }
-        await teardownAuthSession();
-        await authCoordinator.signOut();
+        await sessionController.signOut();
       } catch (e) {
         console.error('Logout failed:', e);
       }
@@ -540,12 +350,23 @@ function setupTabNavigation() {
 
 // Auto-refresh dashboard when state changes
 function setupDashboardAutoRefresh() {
-  setInterval(() => {
-    const dashboardTab = document.querySelector('[data-tab="dashboard"]');
-    if (dashboardTab && dashboardTab.classList.contains('active')) {
-      renderDashboard();
-    }
-  }, 5000);
+  let renderQueued = false;
+  const refreshDashboard = () => {
+    if (renderQueued) return;
+    renderQueued = true;
+    requestAnimationFrame(() => {
+      renderQueued = false;
+      const dashboardTab = document.querySelector('[data-tab="dashboard"]');
+      if (dashboardTab && dashboardTab.classList.contains('active')) {
+        void renderDashboard(featureContext);
+      }
+    });
+  };
+
+  document.addEventListener('portfolioStateSaved', refreshDashboard);
+  window.addEventListener('pagehide', () => {
+    document.removeEventListener('portfolioStateSaved', refreshDashboard);
+  }, { once: true });
 }
 
 /**
@@ -680,37 +501,44 @@ function checkDailyTasks(state: FireOSState) {
 
 // Background NAV Auto-Refresh (Runs periodically)
 function setupBackgroundNAVRefresh() {
+  let refreshInProgress = false;
   setInterval(async () => {
+    if (refreshInProgress || !navigator.onLine || document.visibilityState === 'hidden') return;
+    refreshInProgress = true;
     console.debug('[API] Background auto-refreshing NAVs...');
-    const sipsToFetch = Object.entries(appState.sip).filter(([, fund]) => fund.units && fund.units > 0);
-    let updated = false;
-    for (const [, fund] of sipsToFetch) {
-      const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
-      if (schemeCode) {
-        try {
-          const oldNav = appState.nav[schemeCode]?.nav;
-          const newNav = await fetchNAV(schemeCode);
-          if (newNav !== oldNav && newNav !== null) {
-            appState.nav[schemeCode] = {
-              schemeCode,
-              nav: newNav,
-              timestamp: new Date().toISOString(),
-              ttl: CONFIG.cacheTtl.nav,
-            };
-            updated = true;
+    const uid = appState.currentUser?.uid ?? null;
+    try {
+      const sipsToFetch = Object.entries(appState.sip).filter(([, fund]) => fund.units && fund.units > 0);
+      let updated = false;
+      for (const [, fund] of sipsToFetch) {
+        if ((appState.currentUser?.uid ?? null) !== uid) return;
+        const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
+        if (schemeCode) {
+          try {
+            const oldNav = appState.nav[schemeCode]?.nav;
+            const newNav = await fetchNAV(schemeCode);
+            if ((appState.currentUser?.uid ?? null) !== uid) return;
+            if (newNav !== oldNav && newNav !== null) {
+              appState.nav[schemeCode] = {
+                schemeCode,
+                nav: newNav,
+                timestamp: new Date().toISOString(),
+                ttl: CONFIG.cacheTtl.nav,
+              };
+              updated = true;
+            }
+          } catch (e) {
+            console.warn(`[Background Refresh] Failed for scheme ${schemeCode}:`, e);
           }
-        } catch (e) {
-          console.warn(`[Background Refresh] Failed for scheme ${schemeCode}:`, e);
         }
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    if (updated) {
-          persistPortfolioState(appState);
-      const dashboardTab = document.querySelector('[data-tab="dashboard"]');
-      if (dashboardTab && dashboardTab.classList.contains('active')) {
-        renderDashboard();
+
+      if (updated && (appState.currentUser?.uid ?? null) === uid) {
+        persistPortfolioState(appState);
       }
+    } finally {
+      refreshInProgress = false;
     }
   }, CONFIG.cacheTtl.nav); // run at NAV cache TTL interval
 }

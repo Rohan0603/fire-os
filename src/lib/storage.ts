@@ -204,6 +204,9 @@ export function persistPortfolioState(
   options: PersistPortfolioOptions = {},
 ): void | Promise<void> {
   saveData(state);
+  if (typeof document !== 'undefined') {
+    document.dispatchEvent(new Event('portfolioStateSaved'));
+  }
   if (options.sync === false || !state.currentUser?.uid) return;
 
   const queued = queuePortfolioSave(state.currentUser.uid, state);

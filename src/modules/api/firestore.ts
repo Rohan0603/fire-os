@@ -14,6 +14,7 @@ import type { FirebaseOptions } from 'firebase/app';
 import { isPortfolioEnvelope } from '../../types/firebase';
 import type { PortfolioEnvelope } from '../../types/firebase';
 import { getFirebaseServices } from '../../lib/firebase';
+import { measurePortfolioWrite } from '../../lib/portfolioMetrics';
 import type { SIPFund } from '../../types/portfolio';
 
 export const PORTFOLIO_COLLECTION = 'portfolio';
@@ -109,11 +110,22 @@ export async function savePortfolio(uid: string, envelope: PortfolioEnvelope): P
   const { mf, ...stateData } = data;
   void _entryUpdatedAt;
   const stateBatch = writeBatch(initializedServices.db);
-  stateBatch.set(portfolioRef(initializedServices.db, uid), {
+  const stateDocument = {
     ...envelopeWithoutDynamicMetadata,
     schemaVersion: 'fireOS_v4',
     data: stateData,
-  });
+  };
+  const metrics = measurePortfolioWrite(stateDocument, mf ?? {}, envelope.lastSavedAt);
+  if (import.meta.env.DEV) {
+    console.debug('[Firestore] Portfolio write metrics', metrics);
+  }
+  if (metrics.stateDocumentBytes > 750_000) {
+    console.warn('[Firestore] Portfolio state document is approaching Firestore size limits', {
+      stateDocumentBytes: metrics.stateDocumentBytes,
+      holdingCount: metrics.holdingCount,
+    });
+  }
+  stateBatch.set(portfolioRef(initializedServices.db, uid), stateDocument);
   await stateBatch.commit();
 
   const existingHoldings = await getDocs(holdingsRef(initializedServices.db, uid));

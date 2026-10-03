@@ -1,8 +1,7 @@
 /**
- * Assistant library barrel: sanitization, context building, consent storage, client.
+ * Assistant library barrel: sanitization, consent storage, client.
  */
 export * from './sanitize';
-export * from './contextBuilder';
 export * from './consent';
 export * from './proposal';
 export * from './audit';

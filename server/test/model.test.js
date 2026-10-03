@@ -2,8 +2,17 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_OPENROUTER_FALLBACKS,
   DEFAULT_OPENROUTER_MODEL,
+  extractUpstreamMessage,
   getOpenRouterModels,
-} from '../lib/model.js';
+} from '../../shared/assistant-upstream.js';
+
+describe('extractUpstreamMessage', () => {
+  it('reads common OpenRouter error shapes and ignores invalid JSON', () => {
+    expect(extractUpstreamMessage('{"error":{"message":"unavailable"}}')).toBe('unavailable');
+    expect(extractUpstreamMessage('{"error":{"error":{"message":"nested"}}}')).toBe('nested');
+    expect(extractUpstreamMessage('not json')).toBe('');
+  });
+});
 
 describe('getOpenRouterModels', () => {
   it('uses the free router and default free model fallbacks', () => {

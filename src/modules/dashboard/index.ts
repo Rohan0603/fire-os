@@ -20,6 +20,18 @@ let containerId = 'dashboard';
 let currentCrashAlert: CrashAlert | null = null;
 let activeContext = createFeatureContext();
 let D = activeContext.state;
+let themeListenerAttached = false;
+
+function handleThemeChanged(): void {
+  const container = document.getElementById(containerId);
+  if (container && container.innerHTML.trim() !== '') void renderDashboard();
+}
+
+function attachThemeListener(): void {
+  if (themeListenerAttached) return;
+  window.addEventListener('themeChanged', handleThemeChanged);
+  themeListenerAttached = true;
+}
 
 /**
  * Fetch NAVs for all SIPs with units (holdings)
@@ -54,6 +66,7 @@ export function initDashboardModule(container: string = 'dashboard', context: Fe
   containerId = container;
   activeContext = context;
   D = context.state;
+  attachThemeListener();
 }
 
 /**
@@ -61,6 +74,7 @@ export function initDashboardModule(container: string = 'dashboard', context: Fe
  * Called whenever data changes or user switches to Dashboard tab
  */
 export async function renderDashboard(context: FeatureContext = activeContext): Promise<void> {
+  attachThemeListener();
   activeContext = context;
   D = context.state;
   const container = document.getElementById(containerId);
@@ -556,19 +570,13 @@ function attachDashboardEventListeners(): void {
   }
 }
 
-// Re-render dashboard when theme changes to update canvas colors
-window.addEventListener('themeChanged', () => {
-  const container = document.getElementById(containerId);
-  if (container && container.innerHTML.trim() !== '') {
-    renderDashboard();
-  }
-});
-
 /**
  * Teardown the dashboard module
  * Called when user navigates away or app shuts down
  */
 export function teardownDashboard(): void {
+  window.removeEventListener('themeChanged', handleThemeChanged);
+  themeListenerAttached = false;
   const container = document.getElementById(containerId);
   if (container) {
     container.innerHTML = '';

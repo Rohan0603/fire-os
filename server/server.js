@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 import { fileURLToPath } from 'node:url';
 import { buildSystemPrompt, buildMessages } from './lib/prompt.js';
 import { checkPromptPolicy, validateRequestBody, extractProposedChanges } from './lib/policy.js';
-import { getOpenRouterModels } from './lib/model.js';
+import { extractUpstreamMessage, getOpenRouterModels } from '../shared/assistant-upstream.js';
 
 // Load the single repository-root env file regardless of the current directory.
 dotenv.config({ path: fileURLToPath(new URL('../.env', import.meta.url)) });
@@ -29,24 +29,6 @@ const limiter = rateLimit({
 app.use('/api/assistant/', limiter);
 
 app.use(express.json({ limit: '200kb' }));
-
-/**
- * Pull a human-readable reason out of an OpenRouter/upstream error body.
- * Handles {error:{message}}, {error:{error:{message}}}, and plain {message}.
- */
-export function extractUpstreamMessage(errText) {
-  try {
-    const parsed = JSON.parse(errText);
-    const err = parsed?.error;
-    if (typeof err === 'string' && err) return err;
-    if (err?.message) return String(err.message);
-    if (err?.error?.message) return String(err.error.message);
-    if (parsed?.message) return String(parsed.message);
-    return '';
-  } catch {
-    return '';
-  }
-}
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

@@ -29,6 +29,9 @@ const browserChannel =
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
+  timeout: 30_000,
+  expect: { timeout: 5_000 },
+  workers: process.env.CI ? 2 : 4,
   reporter: process.env.CI ? 'line' : 'list',
   use: {
     baseURL: 'http://127.0.0.1:5173',
@@ -36,10 +39,10 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1',
+    command: 'npm run dev:ui -- --host 127.0.0.1',
     url: 'http://127.0.0.1:5173',
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    timeout: 30_000,
   },
   projects: [
     {

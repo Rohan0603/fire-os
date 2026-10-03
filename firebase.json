@@ -13,23 +13,6 @@
       }
     }
   },
-  "functions": [
-    {
-      "source": "server",
-      "codebase": "assistant",
-      "ignore": [
-        "node_modules/**",
-        ".git/**",
-        "**/*.test.js",
-        "**/vitest.config.js",
-        "test/**",
-        ".env",
-        ".env.*",
-        "*.log",
-        ".gitignore"
-      ]
-    }
-  ],
   "hosting": {
     "public": "dist",
     "trailingSlash": false,
@@ -46,10 +29,6 @@
       "package-lock.json"
     ],
     "rewrites": [
-      {
-        "source": "/api/assistant/**",
-        "function": "assistantProxy"
-      },
       {
         "source": "**",
         "destination": "/index.html"

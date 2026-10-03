@@ -1,461 +1,302 @@
-# FIRE OS Master Documentation
+# FIRE OS — Master Technical Reference
 
-FIRE OS is a single-page Vite application written in TypeScript for financial-independence and retirement planning. It combines portfolio tracking, market data, planning tools, and financial calculators in a modular browser UI.
+This is the system map for the implementation currently in `src/`, `server/`,
+`worker/`, and `firestore.rules`. It describes behavior found in source, not
+financial advice or a product roadmap. Detailed area references:
+[AI](ai.md), [backend and data](backend.md), [UI and calculations](ui.md).
 
-The application has one typed in-memory state object, `appState`, and uses Firebase Authentication and Cloud Firestore for optional owner-scoped cloud sync. It is offline-first: local browser storage remains the immediate persistence layer, while a debounced sync coordinator queues cloud writes when an authenticated user is online.
+## Product and runtime
 
-This document is the end-to-end guide for new developers. The current TypeScript source, Firebase configuration, and tests are authoritative when older README examples differ from implementation.
+FIRE OS is a local-first TypeScript single-page app built with Vite. It targets
+Indian FIRE planning: profile, holdings and liabilities; market values; FI and
+retirement planning; insurance; tax planning; ESOP valuation; and review
+guidance. Guest portfolios remain in browser storage. Firebase-authenticated
+users get UID-scoped local storage plus Firestore synchronization. The Assistant
+is a separate proxy request to a Cloudflare Worker and OpenRouter.
 
-## Contents
+```text
+src/index.html -> src/main.ts
+  -> appState + validated storage -> FeatureContext -> FeatureRegistry
+  -> UI feature modules -> FeaturePorts -> API clients / calculations
+  -> guest: localStorage
+  -> signed-in: localStorage -> SyncCoordinator -> Firestore
+  -> Assistant: sanitized summary -> Worker -> OpenRouter
+```
 
-- [Project Overview](#project-overview)
-- [Architecture](#architecture)
-- [Runtime State and Lifecycle](#runtime-state-and-lifecycle)
-- [Persistence and Firestore](#persistence-and-firestore)
-- [Calculations and Tools](#calculations-and-tools)
-- [APIs and Resilience](#apis-and-resilience)
-- [Screens and Data Links](#screens-and-data-links)
-- [Screens and UI Behavior](#screens-and-ui-behavior)
-- [Testing](#testing)
-- [Deployment](#deployment)
-- [Security Residuals](#security-residuals)
-- [Extension Checklist](#extension-checklist)
-- [See Also](#see-also)
+Production is Firebase Hosting (`dist/`); rewrites send app routes to the SPA.
+Firebase Functions are not part of current deployment. `server/` is a local
+Express Assistant proxy used by `npm run dev`/tests; `worker/` is production.
 
-## Project Overview
+## Bootstrap, navigation, and ownership
 
-### Technology
+`src/main.ts` initializes global error handling, loads scoped local state,
+hydrates market-data caches, renders navigation and auth UI, starts the auth
+session controller, configures timers and theme, and mounts the profile.
+`FeatureRegistry` maps `profile`, `dashboard`, `calculators`, `insurance`,
+`plan`, `esop`, and `assistant` to module lifecycle functions. URL paths and
+hashes select tabs; history/popstate restore navigation. The registry mounts
+the selected module and unmounts the previous module when it provides teardown.
+`FeatureContext` provides the shared mutable state, portfolio repository, and
+injected UI/calculation/widget/market-data ports.
 
-| Concern | Implementation |
+`AuthCoordinator` generations invalidate stale auth callbacks. `AuthSessionController`
+loads the UID-scoped local copy, initializes Firestore, loads and merges remote
+state, installs realtime listeners and a sync coordinator, then performs daily
+tasks. Guest mode explicitly selects the anonymous scope and disables cloud
+save. `PortfolioSession.teardown()` unsubscribes snapshots, pauses and attempts
+a five-second pending-write flush, disposes sync and market monitors, disables
+the storage scope, and resets live state. This prevents writes/callbacks from a
+previous identity being applied to the next one.
+
+## State and persistence contract
+
+`FireOSState` is defined in `src/types/state.ts`; persisted top-level fields are
+allowlisted by `PERSISTED_STATE_KEYS`. Major sections: `profile`; MF and SIP
+fund maps; FD, EPF, ESOP, bonds, custom assets, liabilities and demat; NAV/Nifty/
+FX caches; benchmark tracker; Coorg goal; fund watchdog inputs; SWP and tax
+calendar; expenses; net-worth history; completed actions and milestones;
+insurance; ESOP detail/vesting. `currentUser`, `_lastSavedAt`, and `_syncMetadata`
+are runtime-only. `isPersistedPortfolioData()` validates exact key shapes,
+types, finite numbers and selected limits; `normalizePersistedState()` fills
+omitted fields from defaults. `mergeState()` deep-merges known object sections,
+unions milestones, deduplicates history dates, and keeps metadata explicit.
+
+Storage keys are `fireOS_v2:anonymous` and `fireOS_v2:user:{uid}`; legacy
+`fireOS_v2` is copied to the anonymous scope on first read. `saveData()` refuses
+to write outside the selected identity scope, strips runtime fields and invalid
+payloads, saves locally, and records a portfolio undo snapshot. `persistPortfolioState()`
+saves local-first, emits `portfolioStateSaved`, and optionally queues cloud sync.
+Guests never queue a cloud write. Snapshot history backs Assistant undo.
+
+Authenticated synchronization uses an envelope (`schemaVersion`, `lastSavedAt`,
+client metadata, section clocks, persisted `data`) and merge helpers in
+`src/lib/merge.ts`. Writes are debounced (1s default), latest-pending-envelope
+based, paused on teardown, resumed on reconnect, and retried up to three times
+with exponential delay for transient failures. Firestore owns
+`users/{uid}/portfolio/state`; MF records are split into
+`users/{uid}/portfolio/state/holdings/{holdingId}`. Rules require owner UID and
+validate envelope/holding structure. Payload metrics warn above 750 KB against
+Firestore's 1 MiB document ceiling.
+
+## Data and calculation flows
+
+Market clients live in `src/modules/api/`. MFAPI NAV calls use a four-hour
+cache, in-flight deduplication, a 30s timeout and stale-cache fallback. Nifty
+uses Yahoo chart data through corsproxy.io (configured public proxy key), a
+one-hour cache, then manual entry. FX uses Yahoo Finance through corsproxy.io,
+validates ISO currency codes, and caches for 24h; same-currency conversion is
+identity. ESOP stock quotes are cached for 15 minutes in memory and
+localStorage, map `EPA:`, `NSE:`, `BSE:` symbols to Yahoo suffixes, then convert
+quote currencies to INR. Details and API contracts are in [backend](backend.md).
+
+Core formulas and their code locations:
+
+| Behavior | Formula/semantics | Source |
+| --- | --- | --- |
+| Net worth | Assets across categories minus nonnegative liabilities; SIP/MF = units × cached NAV | `src/modules/dashboard/kpis.ts` |
+| Portfolio composition | Each asset category / total assets; zero categories omitted | `src/modules/dashboard/kpis.ts` |
+| SIP P&L | Current value minus explicit cost basis or monthly contribution × elapsed months; XIRR approximates monthly cash outflows and current value | `src/modules/dashboard/kpis.ts`, `src/lib/calculations.ts` |
+| FI progress | Net worth / user-entered FI target; achieved => 0 years remaining, otherwise unknown | `src/modules/dashboard/kpis.ts` |
+| SIP future value | `P × (((1+r)^n − 1)/r)` with monthly rate; zero-rate fallback `P × n` | `src/lib/calculations.ts` |
+| XIRR | Newton-Raphson on dated discounted cash flows; null on invalid/no sign change/no convergence | `src/lib/calculations.ts` |
+| Allocation drift | Current bucket percentage minus target (40/30/20/10); recommend when absolute rounded drift >5 percentage points | `src/modules/calculators/portfolio-rebalancing.ts` |
+| FIRE-age scenario | Monthly compounding from annual CAGR, add SIP monthly, annual step-up default 10%, stop at goal or 1,000 months | `src/modules/calculators/scenario-modeler.ts` |
+| Coast FIRE | Required today = target / `(1+return)^years`; coast age solves compound growth without contributions | `src/modules/calculators/scenario-modeler.ts` |
+| LTCG harvest | Estimated long-term units from SIP months older than 12; gains allocated up to hard-coded ₹125,000 remaining yearly allowance | `src/modules/calculators/tax/ltcg-planner.ts` |
+| Emergency runway | Selected liquid assets / monthly expenses; UI floors to whole months | `src/modules/calculators/index.ts`, `src/lib/calculations.ts` |
+| SWP | Monthly amount redeemed by fixed fund order PPFCF, Growth, SmallCap, Gold; records expense and reduces units | `src/modules/calculators/swp-scheduler.ts` |
+| Insurance gap | Term target = max(annual income × 10, ₹1Cr); health target ₹20L for family ≤2 else ₹50L | `src/modules/plan/action-engine.ts`, `health-status.ts` |
+| Savings rate | (annual income − profile annualExpenses × 12) / annual income; red <15%, yellow <30% | `src/modules/plan/health-status.ts` |
+
+These are app calculation semantics, including simplifications and defaults;
+they do not imply external trade execution. SWP modifies simulated portfolio
+units only. The “tax-free” harvest allowance is hard-coded and not a tax-rule
+engine. Read [UI](ui.md) for tab-level logic and additional calculations.
+
+## User-facing feature map
+
+- **Profile** (`src/modules/profile/`): profile and portfolio data entry,
+  validation, JSON backup/import, CSV download, PDF/CAS parsing and save.
+- **Dashboard** (`src/modules/dashboard/`): net worth, SIP P&L, FI progress,
+  market drawdown, allocation visualization, cashflow/data trust panels, goals,
+  and conditional SWP/expense/advisor widgets.
+- **Planning Tools** (`src/modules/calculators/`): crash protocol, emergency
+  runway, SIP pause, LTCG tax planner, SWP scheduler.
+- **Insurance** (`src/modules/insurance/`): term, health and vehicle cover data.
+- **Plan** (`src/modules/plan/`): health score, action list, milestones,
+  cashflow and history-oriented planning.
+- **ESOP Tools** (`src/modules/esop/`): vesting, triggers and quoted valuation.
+- **Assistant** (`src/modules/assistant/`): consent-aware chat, proposal review,
+  reauthentication for sensitive changes, local audit and undo.
+- **Other shared UI** (`src/modules/ui/`): native dialog wrapper and toasts;
+  global responsive layout/theme tokens in `src/styles/`.
+
+All features persist the shared state; navigation does not imply a separate
+backend resource. See [UI reference](ui.md) for per-module behavior.
+
+## Assistant boundary
+
+The browser builds the summary in `src/lib/assistant/sanitize.ts`, explicitly
+transmits exact totals only with the request's `sendExact` choice, and POSTs to
+`/api/assistant/query`. The Worker and local Express validate message shape,
+apply prompt policy, rate limit, forward a system prompt and conversation to
+OpenRouter, extract a JSON proposal from model output, and return the reply.
+OpenRouter credentials remain server-side. Client proposals are allowlisted,
+merged into a candidate, validated against persisted-state validators, diffed,
+confirmed, optionally reauthenticated, then locally/cloud persisted. Full flow
+and boundaries are in [AI reference](ai.md).
+
+## Configuration and operational checks
+
+- Browser public config: `VITE_FIREBASE_*`, optional
+  `VITE_ASSISTANT_API_URL`, `VITE_CORSPROXY_API_KEY`; see `.env.example`.
+- Worker secret: `OPENROUTER_API_KEY`; routing/limits in `worker/wrangler.toml`.
+- Local proxy: root `.env` and `server/`; local default port 3001.
+- Hosting headers/CSP, app rewrites, auth domains and Firestore paths are in
+  `firebase.json` and `firestore.rules`.
+- Tests: `npm test`, `npm run test:server`, `npm run test:worker`,
+  `npm run test:rules`, `npm run test:rules:emulator`, `npm run test:e2e`.
+- Gates: `npm run lint`, `npm run build`; deployment: `npm run deploy:worker`
+  and Firebase Hosting/rules deploy (see `docs/README.md`).
+
+## Repository map
+
+| Path | Purpose |
 | --- | --- |
-| Application | TypeScript, Vite, browser DOM APIs |
-| UI model | Modular feature modules rendering into DOM containers; no component framework |
-| State | One mutable `FireOSState` instance exported as `appState` |
-| Authentication | Firebase Authentication with email/password and Google popup sign-in |
-| Cloud data | Cloud Firestore project `fire-os-dd6d6`, owner-scoped portfolio document |
-| Local data | UID-scoped `localStorage`, plus Firestore IndexedDB persistence |
-| Hosting | Firebase Hosting serving the Vite `dist` output |
-| Testing | Vitest, Firestore rules emulator tests, Playwright |
+| `src/main.ts`, `src/app/` | Bootstrap, feature routing, auth/session lifecycle |
+| `src/core/` | Feature context/ports and portfolio repository seam |
+| `src/lib/` | State persistence, auth coordination, data transforms, calculations and Assistant policy client |
+| `src/modules/` | Product UI, domain calculations and external API adapters |
+| `src/types/` | State, portfolio, API and Firebase contracts/validators |
+| `shared/` | Policy and OpenRouter model/error helpers shared with proxy runtimes |
+| `server/` | Local Express Assistant proxy and tests |
+| `worker/` | Production Cloudflare Assistant Worker |
+| `firestore.rules`, `firestore.indexes.json` | Cloud data boundary |
+| `scripts/`, `.github/workflows/` | Build/prerender, route checks, local development, CI/deploy |
+| `e2e/` | Playwright user journeys |
 
-### Main principles
+Update this reference when behavior or data contracts change; detailed
+implementation facts should be linked to source, not duplicated from memory.
 
-- Feature modules own their DOM and use shared state and ports rather than creating duplicate state.
-- User mutations pass through `persistPortfolioState()` so local writes, validation, and cloud enqueueing stay consistent.
-- Authentication generations prevent stale listeners and API callbacks from mutating a newer user session.
-- External data is treated as opportunistic. Fresh API data is preferred; unavailable market data requires manual confirmation rather than fabricating an index value.
-- Firebase client configuration contains public identifiers only. Owner authorization is enforced by Authentication and Firestore Rules.
+## End-to-end user workflows
 
-## Architecture
+### First visit and guest portfolio
 
-### Source structure
+`DOMContentLoaded -> initApp()` sets global error reporting, loads local storage
+in the currently active anonymous scope, overlays valid persisted values onto
+the singleton `appState`, hydrates caches, and builds shell DOM. Profile is
+mounted immediately. Firebase auth listener decides whether to enter guest or
+authenticated flow. With no account, guest mode restores the anonymous key,
+shows tabs, disables cloud save, and every regular profile save synchronously
+validates/writes local data only. Closing/reopening the browser keeps guest
+portfolio in localStorage; logout button in guest mode asks user to sign in and
+does not delete guest data.
 
-```text
-src/
-  main.ts                    Bootstrap, routing, auth lifecycle, module registration
-  app/
-    feature-registry.ts      Feature registration and mounting
-  core/
-    feature-context.ts       Shared state, repository, and ports context
-    feature-ports.ts         UI, calculations, widgets, and market-data adapters
-    persistence/             Portfolio repository boundary and tests
-  lib/
-    appState.ts              Singleton FireOSState instance
-    authCoordinator.ts       Auth generation and sign-out coordination
-    calculations.ts           Shared financial calculations
-    config.ts                Endpoints, limits, TTLs, goals, scheme codes
-    error-handler.ts         Global error handling
-    formatters.ts             Display formatting helpers
-    fundMatcher.ts            Fund lookup helpers
-    logger.ts                 Logging helpers
-    merge.ts                  Envelope and section-clock merging
-    persistence.test.ts       Persistence regression tests
-    storage.ts                Local storage and centralized persistence boundary
-    syncCoordinator.ts        Debounce, retry, offline queue, and cloud flush
-  modules/
-    auth/                     Firebase auth UI, validation, error mapping
-    api/                      NAV, Nifty, EUR/INR, Firestore, and monitoring
-    calculators/              Rebalancing, scenarios, SWP, and tax tools
-    dashboard/                KPIs, dashboard widgets, and Coorg tracker
-    esop/                     ESOP UI
-    insurance/                Insurance UI
-    integrations/             Advisor webhook integration
-    plan/                     Milestones, actions, cash flow, and net worth
-    profile/                  Portfolio profile and CAS PDF import
-    trackers/                 Expense tracking
-    ui/                       Modal, Toast, and shared UI helpers
-  styles/                     Tokens, layout, and global styles
-  types/                      State, portfolio, Firebase, and API contracts
+### Sign-in, data merge, and cloud write
 
-e2e/                          Playwright workflow tests
-docs/                         Architecture and API reference documents
-firestore.rules                Firestore access and data validation rules
-firebase.json                 Hosting, rules, indexes, and emulator configuration
-.github/workflows/deploy.yml   Continuous deployment workflow
-```
+Login/signup form validation -> Firebase Auth call -> auth-state callback ->
+UID storage scope -> local restore -> remote envelope fetch -> section timestamp
+merge -> apply shared `appState` -> local cache update -> Firestore listeners +
+sync coordinator -> refresh active UI. Each edit calls repository save, which
+validates and persists local data first, dispatches a dashboard refresh event,
+then queues cloud sync if authenticated. Explicit Profile cloud-save awaits the
+Firestore result. A remote listener repeats envelope merge and local apply
+without echoing remote data back to cloud. On sign-out/account switch, listeners
+stop, pending save receives bounded flush attempt, UID scope is disabled and
+memory reset before another identity loads.
 
-### Bootstrap and module boundaries
+### CAS import and portfolio valuation
 
-`src/main.ts` initializes global error handling, Firebase services, the API module, local state, the UI module, Profile, authentication listeners, tab navigation, background refresh, offline notifications, and theme handling. It also registers top-level features with `FeatureRegistry`:
+User selects a statement PDF -> PDF.js extracts positioned text -> parser
+detects investor details plus SOA/demat rows -> preview/confirm -> confirmation
+replaces existing SIP and demat collections with parsed rows -> user saves ->
+local persistence and optional cloud sync -> dashboard refresh loads NAVs ->
+KPI values are units × NAV. PDF import is a replacement for those collections,
+not an append/merge. See [UI reference](ui.md#cas-pdf-import-exact-flow).
 
-- Profile is mounted during startup.
-- Dashboard, Calculators, Insurance, Plan, and ESOP are initialized the first time their tab is mounted and rendered again on later activation.
-- API, Auth, and UI services are available across the application lifecycle.
+### Market cache and refresh
 
-`FeatureContext` exposes the shared state, portfolio repository, and `FeaturePorts`. Ports let modules call UI, calculation, widget, and market-data capabilities without directly depending on unrelated modules.
+On startup persisted NAV/Nifty/FX caches hydrate API module. Dashboard identifies
+missing/expired NAV for funded SIPs, renders loading state, and invokes the
+deduplicated NAV refresh port. NAV values are copied from API module cache back
+to app state. Background NAV refresh runs every NAV TTL while online and visible,
+iterates one fund at a time and UID-guards updates. Nifty monitor is separately
+started for authenticated session and performs immediate then five-minute
+checks, while Calculator and Assistant can also manually/on-demand fetch Nifty.
+FX/stock quotes are fetched when ESOP/FX features request valuations. API failure
+behavior is not uniform: NAV returns stale cache, generic FX may return stale
+cache, Nifty currently returns null after failed refresh, and stock quote does
+not return expired cache. See [backend API behavior](backend.md#external-service-contracts-and-refresh-triggers).
 
-A typical feature follows this shape:
+### Financial planning updates
 
-```typescript
-export function initFeatureModule(containerId: string, context: FeatureContext): void {
-  // Attach one-time event handlers and initial DOM behavior.
-}
+Profile fields and holdings drive Dashboard KPIs; Insurance thresholds use
+profile income and entered covers; Plan derives health/action rows from KPI,
+watchdog inputs and tax calendar; Calculator screens modify SWP/tax state or
+show assumptions; daily auth-session task appends net worth history, marks
+threshold milestones and may simulate an SWP for the month. No domain module
+places securities orders. The ESOP page fetches public quote/FX, computes value,
+shows deterministic tax/reinvestment scenarios and persists calculator
+inputs/triggers; it does not interact with an employer equity plan.
 
-export function renderFeature(container: HTMLElement, context: FeatureContext): void {
-  // Read context.state and render current values.
-}
-```
+### Assistant question and guarded write
 
-Modules may mutate validated portfolio fields and must persist through the central boundary. They communicate refresh needs through the established context and browser events such as `profileUpdated`.
+Chat latest transcript -> on-demand Nifty fetch -> summarized context -> proxy
+policy/limits -> OpenRouter response -> client displays response -> validates
+any allowlisted proposal -> consent check -> review diff -> optional provider
+reauth -> snapshot -> confirmed local save and optional cloud sync -> local
+audit row. User rejection or any validation/reauth failure leaves portfolio
+unchanged. See [AI reference](ai.md#full-request-trace-from-chat-event-to-model-result).
 
-## Runtime State and Lifecycle
+## Domain modules and contracts
 
-### `appState`
-
-`src/lib/appState.ts` exports one `FireOSState` instance created by `initializeState()` in `src/types/state.ts`. State is grouped into these areas:
-
-- Profile: name, date of birth, age, tax slab, expenses, FI target, and income.
-- Holdings: mutual funds/SIPs, FDs, EPF, ESOPs, bonds, other holdings, and demat holdings.
-- Market cache: NAV entries, Nifty data, EUR/INR data, and alpha tracker data.
-- Planning: SWP schedule, tax calendar, expenses, net-worth history, completed actions, and achieved milestones.
-- Insurance: term-life, health, and vehicle coverage.
-- Watchdog and ESOP details: fund-manager rules, vesting schedules, triggers, and valuations.
-- Runtime-only values: `currentUser`, `_lastSavedAt`, and `_syncMetadata`.
-
-Runtime-only values are cleared during session teardown and are never written as persisted portfolio data. Runtime guards validate finite numbers, timestamps, exact keys, bounded collections, and normalized defaults.
-
-### Authentication and session lifecycle
-
-`AuthCoordinator` assigns a monotonically increasing generation to authentication callbacks. `main.ts` owns resources associated with the current generation.
-
-```text
-Firebase auth callback
-  -> increment auth generation
-  -> stop previous Firestore listener and Nifty monitor
-  -> pause and bounded-flush previous SyncCoordinator
-  -> clear previous storage scope and reset appState
-  -> select anonymous or UID-scoped local storage
-  -> load and validate local data
-  -> load and merge Firestore envelope for authenticated users
-  -> start listener, sync coordinator, and market monitoring
-  -> render current feature state
-```
-
-When signing out or switching accounts, teardown is idempotent. Pending cloud work gets a bounded flush attempt, listeners and monitors are disposed, the active envelope is cleared, and state is reset. A new account can only load its own `fireOS_v2:user:{uid}` scope. Stale snapshots, timers, and callbacks are rejected when their generation or UID no longer matches the active session.
-
-## Persistence and Firestore
-
-### Local persistence
-
-`src/lib/storage.ts` selects one active local scope:
-
-| Session | Storage key | Cloud writes |
-| --- | --- | --- |
-| Guest | `fireOS_v2:anonymous` | Never |
-| Authenticated | `fireOS_v2:user:{uid}` | Enqueued through `SyncCoordinator` |
-| Legacy migration source | `fireOS_v2` | Read only into anonymous scope |
-
-`loadData()` parses and validates stored data, rejects malformed or runtime-contaminated values, and fills omitted sections from `initializeState()`. `persistPortfolioState(state)` validates and writes local state synchronously, then optionally queues a Firestore envelope. Use `{ sync: false }` when applying remote data or making a local-only change, and `{ awaitCloud: true }` when a caller needs an explicit cloud-save result.
-
-### Sync coordination
-
-`SyncCoordinator` keeps local success independent from cloud availability. Its defaults are:
-
-| Setting | Default |
-| --- | ---: |
-| Debounce before write | 1 second |
-| Maximum retries | 3 retries after the first attempt |
-| Retry base delay | 500 ms with exponential backoff |
-| Offline behavior | Keep pending envelope and retry on `online` |
-| Status values | `idle`, `pending`, `offline`, `syncing`, `error` |
-
-Retryable Firebase/network errors are retried. Authentication teardown pauses the coordinator, attempts a bounded flush, then disposes it so an old account cannot write into a new session.
-
-### Firestore data model
-
-The canonical owner document is:
-
-```text
-/users/{uid}/portfolio/state
-```
-
-It contains a validated `PortfolioEnvelope`, currently written in the `fireOS_v4` representation. The envelope includes schema/version metadata, `lastSavedAt`, persisted data, optional client and server metadata, section clocks, migration/format metadata, and entry timestamps.
-
-Mutual-fund entries are represented as a client-facing map in memory but are split into individually validated documents for cloud storage:
-
-```text
-/users/{uid}/portfolio/state/holdings/{holdingId}
-```
-
-A holding document has this shape:
-
-```json
-{
-  "kind": "mf",
-  "value": {
-    "name": "Example Fund",
-    "schemeCode": "122639",
-    "units": 10,
-    "startDate": "2024-01-01",
-    "monthlyAmount": 10000
-  },
-  "updatedAt": "2026-10-02T00:00:00.000Z"
-}
-```
-
-`src/modules/api/firestore.ts` writes the state envelope and holding documents in a batch, removes the inline mutual-fund map from the writable envelope, and rehydrates the map when loading or receiving snapshots. `src/lib/merge.ts` merges portfolio sections by their latest section timestamp and merges individual holdings by entry timestamp, with client/write identifiers used as deterministic tie-breakers.
-
-### Portfolio data flow
-
-```text
-User input
-  -> module validation and appState mutation
-  -> persistPortfolioState(state)
-  -> validated localStorage write
-  -> debounced SyncCoordinator enqueue
-  -> Firestore state envelope + holding subdocuments
-  -> realtime snapshot
-  -> envelope and section-clock merge
-  -> apply validated data to appState
-  -> feature refresh or profileUpdated event
-```
-
-Remote data follows the same validation boundary before it can mutate the current session. Firestore Rules separately enforce authenticated owner access, bounded structures, exact supported keys, validated envelopes, valid holding documents, and state deletion denial.
-
-## Calculations and Tools
-
-| Tool or capability | Ownership | Purpose |
-| --- | --- | --- |
-| Portfolio rebalancing | `src/modules/calculators/portfolio-rebalancing.ts` | Compare current allocation with configured targets and show required trades. |
-| Crash Protocol | Calculators and dashboard | Model 10%, 15%, and 25% Nifty drawdowns and suggested bond deployment. |
-| Scenario Modeler | `src/modules/calculators/scenario-modeler.ts` | Model long-term corpus outcomes under return assumptions and adverse scenarios. |
-| SWP Scheduler | `src/modules/calculators/swp-scheduler.ts` | Project monthly withdrawals and execute scheduled monthly withdrawal actions. |
-| Tax tools | `src/modules/calculators/tax/ltcg-planner.ts` | Estimate LTCG and track tax-harvesting targets and dates. |
-| Dashboard KPIs | `src/modules/dashboard/kpis.ts` | Calculate net worth, FI progress, SIP status, P&L/XIRR, float, and composition. |
-| SIP and XIRR tools | `src/lib/calculations.ts` and calculators | Compare invested amounts, current values, cash flows, and return metrics. |
-| Emergency runway | Calculators | Estimate months of expenses covered by liquid assets. |
-| Insurance requirement | Calculators and Insurance | Estimate required cover from income and lifestyle gaps. |
-| SIP pause and step-up SIP | Calculators | Show missed-contribution impact and annual contribution increases. |
-| Dual goal and home corpus | Calculators and Coorg tracker | Track FI corpus and home/down-payment goals. |
-| FD interest and maturity | Calculators | Track fixed-deposit rates, tenors, interest, and maturity dates. |
-| ESOP valuation | `src/modules/esop` | Model vesting, grant/current value, liquidation shares, triggers, and currency conversion. |
-| Insurance tracking | `src/modules/insurance` | Store term-life, health, vehicle coverage, premiums, providers, and dates. |
-| Expense tracker | `src/modules/trackers/expense-tracker.ts` | Record and review expense-related planning data. |
-| Fund-manager watchdog | `src/modules/watchdog/fund-manager-alerts.ts` | Apply AUM, manager-exit, and blocked-day rules to fund alerts. |
-| Alpha tracker | Dashboard and API cache | Compare fund performance against configured benchmarks. |
-| Planning tools | `src/modules/plan` | Manage milestones, actions, cash-flow summaries, plain-English guidance, and net-worth history. |
-| Advisor integration | `src/modules/integrations/advisor-webhook.ts` | Expose the advisor webhook integration widget/action. |
-
-## APIs and Resilience
-
-### API summary
-
-| Service | Source/module | Freshness and timeout | Fallback |
+| Domain | State inputs | Outputs/effects | Source of behavior |
 | --- | --- | --- | --- |
-| Mutual-fund NAV | `api.mfapi.in/mf/{schemeCode}` via `src/modules/api/mfapi.ts` | 4-hour cache; 30-second abort timeout; in-flight request deduplication | Stale cached NAV, then `null` and manual entry UI |
-| Nifty 50 | Yahoo Finance Chart API through authenticated CorsProxy via `src/modules/api/nifty.ts` | 1-hour cache; 8-second proxy request timeout | Manual entry when live data is unavailable |
-| EUR/INR | Yahoo Finance `EURINR=X` Chart API through `corsproxy.io` via `src/modules/api/eurInr.ts` | 24-hour cache; 10-second abort timeout; rate range 80-150 | Stale cached rate, then manual EUR/INR modal |
-| Portfolio sync | Firebase Cloud Firestore project `fire-os-dd6d6` via `src/modules/api/firestore.ts` | Debounced and retried by `SyncCoordinator` | Local state remains available; pending write waits for reconnect |
+| Auth/profile | Profile fields and identity | Shared `appState`, scoped persistence | `src/modules/auth/`, `src/modules/profile/` |
+| Market data | Scheme code/currency/ticker | Cache entries with timestamp, source/status | `src/modules/api/` |
+| Dashboard KPIs | All assets, liabilities, caches, profile | Net worth, P&L/XIRR, composition, drawdown | `src/modules/dashboard/kpis.ts` |
+| Crash/watchdog | Nifty high/current; manually-entered fund rules | Severity alert and recommendation strings | `nifty-monitor.ts`, `fund-manager-alerts.ts` |
+| Tax | SIP units, investment basis, NAV, tax calendar | Harvest estimates, 80C progress display | `calculators/tax/` |
+| Retirement | Net worth, FI goal, SIP, assumptions | Simulated FI age/coast status, runway | `calculators/`, `lib/calculations.ts` |
+| Plan | State + watchdog/insurance/tax rules | Health band, actions, milestones/history | `modules/plan/` |
+| ESOP | Quote holdings + currency + exercise inputs | INR quote value, tax estimate, allocation proposal | `modules/esop/`, `api/esop.ts` |
+| Expense tracking | Dated expenses and SWP settings | Mean expense amount per record vs fixed target | `trackers/expense-tracker.ts` |
+| Advisor integration | User email, corpus and allocation | External review request URL | `integrations/advisor-webhook.ts` |
+| AI guide | Sanitized context and conversation | Reply and optional user-confirmed state proposal | [AI reference](ai.md) |
 
-Public APIs and proxies can impose their own rate limits and availability policies. The application does not treat a cached or approximate value as proof of freshness; it uses those values to preserve continuity and gives the user a manual route when automation cannot produce a trustworthy value.
+## Important state and terminology notes
 
-### Mutual-fund NAV
+- All monetary amounts are plain JavaScript numbers and app UI generally treats
+  them as INR; there is no decimal/money type or server-side financial ledger.
+- `profile.annualExpenses` is labeled monthly on Profile, then annualized by
+  several Plan functions; Emergency Runway uses the raw value as monthly. Use
+  source-level semantics and do not silently normalize this field.
+- `mf` and `sip` are separate `SIPFund` maps and are both valued in KPIs. Avoid
+  duplicating the same underlying holding in both or it will count twice.
+- Some cache data is part of portfolio persisted state, so state documents may
+  include price snapshots. External providers remain source of refresh data.
+- `state.esop` is a generic amount map included in net worth; `esopDetails`
+  stores quote positions and exercise/vesting scenario inputs. The profile
+  quote refresh may write computed market value into `state.esop.esop`.
+- `swpSchedule.rate` and `taxCalendar.harvestTarget` are persisted but current
+  SWP execution and LTCG planner use independent fixed behavior described in
+  [UI](ui.md).
+- `watchdogRules` hold user-entered observations; source code does not crawl
+  manager changes, fund AUM, blocked days or market feeds to populate them.
 
-`fetchNAV(schemeCode)` checks the in-memory cache, deduplicates concurrent requests for the same scheme, requests the latest entry from `https://api.mfapi.in/mf/{schemeCode}`, validates the response and numeric NAV, and caches successful results. It returns an expired cache entry after network errors, invalid responses, HTTP failures, or timeouts. If no cache exists, callers can show the manual NAV entry modal.
+## Build, route and test paths
 
-### Nifty monitoring
+Vite builds `src/index.html`/`src/main.ts` and TypeScript typecheck runs first.
+Postbuild invokes prerender route metadata. `scripts/routes.mjs` defines route
+title, description, heading and static details; prerender output under `dist/`
+is verified by `test:metadata`. Firebase Hosting still rewrites routes to SPA
+index. `scripts/verify-http.mjs` checks deployed response headers and
+`scripts/smoke-routes.mjs` checks route availability. Playwright tests cover
+guest navigation, portfolio profile flows and assistant request flow. See
+`package.json` and `.github/workflows/` for exact command composition.
 
-`fetchNifty()` first returns a fresh cached value. Otherwise it tries Yahoo Finance Chart API data for `%5ENSEI` through two proxy options:
-
-1. `https://corsproxy.io/?key=...&url=...`
-2. `https://corsproxy.io/?key=...&url=...` when `VITE_CORSPROXY_API_KEY` exists
-
-If both proxy paths fail, the module fetches scheme `135106` as a Gold ETF proxy, estimates the index level and 52-week high, and marks the source as an approximation. It then returns an expired cache when available. The current implementation finally supplies dated default values with a manual-entry recommendation, so the UI may still render rather than receiving `null`.
-
-`monitorNiftyLevel()` periodically refreshes market data and crash indicators. Its cleanup and generation checks prevent stale monitor work from changing a newer session.
-
-### EUR/INR
-
-`fetchEURINR()` calls `convertCurrency(1, 'EUR', 'INR')`. The request uses Yahoo Finance Chart API symbol `EURINR=X` through `corsproxy.io`; the proxy key is read from `VITE_CORSPROXY_API_KEY`. Results outside the configured 80-150 sanity range are rejected. A valid result is cached for 24 hours, while failed or unavailable requests use the cached value even when expired. The manual modal accepts a rate only within the same range.
-
-The generic `convertCurrency(amount, sourceCurrency, desiredCurrency)` path validates finite amounts and three-letter currency codes, returns same-currency values without a request, and returns `null` when proxy configuration, response data, or rate validation fails.
-
-### Error and cache behavior
-
-| Failure | Behavior | User experience |
-| --- | --- | --- |
-| Network or proxy unavailable | Log warning/error and use stale cache where available | Existing value remains visible; refresh may be retried later |
-| Request timeout | Abort request and use fallback | Toast or module error handling explains refresh failure |
-| HTTP error/rate limit | Reject response and continue fallback chain | Cached/approximate/manual value is used |
-| Invalid provider payload | Validate shape and numbers before caching | Invalid data never becomes the active cache |
-| No NAV cache | Return `null` | Manual NAV modal can collect a value |
-| No EUR/INR cache | Return `null` | Manual EUR/INR modal can collect a value |
-| No reliable Nifty source | Use default values or manual entry recommendation | User can override current level and 52-week high |
-| Firestore unavailable/offline | Keep local state and pending envelope | Sync status becomes offline/pending and retries on reconnect |
-
-Cache values are initialized from persisted state when possible. External cache entries are held in memory and mirrored into the persisted portfolio cache by the API/storage integration.
-
-## Screens and Data Links
-
-| Screen or supporting module | Main state and behavior | External dependencies |
-| --- | --- | --- |
-| Dashboard | Reads holdings, profile, market cache, planning data, and calculates KPIs and crash status. | NAV, Nifty, planning helpers, Chart.js/CDN assets where configured. |
-| Profile | Edits profile and holdings, validates input, exports/imports data, and imports CAS PDFs. | PDF.js CDN for CAS parsing; persistence and Firestore migration. |
-| Calculators | Reads portfolio/profile assumptions and writes planning results such as SWP and tax calendar. | Calculation ports; Nifty values for crash scenarios. |
-| Plan | Renders milestones, actions, cash flow, plain-English guidance, and net-worth history. | Portfolio state and calculation ports. |
-| Insurance | Reads and writes term-life, health, and vehicle coverage records. | Central persistence only. |
-| ESOP Tools | Reads ESOP details, vesting data, triggers, and holdings; refreshes currency and quote data. | EUR/INR API, configured market quote integrations, persistence. |
-| Watchdog | Evaluates fund-manager exits, AUM limits, and blocked-day thresholds. | Portfolio data and persisted watchdog rules. |
-| Trackers | Records expenses and cooling-off or review workflow data. | Central persistence and Toast/Modal UI. |
-| Integrations | Hosts advisor webhook behavior and related widgets. | Feature ports and configured integration endpoint. |
-| UI primitives | Provides `Modal` and `Toast` for confirmations, manual inputs, errors, and status. | Browser DOM and global styles. |
-| Auth | Renders sign-in, sign-up, Google popup, password reset, and neutral error messages. | Firebase Authentication. |
-| API module | Initializes caches, Firestore, Nifty monitoring, and market-data adapters. | Firebase, external APIs, local persisted cache. |
-
-Modules read through `FeatureContext` and `FeaturePorts` where an adapter exists. A module that changes persisted data should validate the input, mutate the appropriate `appState` section, call `persistPortfolioState`, and request the narrowest relevant UI refresh.
-
-## Screens and UI Behavior
-
-### Dashboard
-
-The Dashboard renders net worth, FI progress, SIP status, per-fund invested/current/P&L/XIRR rows, portfolio composition, cash-flow summaries, Coorg progress, and market float/crash indicators. KPI calculations live in `src/modules/dashboard/kpis.ts`. Nifty monitoring can update crash alerts and market-derived widgets without replacing the user portfolio state.
-
-### Profile and CAS import
-
-Profile renders editable personal assumptions and supported holdings. The CAS PDF flow is:
-
-```text
-Upload NSDL/CDSL CAS PDF
-  -> PDF.js text extraction
-  -> fund, unit, date, and demat candidate parsing
-  -> confirmation modal
-  -> user confirms
-  -> validated profile/holding update
-  -> local persistence and optional cloud sync
-```
-
-Profile data-management actions also support JSON export/import and authenticated local-to-cloud migration choices.
-
-### Planning
-
-The Plan screen combines milestones, completed actions, net-worth history, cash-flow summaries, and plain-English explanations. Net-worth history is persisted so the UI can show progress across sessions. Milestones can be checked after relevant portfolio changes.
-
-### ESOP Tools
-
-ESOP tools calculate grant/current value, vesting, liquidation scenarios, and trigger-based planning. EUR-denominated values can call `fetchEURINR()` automatically. If the rate cannot be fetched or is outside the sanity range, the user can enter a validated rate in the manual EUR/INR modal.
-
-### Nifty and manual market entries
-
-Nifty monitoring prefers live Yahoo data, then a Gold ETF approximation, cached data, and finally defaults/manual entry. NAV and EUR/INR have their own manual entry paths. Manual values are validated before being cached so a failed provider cannot replace a valid value with malformed data.
-
-### Toasts, modals, and errors
-
-`Toast` provides short-lived status and error feedback. `Modal` supports confirmation and manual-entry workflows, including CAS confirmation and market-data overrides. Global error handling catches unhandled errors and reports a recoverable message rather than silently failing the entire application. Module initialization failures render a local error message when possible.
-
-## Testing
-
-| Layer | Command/file | Coverage |
-| --- | --- | --- |
-| Focused Vitest | `npm test` | Persistence, auth coordination/session lifecycle, ESOP API behavior, Nifty monitor staleness, and Firebase auth error mapping. |
-| API unit tests | `src/modules/api/*.test.ts` | NAV, Nifty, EUR/INR, ESOP, and monitor behavior. |
-| Persistence/auth unit tests | `src/lib/*.test.ts` | Malformed local data, UID scopes, local-first behavior, cloud failures, auth generations, and teardown. |
-| Firestore rules | `npm run test:rules` | Owner access, cross-user denial, state deletion denial, envelope bounds, and holding validation. |
-| Firestore emulator | `npm run test:rules:emulator` | Starts the Firestore emulator and executes the rules tests. |
-| Browser workflows | `npm run test:e2e` and `e2e/portfolio.spec.ts` | Guest tab access and configured authenticated portfolio workflows. |
-| Static quality | `npm run build`, `npm run lint` | Strict TypeScript check, Vite production build, and ESLint. |
-
-Authenticated Playwright scenarios require the expected `E2E_EMAIL` and `E2E_PASSWORD` environment values. The rules suite requires the Firebase emulator and its Java runtime.
-
-## Deployment
-
-### Firebase resources
-
-- Project: `fire-os-dd6d6`
-- Hosting output: `dist`
-- Hosting mode: SPA rewrite from all routes to `/index.html`
-- Firestore rules: `firestore.rules`
-- Firestore indexes: `firestore.indexes.json` (currently no composite indexes)
-- Firestore emulator: port `8082`
-- Supported Firebase services: Authentication, Firestore, IndexedDB persistence, and Hosting
-- Intentionally out of scope: Firebase Functions, App Hosting, Cloud Run, and other Blaze-only backend services
-
-### Local build and deploy
-
-```bash
-npm ci
-npm run build
-npm run test:rules:emulator
-npx --no-install firebase-tools login
-npx --no-install firebase-tools use fire-os-dd6d6
-npx --no-install firebase-tools deploy \
-  --only hosting,firestore:rules,firestore:indexes \
-  --project fire-os-dd6d6
-```
-
-The project pins `firebase-tools` in `package.json`. Frontend Firebase values and the CORS proxy key are supplied through `VITE_*` environment variables at build time. Firebase web API keys are public identifiers; service-account files, private credentials, and deployment tokens must never enter source or `dist`.
-
-### CI/CD
-
-`.github/workflows/deploy.yml` runs on pushes to `main` and manual dispatch:
-
-1. Checkout source.
-2. Set up Node 22 and Java 21.
-3. Run `npm ci`.
-4. Build with Firebase and CORS proxy environment values.
-5. Run Firestore emulator rules tests.
-6. Deploy Hosting, rules, and indexes to `fire-os-dd6d6` using the `FIREBASE_TOKEN` secret.
-
-### npm scripts
-
-| Script | Purpose |
-| --- | --- |
-| `npm run dev` | Start the Vite development server. |
-| `npm run build` | Run `tsc --noEmit`, build Vite output, then prerender routes through `postbuild`. |
-| `npm run postbuild` | Run `scripts/prerender-routes.mjs` after a build. |
-| `npm run preview` | Preview the production build locally. |
-| `npm run lint` | Run ESLint. |
-| `npm run format` | Format repository files with Prettier. |
-| `npm run format:check` | Check formatting without writing. |
-| `npm test` | Run the focused Vitest regression set. |
-| `npm run test:watch` | Run Vitest interactively. |
-| `npm run test:rules` | Run Firestore rules tests against an available emulator. |
-| `npm run test:rules:emulator` | Start the Firestore emulator and run rules tests. |
-| `npm run test:e2e` | Run Playwright workflows. |
-
-## Security Residuals
-
-The current owner-scoped access model and major identified authorization issues are covered by rules and tests. Remaining deliberate residuals are:
-
-- Financial data is plaintext in browser storage. A same-origin XSS or compromised executable CDN asset could read it.
-- Some third-party scripts are loaded from CDN without documented pinning, and Hosting does not currently document a CSP/security-header policy.
-- Several dynamic maps are bounded by Firestore Rules but not individually validated there; client-side rehydration validation remains stricter.
-- Firestore numeric/timestamp predicates and legacy `isStoredMfEntry()` checks are looser than the client finite-number, parseable-date, and bounded-string contract for seeded or legacy data.
-
-These are hardening items, not reasons to bypass the current persistence boundary. Do not place secrets in frontend configuration, and keep owner authorization in Firestore Rules rather than relying on UI visibility.
-
-## Extension Checklist
-
-When adding a persisted feature:
-
-1. Add its type and default to `src/types/state.ts`.
-2. Update persisted-data guards and normalization.
-3. Update `PortfolioData`, envelope validation, and Firestore Rules when the field crosses the cloud boundary.
-4. Route all mutations through `persistPortfolioState()`.
-5. Add focused unit tests and emulator coverage for direct Firestore writes.
-6. Update this document when ownership boundaries, persistence contracts, deployment surfaces, or test topology change.
-
-## See Also
-
-- [API.md](API.md) - external API contracts, caching, errors, and fallbacks
-- [ARCHITECTURE.md](ARCHITECTURE.md) - detailed architecture, lifecycle, persistence, and security notes
-- [QUICKSTART.md](QUICKSTART.md) - setup, Firebase configuration, and common developer commands
-- [README.md](README.md) - product overview, feature list, Firebase setup, and user workflows
+For implementation detail by ownership boundary, use [backend](backend.md),
+[UI](ui.md), and [AI](ai.md). These references report source behavior, including
+approximation, hard-coded defaults, and present differences between labels and
+calculation inputs; they are not a substitute for the code when exact behavior
+changes.

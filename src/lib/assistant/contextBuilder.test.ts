@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildAssistantContext } from './contextBuilder';
+import { buildContextSummary } from './sanitize';
 import { initializeState } from '../../types/state';
 
-describe('buildAssistantContext', () => {
+describe('assistant context summary', () => {
   it('returns a sanitized summary and sendExact flag', () => {
     const state = initializeState();
-    const { contextSummary, sendExactFlag } = buildAssistantContext(state, false);
+    const contextSummary = buildContextSummary(state, false);
 
-    expect(sendExactFlag).toBe(false);
     expect(contextSummary.sendExact).toBe(false);
     expect(contextSummary.userLabel).toBe('User');
     expect(contextSummary.ageBand).toBeTruthy();
@@ -20,14 +19,14 @@ describe('buildAssistantContext', () => {
     state.profile.name = 'Confidential Name';
     state.profile.fiTarget = 12000000;
 
-    const denied = buildAssistantContext(state, false);
-    expect(denied.sendExactFlag).toBe(false);
-    expect(denied.contextSummary.exact).toBeUndefined();
-    expect(JSON.stringify(denied.contextSummary)).not.toContain('Confidential Name');
+    const denied = buildContextSummary(state, false);
+    expect(denied.sendExact).toBe(false);
+    expect(denied.exact).toBeUndefined();
+    expect(JSON.stringify(denied)).not.toContain('Confidential Name');
 
-    const allowed = buildAssistantContext(state, true);
-    expect(allowed.sendExactFlag).toBe(true);
-    expect(allowed.contextSummary.exact?.fiTarget).toBe(12000000);
-    expect(JSON.stringify(allowed.contextSummary)).not.toContain('Confidential Name');
+    const allowed = buildContextSummary(state, true);
+    expect(allowed.sendExact).toBe(true);
+    expect(allowed.exact?.fiTarget).toBe(12000000);
+    expect(JSON.stringify(allowed)).not.toContain('Confidential Name');
   });
 });

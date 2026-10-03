@@ -11,6 +11,7 @@ import { getFundSchemeCode } from '../../lib/fundMatcher';
 import { calculateAgeFromDateOfBirth } from '../../types/portfolio';
 import { undoLastSavedPortfolioChange } from '../../lib/storage';
 import { profileCompletenessPercent as calculateProfileCompleteness } from '../../lib/completeness';
+import { buildPortfolioCsv } from '../../lib/portfolioCsv';
 import type { EsopHolding } from '../../types/state';
 import './styles.css';
 
@@ -122,13 +123,14 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
         <div class="data-actions" style="display: flex; gap: 1rem; align-items: center; margin-top: 0.5rem;">
           <button id="import-pdf-btn" class="btn-primary">📄 Import CAS PDF</button>
           <button id="export-backup-btn" class="btn-secondary">Download Backup</button>
+          <button id="export-csv-btn" class="btn-secondary" type="button">Export CSV</button>
           <button id="undo-change-btn" class="btn-secondary" type="button">Undo Last Change</button>
           <button id="delete-cloud-btn" class="btn-danger" type="button">Delete Cloud Data</button>
           <button id="save-cloud-btn" class="btn-primary">☁ Save to Firestore</button>
           <span class="save-cloud-hint" style="display: none; color: var(--text-secondary); font-size: 0.875rem;">Log in to sync to Firestore</span>
         </div>
         <p id="backup-reminder" class="form-hint"></p>
-        <p class="privacy-notice"><strong>Privacy:</strong> portfolio data stays in this browser unless you sign in and choose cloud sync. Backups download as a local JSON file; no identifiers are included in the backup.</p>
+        <p class="privacy-notice"><strong>Privacy:</strong> portfolio data stays in this browser unless you sign in and choose cloud sync. JSON backups and CSV exports download locally and include financial details; store them securely.</p>
         <p class="completeness-status">Profile completeness: ${calculateProfileCompleteness(D)}%</p>
         <input type="file" id="pdf-input" accept=".pdf" style="display: none;">
       </div>
@@ -621,6 +623,15 @@ function attachProfileHandlers(context: FeatureContext) {
     const exportedAt = new Date().toISOString();
     localStorage.setItem('fire-os:last-exported-at', exportedAt);
     if (backupReminder) backupReminder.textContent = `Last backup: ${new Date(exportedAt).toLocaleString()}`;
+  });
+  document.getElementById('export-csv-btn')?.addEventListener('click', () => {
+    const blob = new Blob([buildPortfolioCsv(D)], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `fire-os-portfolio-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   });
   document.getElementById('undo-change-btn')?.addEventListener('click', async () => {
     if (!undoLastSavedPortfolioChange(D)) return;

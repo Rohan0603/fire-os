@@ -5,20 +5,52 @@
 
 /* ========== MODAL STYLES ========== */
 
-@keyframes modalSlideIn {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+.modal-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(500px, 90vw);
+  max-height: 80vh;
+  margin: auto;
+  padding: 2rem;
+  overflow-y: auto;
+  color: #d0d0d0;
+  background: #242424;
+  border: 1px solid #3a3a3a;
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgb(0 0 0 / 50%);
 }
 
-.modal {
-  position: relative;
-  animation: modalSlideIn 300ms ease;
+.modal-dialog::backdrop {
+  background: rgb(0 0 0 / 60%);
+}
+
+.modal-content { position: relative; }
+.modal-title { margin: 0 0 1.5rem; color: #fff; font-size: 1.5rem; }
+.modal-body { margin-bottom: 2rem; font-size: 0.95rem; line-height: 1.6; }
+.modal-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 1rem; }
+.modal-button {
+  padding: 0.75rem 1.5rem;
+  color: #fff;
+  background: #333;
+  border: 1px solid #3a3a3a;
+  border-radius: 8px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.modal-button-primary { color: #1a1a1a; background: #ffd700; }
+.modal-button:hover { filter: brightness(1.12); }
+.modal-close {
+  position: absolute;
+  top: -1rem;
+  right: -1rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  color: #a0a0a0;
+  background: none;
+  border: 0;
+  font-size: 1.5rem;
+  cursor: pointer;
 }
 
 /* ========== CARD STYLES ========== */
@@ -203,10 +235,7 @@ button[class*='btn-'] {
     padding: 1.25rem;
   }
 
-  .modal {
-    width: 90vw;
-    max-height: 80vh;
-  }
+  .modal-dialog { width: 90vw; }
 }
 
 /* ========== ACCESSIBILITY ========== */

@@ -75,7 +75,18 @@ export interface FeaturePorts {
   marketData: FeatureMarketDataPort;
 }
 
-export async function refreshPortfolioNAVs(state: FireOSState): Promise<void> {
+const navRefreshes = new WeakMap<FireOSState, Promise<void>>();
+
+export function refreshPortfolioNAVs(state: FireOSState): Promise<void> {
+  const activeRefresh = navRefreshes.get(state);
+  if (activeRefresh) return activeRefresh;
+
+  const refresh = refreshPortfolioNAVsNow(state).finally(() => navRefreshes.delete(state));
+  navRefreshes.set(state, refresh);
+  return refresh;
+}
+
+async function refreshPortfolioNAVsNow(state: FireOSState): Promise<void> {
   const sipsToFetch = Object.entries(state.sip).filter(([, fund]) => fund.units && fund.units > 0);
 
   for (const [key, fund] of sipsToFetch) {

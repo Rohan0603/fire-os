@@ -135,7 +135,9 @@ test('destructive proposals require a typed confirmation for guests', async ({ p
   );
 
   await page.locator('.btn-confirm').click();
-  await expect(page.locator('.modal h2')).toContainText('Confirm destructive change');
+  await expect(page.getByRole('dialog').getByRole('heading')).toContainText(
+    'Confirm destructive change',
+  );
 
   // Wrong phrase keeps the proposal but logs the attempt
   await page.locator('#reauth-phrase').fill('nope');

@@ -2,22 +2,9 @@
 
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { routes } from './routes.mjs';
 
 const distDirectory = path.resolve('dist');
-const routes = [
-  {
-    route: '',
-    title: 'FIRE OS — Financial Independence Dashboard',
-    heading: 'FIRE OS Financial Independence Dashboard',
-  },
-  { route: 'profile', title: 'Profile | FIRE OS', heading: 'Portfolio Profile' },
-  { route: 'dashboard', title: 'Dashboard | FIRE OS', heading: 'Financial Independence Dashboard' },
-  { route: 'calculators', title: 'Calculators | FIRE OS', heading: 'Financial Calculators' },
-  { route: 'insurance', title: 'Insurance | FIRE OS', heading: 'Insurance Planner' },
-  { route: 'plan', title: 'Plan | FIRE OS', heading: 'FIRE Plan' },
-  { route: 'esop', title: 'ESOP Tools | FIRE OS', heading: 'ESOP Tools' },
-  { route: 'assistant', title: 'Assistant | FIRE OS', heading: 'FIRE OS Assistant' },
-];
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 

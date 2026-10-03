@@ -3,14 +3,17 @@ import process from 'node:process';
 
 const npmCommand = process.platform === 'win32' ? process.env.ComSpec || 'cmd.exe' : 'npm';
 
-function npmArgs(script) {
+function npmArgs(script, args = []) {
+  const forwardedArgs = args.length > 0 ? ` -- ${args.join(' ')}` : '';
   return process.platform === 'win32'
-    ? ['/d', '/s', '/c', `npm.cmd run ${script}`]
-    : ['run', script];
+    ? ['/d', '/s', '/c', `npm.cmd run ${script}${forwardedArgs}`]
+    : ['run', script, ...(args.length > 0 ? ['--', ...args] : [])];
 }
 
+const uiArgs = process.argv.slice(2);
+
 const children = [
-  spawn(npmCommand, npmArgs('dev:ui'), {
+  spawn(npmCommand, npmArgs('dev:ui', uiArgs), {
     stdio: 'inherit',
   }),
   spawn(npmCommand, npmArgs('dev:server'), {

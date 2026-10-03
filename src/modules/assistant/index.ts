@@ -11,7 +11,6 @@ import {
   appendAssistantAction,
   applyAssistantProposal,
   applyValidatedProposal,
-  buildAssistantContext,
   classifyProposal,
   consentScope,
   defaultConsent,
@@ -25,6 +24,7 @@ import {
   type ConsentState,
   type ProposalDiffEntry,
 } from '../../lib/assistant';
+import { buildContextSummary } from '../../lib/assistant/sanitize';
 import {
   getPortfolioStorageKey,
   persistPortfolioState,
@@ -70,6 +70,7 @@ export function initAssistantModule(container: HTMLElement, context: FeatureCont
   container.innerHTML = buildAssistantHTML();
   wireListeners(container);
   refreshAuditSection();
+  updateMarketFreshness(context.state);
 }
 
 /**
@@ -93,6 +94,7 @@ export function renderAssistant(context?: FeatureContext): void {
   });
 
   refreshAuditSection();
+  updateMarketFreshness(activeContext.state);
 }
 
 function buildAssistantHTML(): string {
@@ -121,6 +123,7 @@ function buildAssistantHTML(): string {
             consent.allowWrites ? 'Writes need confirmation' : 'Read-only'
           }</span>
         </div>
+        <p id="assistant-data-freshness" class="assistant-data-freshness" aria-live="polite"></p>
         <div class="assistant-starters">
           <button type="button" data-assistant-starter="What is my current net worth breakdown?">Net worth breakdown</button>
           <button type="button" data-assistant-starter="What is the single most important next step for my FIRE plan?">Next best step</button>
@@ -200,10 +203,8 @@ async function handleDeepChatRequest(
       // Market data is optional; continue with the last cached value if available.
     }
 
-    const { contextSummary, sendExactFlag } = buildAssistantContext(
-      activeContext.state,
-      true
-    );
+    const contextSummary = buildContextSummary(activeContext.state, true);
+    updateMarketFreshness(activeContext.state);
     const requestMessages = deepChatMessages
       .filter((message) => message.role === 'user' || message.role === 'ai')
       .map((message) => ({
@@ -213,7 +214,7 @@ async function handleDeepChatRequest(
       .filter((message) => message.content.trim())
       .slice(-MAX_CONVERSATION_MESSAGES);
     const data = await queryAssistant(question, contextSummary, {
-      sendExact: sendExactFlag,
+      sendExact: contextSummary.sendExact,
       messages: requestMessages,
     });
 
@@ -236,6 +237,15 @@ async function handleDeepChatRequest(
   } finally {
     inFlight = false;
   }
+}
+
+function updateMarketFreshness(state: FeatureContext['state']): void {
+  const label = document.getElementById('assistant-data-freshness');
+  if (!label) return;
+  const marketData = buildContextSummary(state).nifty50;
+  label.textContent = marketData
+    ? `Nifty 50 data: ${new Date(marketData.asOf).toLocaleString()} · ${marketData.freshness}`
+    : 'Nifty 50 data unavailable';
 }
 
 function resetConversationForScopeChange(): void {

@@ -5,3 +5,15 @@ compatibility_date = "2026-03-01"
 [vars]
 ALLOWED_ORIGIN = "https://fire-os-dd6d6.web.app"
 OPENROUTER_HTTP_REFERER = "https://fire-os-dd6d6.web.app"
+
+[secrets]
+required = ["OPENROUTER_API_KEY"]
+
+[[ratelimits]]
+name = "ASSISTANT_RATE_LIMITER"
+# Account-scoped namespace ID reserved for the FIRE OS assistant.
+namespace_id = "4029617281"
+
+  [ratelimits.simple]
+  limit = 20
+  period = 60
