@@ -1,23 +1,23 @@
 /**
  * API Module - External Data Fetching
- * Handles NAV, Nifty, EUR/INR fetching with caching and fallbacks
+ * Handles NAV, Nifty, and currency-pair fetching with caching and fallbacks
  *
  * Modules:
  * - mfapi.ts: Mutual fund NAV fetching from api.mfapi.in
  * - nifty.ts: **CRITICAL FIX** - Nifty 50 index (NSE API first, ETF fallback)
- * - eurInr.ts: EUR/INR exchange rate from Yahoo Finance
+ * - currency.ts: currency-pair exchange rates from Yahoo Finance
  * - fallbacks.ts: Manual entry modals and cache utilities
  *
  * Cache TTLs:
  * - NAV: 4 hours (mutual fund prices change daily)
  * - Nifty: 1 hour (index data updates frequently)
- * - EUR/INR: 24 hours (exchange rates stable)
+ * - Currency rates: 24 hours (exchange rates stable)
  */
 
 // Import init functions
 import { initializeNAVCache } from './mfapi';
 import { initializeNiftyCache } from './nifty';
-import { initializeEURINRCache } from './eurInr';
+import { initializeCurrencyRateCache } from './currency';
 
 // Export all public functions
 export {
@@ -38,13 +38,13 @@ export {
 
 export {
   convertCurrency,
-  fetchEURINR,
-  getCachedEURINR,
-  getCachedEURINRData,
-  setCachedEURINR,
-  initializeEURINRCache,
-  showManualEURINRModal,
-} from './eurInr';
+  fetchCurrencyRate,
+  getCachedCurrencyRate,
+  getCurrencyRateCache,
+  setCachedCurrencyRate,
+  initializeCurrencyRateCache,
+  showManualCurrencyRateModal,
+} from './currency';
 
 export {
   detectCrashAlert,
@@ -68,13 +68,22 @@ export function initAPIModule(persistedState: any = {}): void {
   if (persistedState.niftyData) {
     initializeNiftyCache(persistedState.niftyData);
   }
-  if (persistedState.eurInrData) {
-    initializeEURINRCache(persistedState.eurInrData);
+  if (persistedState.currencyRates) {
+    initializeCurrencyRateCache(persistedState.currencyRates);
+  }
+  if (persistedState.eurInrData && !persistedState.currencyRates) {
+    initializeCurrencyRateCache({
+      EURINR: {
+        ...persistedState.eurInrData,
+        sourceCurrency: 'EUR',
+        targetCurrency: 'INR',
+      },
+    });
   }
 
   console.log('[API Module] Initialized with', {
     navCacheEntries: Object.keys(persistedState.nav || {}).length,
     niftyCache: persistedState.niftyData ? 'loaded' : 'none',
-    eurInrCache: persistedState.eurInrData ? 'loaded' : 'none',
+    currencyRateCache: persistedState.currencyRates ? 'loaded' : 'none',
   });
 }

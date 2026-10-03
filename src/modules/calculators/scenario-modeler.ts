@@ -20,6 +20,37 @@ export interface ScenarioResult {
   cagr: string; // Display CAGR as "15% CAGR"
 }
 
+export interface CoastFireResult {
+  coastAge: number | null;
+  yearsToCoast: number | null;
+  requiredCorpusToday: number;
+}
+
+/** Calculate when current assets can reach FI without further contributions. */
+export function calculateCoastFire(
+  currentCorpus: number,
+  targetCorpus: number,
+  annualReturn: number,
+  currentAge: number,
+  retirementAge: number,
+): CoastFireResult {
+  if ([currentCorpus, targetCorpus, annualReturn, currentAge, retirementAge].some((value) => !Number.isFinite(value))
+    || currentCorpus < 0 || targetCorpus <= 0 || annualReturn <= -1 || currentAge < 0 || retirementAge < currentAge) {
+    throw new Error('Invalid parameters for Coast FIRE calculation');
+  }
+
+  const yearsAvailable = retirementAge - currentAge;
+  const requiredCorpusToday = targetCorpus / Math.pow(1 + annualReturn, yearsAvailable);
+  if (currentCorpus >= requiredCorpusToday) return { coastAge: currentAge, yearsToCoast: 0, requiredCorpusToday };
+  if (currentCorpus <= 0 || annualReturn <= 0) return { coastAge: null, yearsToCoast: null, requiredCorpusToday };
+
+  const yearsToCoast = Math.log(targetCorpus / currentCorpus) / Math.log(1 + annualReturn);
+  const coastAge = currentAge + yearsToCoast;
+  return coastAge <= retirementAge
+    ? { coastAge: Number(coastAge.toFixed(1)), yearsToCoast: Number(yearsToCoast.toFixed(1)), requiredCorpusToday }
+    : { coastAge: null, yearsToCoast: null, requiredCorpusToday };
+}
+
 /**
  * Calculate the age at which Financial Independence (FI) is reached
  * Uses month-by-month simulation for accuracy, accounting for:

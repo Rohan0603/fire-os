@@ -22,7 +22,7 @@ const SECTION_FIELDS: Record<PortfolioSection, Array<keyof PersistedPortfolioDat
   ],
   insurance: ['insurance'],
   esop: ['esopDetails'],
-  cache: ['nav', 'niftyHigh', 'niftyData', 'eurInr', 'eurInrData', 'alphaTrackerData'],
+  cache: ['nav', 'niftyHigh', 'niftyData', 'currencyRates', 'alphaTrackerData'],
 };
 
 function timestampMillis(timestamp: string | undefined): number {

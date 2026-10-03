@@ -6,12 +6,15 @@
 
 import type { FireOSState } from '../../types/state';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
+import { calculateXirr } from '../../lib/calculations';
 
 /**
  * Total Net Worth KPI - sum of all holdings at current market value
  */
 export interface TotalNetWorthKPI {
   netWorth: number;
+  assets: number;
+  liabilities: number;
   breakdown: {
     mf: number;
     fd: number;
@@ -24,13 +27,39 @@ export interface TotalNetWorthKPI {
   };
 }
 
+export interface NetWorthAttribution {
+  startingValue: number;
+  contributions: number;
+  investmentReturn: number;
+  endingValue: number;
+}
+
+export function attributeNetWorthChange(
+  startingValue: number,
+  endingValue: number,
+  contributions: number,
+): NetWorthAttribution {
+  const start = Math.max(0, Number.isFinite(startingValue) ? startingValue : 0);
+  const end = Number.isFinite(endingValue) ? endingValue : start;
+  const added = Math.max(0, Number.isFinite(contributions) ? contributions : 0);
+  return { startingValue: start, contributions: added, investmentReturn: end - start - added, endingValue: end };
+}
+
+export function esopConcentration(state: FireOSState): number {
+  const { assets } = totalNetWorth(state);
+  const esop = Object.values(state.esop).reduce((sum, holding) => sum + Math.max(0, holding.amount || 0), 0);
+  return assets > 0 ? esop / assets : 0;
+}
+
 export interface OtherHoldingsSummary {
   totalValue: number;
   weightedAnnualReturn: number;
 }
 
 export function summarizeOtherHoldings(state: FireOSState): OtherHoldingsSummary {
-  const entries = Object.values(state.otherHoldings || {});
+  const entries = Object.entries(state.otherHoldings || {})
+    .filter(([key]) => !['otherHolding51', 'otherHolding52', 'otherHolding53'].includes(key))
+    .map(([, holding]) => holding);
   const totalValue = entries.reduce((sum, holding) => sum + (holding.amount || 0), 0);
   const weightedReturn = entries.reduce(
     (sum, holding) => sum + (holding.amount || 0) * (holding.annualReturn || 0),
@@ -76,12 +105,15 @@ export function totalNetWorth(state: FireOSState): TotalNetWorthKPI {
   const demat = Object.values(state.demat).reduce((sum, holding) => sum + (holding.currentValue || 0), 0);
 
   const otherHoldings = summarizeOtherHoldings(state).totalValue;
+  const liabilities = Object.values(state.liabilities || {}).reduce((sum, liability) => sum + Math.max(0, liability.amount || 0), 0);
 
-  // Total net worth
-  const netWorth = mf + fd + epf + sip + esop + bonds + demat + otherHoldings;
+  const assets = mf + fd + epf + sip + esop + bonds + demat + otherHoldings;
+  const netWorth = assets - liabilities;
 
   return {
     netWorth: isFinite(netWorth) ? netWorth : 0,
+    assets: isFinite(assets) ? assets : 0,
+    liabilities: isFinite(liabilities) ? liabilities : 0,
     breakdown: {
       mf: isFinite(mf) ? mf : 0,
       fd: isFinite(fd) ? fd : 0,
@@ -138,7 +170,7 @@ export function sipStatus(state: FireOSState): SIPStatusKPI {
 
     const currentValue = fund.units * nav;
     const pl = currentValue - invested;
-    const xirr = null; // Would need actual cash flow calculation
+    const xirr = calculateSipXirr(fund.startDate, fund.monthlyAmount, currentValue);
 
     funds.push({
       key,
@@ -172,6 +204,26 @@ export function sipStatus(state: FireOSState): SIPStatusKPI {
     totalXIRR,
     funds,
   };
+}
+
+function calculateSipXirr(startDate: string, monthlyAmount: number, currentValue: number): number | null {
+  const match = /^(\d{4})-(\d{2})$/.exec(startDate);
+  if (!match || monthlyAmount <= 0 || currentValue <= 0) return null;
+
+  const start = new Date(Number(match[1]), Number(match[2]) - 1, 1);
+  if (Number.isNaN(start.getTime())) return null;
+
+  const now = new Date();
+  const months = Math.max(
+    1,
+    (now.getFullYear() - start.getFullYear()) * 12 + now.getMonth() - start.getMonth() + 1,
+  );
+  const cashFlows = Array.from({ length: months }, (_, index) => ({
+    date: new Date(start.getFullYear(), start.getMonth() + index, 1),
+    amount: -monthlyAmount,
+  }));
+  cashFlows.push({ date: now, amount: currentValue });
+  return calculateXirr(cashFlows);
 }
 
 /**

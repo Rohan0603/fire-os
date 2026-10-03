@@ -40,13 +40,14 @@ service cloud.firestore {
 
     function validNiftyData(value) {
       return value is map
-        && value.keys().hasOnly(['level', 'high52w', 'timestamp', 'source'])
+        && value.keys().hasOnly(['level', 'high52w', 'timestamp', 'source', 'status'])
         && value.keys().hasAll(['level', 'high52w', 'timestamp', 'source'])
         && value.size() <= 4
         && value.level is number
         && value.high52w is number
         && isIso(value.timestamp)
-        && isBoundedString(value.source, 100);
+        && isBoundedString(value.source, 100)
+        && (!('status' in value) || value.status in ['live', 'cache-fresh', 'manual']);
     }
 
     function validEurInrData(value) {
@@ -207,8 +208,8 @@ service cloud.firestore {
       let data = request.resource.data.data;
       return data is map
         && data.keys().hasOnly([
-          'profile', 'sip', 'fd', 'epf', 'esop', 'bonds', 'otherHoldings', 'demat',
-          'nav', 'niftyHigh', 'niftyData', 'eurInr', 'eurInrData',
+          'profile', 'sip', 'fd', 'epf', 'esop', 'bonds', 'otherHoldings', 'liabilities', 'demat',
+          'nav', 'niftyHigh', 'niftyData', 'currencyRates', 'eurInr', 'eurInrData',
           'alphaTrackerData', 'coorgCorpus', 'coorgStartDate', 'coorgTarget',
           'coorgMonthlyAmount', 'watchdogRules', 'swpSchedule', 'taxCalendar',
           'expenses', 'netWorthHistory', 'completedActions', 'achievedMilestones',
@@ -217,6 +218,8 @@ service cloud.firestore {
         && data.size() <= 40
         && (!('profile' in data) || data.profile is map)
         && (!('mf' in data) || isBoundedMap(data.mf, 200))
+        && (!('currencyRates' in data) || isBoundedMap(data.currencyRates, 200))
+        && (!('liabilities' in data) || isBoundedMap(data.liabilities, 50))
         && (!('otherHoldings' in data) || isBoundedMap(data.otherHoldings, 200))
         && (!('achievedMilestones' in data) || isBoundedList(data.achievedMilestones, 500))
         && (!('insurance' in data) || data.insurance is map);

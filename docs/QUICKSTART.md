@@ -275,7 +275,7 @@ fetch('https://api.mfapi.in/mf/122639')
 
 // Test Nifty fetch
 const url = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=^NSEI';
-fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`)
+fetch(`https://corsproxy.io/?key=${apiKey}&url=${encodeURIComponent(url)}`)
   .then(r => r.text())
   .then(d => console.log(JSON.parse(d).quoteResponse.result[0]));
 
@@ -398,19 +398,19 @@ npm run dev
 
 ## Next Steps
 
-1. **Read full docs:** [ARCHITECTURE.md](docs/ARCHITECTURE.md) for detailed module structure
-2. **Understand APIs:** [API.md](docs/API.md) for external integrations
+1. **Read full docs:** [ARCHITECTURE.md](ARCHITECTURE.md) for detailed module structure
+2. **Understand APIs:** [API.md](API.md) for external integrations
 3. **Explore code:** Start with `src/main.ts`, then follow imports
 4. **Make a change:** Pick a simple task (add field, update KPI, new calculator)
 5. **Test locally:** `npm run dev` and verify in browser
-6. **Submit PR:** Follow conventional commit format (see CLAUDE.md)
+6. **Submit PR:** Follow conventional commit format (see [ANTIGRAVITY.md](ANTIGRAVITY.md))
 
 ## Getting Help
 
 1. **Check DevTools Console:** Error messages appear there
 2. **Read error boundaries:** Each module has try-catch, shows user-friendly toast
 3. **Check Network tab:** See API calls and responses
-4. **Review CLAUDE.md:** Development guide with more details
+4. **Review [ANTIGRAVITY.md](ANTIGRAVITY.md):** Development guide with more details
 5. **Open an issue:** GitHub repo issues page
 
 ---

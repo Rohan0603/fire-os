@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { monitorNiftyLevel } from './nifty-monitor';
 import { fetchNifty } from './nifty';
+import type { NiftyData } from '../../types/api';
 
 vi.mock('./nifty', () => ({ fetchNifty: vi.fn() }));
 
@@ -10,7 +11,7 @@ describe('Nifty monitor lifecycle', () => {
   });
 
   it('suppresses an in-flight callback after cleanup', async () => {
-    let resolveFetch: ((value: { level: number; high52w: number; source: string }) => void) | undefined;
+    let resolveFetch: ((value: NiftyData) => void) | undefined;
     vi.mocked(fetchNifty).mockReturnValueOnce(new Promise((resolve) => {
       resolveFetch = resolve;
     }));
@@ -18,7 +19,7 @@ describe('Nifty monitor lifecycle', () => {
     const stop = monitorNiftyLevel(callback);
 
     stop();
-    resolveFetch?.({ level: 20000, high52w: 25000, source: 'test' });
+    resolveFetch?.({ level: 20000, high52w: 25000, source: 'test', timestamp: '2026-10-03T00:00:00.000Z', status: 'live' });
     await Promise.resolve();
     await Promise.resolve();
 

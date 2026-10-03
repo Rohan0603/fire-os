@@ -22,19 +22,33 @@ export interface MFAPIResponse {
   }>;
 }
 
+export type MarketDataStatus = 'live' | 'cache-fresh' | 'stale' | 'manual';
+export type NiftyDataStatus = Exclude<MarketDataStatus, 'stale'>;
+
 /** Nifty 50 index level and historical data */
 export interface NiftyData {
   level: number; // Current Nifty level
   high52w: number; // 52-week high
   timestamp: string; // ISO timestamp of fetch
   source: string; // Data source identifier (e.g., "api.mfapi.in", "manual")
+  status?: NiftyDataStatus; // Provenance class; optional for backward compatibility
 }
 
-/** EUR/INR exchange rate data */
-export interface EURINRData {
-  rate: number; // Exchange rate (e.g., 88.5 for ₹88.50 per EUR)
+/** Exchange rate data for a currency pair */
+export interface CurrencyRateData {
+  rate: number;
   timestamp: string; // ISO timestamp of fetch
+  sourceCurrency?: string;
+  targetCurrency?: string;
+  source?: string;
+  status?: MarketDataStatus;
 }
+
+/** Cached exchange rates indexed by normalized source/target pair. */
+export type CurrencyRateCacheMap = Record<string, CurrencyRateData>;
+
+/** Backward-compatible name for persisted EUR/INR data. */
+export type EURINRData = CurrencyRateData;
 
 /** Cached NAV entry with TTL management */
 export interface NAVCache {
@@ -42,6 +56,8 @@ export interface NAVCache {
   nav: number; // Latest NAV
   timestamp: string; // ISO timestamp when cached
   ttl: number; // Time-to-live in milliseconds (e.g., 4 hours = 14400000)
+  source?: string;
+  status?: MarketDataStatus;
 }
 
 /** Collection of cached NAV entries indexed by scheme code */

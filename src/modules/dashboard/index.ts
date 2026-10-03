@@ -10,6 +10,9 @@ import { getFundSchemeCode } from '../../lib/fundMatcher';
 import { renderCoorgWidget } from './coorg-tracker';
 
 import type { CrashAlert } from '../api/nifty-monitor';
+import type { FireOSState } from '../../types/state';
+import { totalNetWorth } from './kpis';
+import { profileCompletenessPercent } from '../../lib/completeness';
 import './styles.css';
 
 // Module state
@@ -103,7 +106,7 @@ export async function renderDashboard(context: FeatureContext = activeContext): 
 
       <!-- KPI Cards Grid -->
       <div class="kpi-grid">
-        ${renderNetWorthCard(netWorth.netWorth)}
+        ${renderNetWorthCard(netWorth.netWorth, netWorth.assets, netWorth.liabilities)}
         ${renderSIPStatusCard(sip.totalCurrentValue, sip.totalInvested)}
         ${renderFIProgressCard(fi.progressPercent)}
         ${renderFloatIndicatorCard(nifty.drawdownPercent)}
@@ -111,6 +114,8 @@ export async function renderDashboard(context: FeatureContext = activeContext): 
 
       <!-- Cashflow Summary Card -->
       ${context.ports.widgets.renderCashflowSummary(D)}
+
+      ${renderDataTrustPanel(D)}
 
       <!-- Portfolio Summary Section -->
       ${renderPortfolioSummary(netWorth.breakdown, sip.totalCurrentValue, fi)}
@@ -141,15 +146,31 @@ export async function renderDashboard(context: FeatureContext = activeContext): 
   attachDashboardEventListeners();
 }
 
+function renderDataTrustPanel(state: FireOSState): string {
+  const navEntries = Object.values(state.nav || {});
+  const staleNavs = navEntries.filter((entry) => entry.status === 'stale').length;
+  const currencyEntries = Object.values(state.currencyRates || {});
+  const staleCurrencies = currencyEntries.filter((entry) => entry.status === 'stale').length;
+  const syncLabel = state.currentUser ? 'Cloud sync enabled' : 'Local-only mode';
+  const completeness = profileCompletenessPercent(state);
+  const { liabilities } = totalNetWorth(state);
+  const savedLabel = state._lastSavedAt ? `Last saved ${new Date(state._lastSavedAt).toLocaleString()}` : 'Not saved yet';
+  return `<section class="data-trust-panel" aria-label="Data quality and sync status">
+    <div><strong>Data quality</strong><span>${staleNavs + staleCurrencies === 0 ? 'Current' : `${staleNavs + staleCurrencies} stale source${staleNavs + staleCurrencies === 1 ? '' : 's'}`}</span></div>
+    <div><strong>${syncLabel}</strong><span>${savedLabel}</span></div>
+    <div><strong>Completeness</strong><span>${completeness}% • Liabilities ${formatCurrency(liabilities, 0)}</span></div>
+  </section>`;
+}
+
 /**
  * Render individual KPI cards with data and formatting
  */
-function renderNetWorthCard(value: number): string {
+function renderNetWorthCard(value: number, assets: number, liabilities: number): string {
   return `
     <div class="kpi-card neutral">
       <div class="kpi-card-title">Total Net Worth</div>
       <div class="kpi-card-value">${formatCurrency(value, 0)}</div>
-      <div class="kpi-card-subtitle">All holdings combined</div>
+      <div class="kpi-card-subtitle">Assets ${formatCurrency(assets, 0)} • Liabilities ${formatCurrency(liabilities, 0)}</div>
     </div>
   `;
 }

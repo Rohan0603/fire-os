@@ -27,12 +27,8 @@ async function autoFetchNiftyData() {
     const niftyData = await activeContext.ports.marketData.fetchNifty();
     if (niftyData) {
       D.niftyHigh = niftyData.high52w;
-      D.niftyData = {
-        level: niftyData.level,
-        high52w: niftyData.high52w,
-        timestamp: new Date().toISOString(),
-        source: niftyData.source,
-      };
+      D.niftyData = niftyData;
+      activeContext.portfolio.save(D, { sync: false });
       // Update form inputs if they exist
       setTimeout(() => {
         const niftyHighInput = document.getElementById('nifty-high') as HTMLInputElement;
@@ -124,7 +120,7 @@ function renderCrashProtocol(): string {
         <label>Current Nifty Level (₹)</label>
         <input type="number" id="nifty-current" value="${D.niftyData?.level || ''}">
       </div>
-      <p id="nifty-status" class="calc-info">${D.niftyData ? `Source: ${D.niftyData.source}. Fetched: ${new Date(D.niftyData.timestamp).toLocaleString()}` : 'Live Nifty data unavailable. Enter both values manually before interpreting drawdown.'}</p>
+      <p id="nifty-status" class="calc-info">${D.niftyData ? `${D.niftyData.status ?? 'legacy'} data from ${D.niftyData.source}. Updated: ${new Date(D.niftyData.timestamp).toLocaleString()}` : 'Live Nifty data unavailable. Enter both values manually before interpreting drawdown.'}</p>
       <button id="refresh-nifty-btn" class="btn-primary">⚡ Refresh Nifty</button>
     </div>
   `;
@@ -328,32 +324,6 @@ function attachCalculatorHandlers(context: FeatureContext) {
   });
 }
 
-function calculateTotalNetWorth(): number {
-  let total = 0;
-
-  // SIP values
-  Object.values(D.sip).forEach((sip) => {
-    const navData = sip.schemeCode ? D.nav[sip.schemeCode] : undefined;
-    if (navData) {
-      total += sip.units * navData.nav;
-    }
-  });
-
-  // Holdings
-  total += D.fd.fd?.amount || 0;
-  total += D.epf.epf?.amount || 0;
-  total += D.esop.esop?.amount || 0;
-  total += D.bonds.bonds?.amount || 0;
-  total += Object.values(D.otherHoldings || {}).reduce((sum, holding) => sum + (holding.amount || 0), 0);
-
-  // Demat stocks
-  Object.values(D.demat).forEach((stock) => {
-    total += stock.currentValue;
-  });
-
-  return total;
-}
-
 async function refreshNiftyData(context: FeatureContext = activeContext) {
   try {
     context.ports.ui.showToast('⟳ Fetching Nifty data...', 2000);
@@ -369,12 +339,8 @@ async function refreshNiftyData(context: FeatureContext = activeContext) {
 
     // Update D state and form inputs
     D.niftyHigh = niftyData.high52w;
-    D.niftyData = {
-      level: niftyData.level,
-      high52w: niftyData.high52w,
-      timestamp: new Date().toISOString(),
-      source: niftyData.source,
-    };
+    D.niftyData = niftyData;
+    context.portfolio.save(D, { sync: false });
 
     const niftyHighInput = document.getElementById('nifty-high') as HTMLInputElement;
     const niftyCurrentInput = document.getElementById('nifty-current') as HTMLInputElement;
@@ -382,13 +348,13 @@ async function refreshNiftyData(context: FeatureContext = activeContext) {
     if (niftyHighInput) niftyHighInput.value = String(niftyData.high52w);
     if (niftyCurrentInput) niftyCurrentInput.value = String(niftyData.level);
     const status = document.getElementById('nifty-status');
-    if (status) status.textContent = `Source: ${niftyData.source}. Fetched: ${new Date().toLocaleString()}`;
+    if (status) status.textContent = `${niftyData.status ?? 'legacy'} data from ${niftyData.source}. Updated: ${new Date(niftyData.timestamp).toLocaleString()}`;
 
     // Recalculate crash scenarios
     const highVal = niftyData.high52w;
     const currentVal = niftyData.level;
     const drawdown = ((highVal - currentVal) / highVal) * 100;
-    const totalNW = calculateTotalNetWorth();
+    const totalNW = context.ports.calculations.totalNetWorth(D).netWorth;
 
     const crashPanel = document.getElementById('crash');
     if (crashPanel) {
@@ -398,7 +364,7 @@ async function refreshNiftyData(context: FeatureContext = activeContext) {
           <div class="scenario-info">
             <p><strong>Nifty: ${currentVal} | 52W High: ${highVal}</strong></p>
             <p><strong>Current Drawdown: ${drawdown.toFixed(0)}%</strong></p>
-            <p style="font-size: 12px; color: #666;">Source: ${niftyData.source}</p>
+            <p style="font-size: 12px; color: #666;">${niftyData.status ?? 'legacy'} data from ${niftyData.source}. Updated: ${new Date(niftyData.timestamp).toLocaleString()}</p>
           </div>
           <div class="scenario">
             <span class="scenario-label">10% Crash Deploy</span>

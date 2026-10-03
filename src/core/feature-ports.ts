@@ -1,14 +1,14 @@
 import {
   fetchNAV,
   fetchNifty,
-  fetchEURINR,
+  fetchCurrencyRate,
   convertCurrency,
   getNAVCacheMap,
 } from '../modules/api';
 import { fetchCurrencyToInr, fetchEsopValuations, fetchStockQuote } from '../modules/api/esop';
-import { totalNetWorth, sipStatus, fiProgress, floatIndicator, portfolioComposition } from '../modules/dashboard/kpis';
+import { totalNetWorth, sipStatus, fiProgress, floatIndicator, portfolioComposition, attributeNetWorthChange, esopConcentration } from '../modules/dashboard/kpis';
 import { calculateAllocationDrift } from '../modules/calculators/portfolio-rebalancing';
-import { calculateFIAge } from '../modules/calculators/scenario-modeler';
+import { calculateFIAge, calculateCoastFire } from '../modules/calculators/scenario-modeler';
 import { renderCashflowSummary } from '../modules/plan/cashflow-summary';
 import { renderAdvisorIntegrationWidget, registerAdvisorReview } from '../modules/integrations/advisor-webhook';
 import { renderExpenseTracker } from '../modules/trackers/expense-tracker';
@@ -24,8 +24,11 @@ export {
   fiProgress,
   floatIndicator,
   portfolioComposition,
+  attributeNetWorthChange,
+  esopConcentration,
   calculateAllocationDrift,
   calculateFIAge,
+  calculateCoastFire,
   checkWatchdogRules,
 };
 
@@ -41,8 +44,11 @@ export interface FeatureCalculationPort {
   fiProgress: typeof fiProgress;
   floatIndicator: typeof floatIndicator;
   portfolioComposition: typeof portfolioComposition;
+  attributeNetWorthChange: typeof attributeNetWorthChange;
+  esopConcentration: typeof esopConcentration;
   calculateAllocationDrift: typeof calculateAllocationDrift;
   calculateFIAge: typeof calculateFIAge;
+  calculateCoastFire: typeof calculateCoastFire;
 }
 
 export interface FeatureWidgetPort {
@@ -57,7 +63,7 @@ export interface FeatureMarketDataPort {
   fetchStockQuote: typeof fetchStockQuote;
   fetchCurrencyToInr: typeof fetchCurrencyToInr;
   fetchEsopValuations: typeof fetchEsopValuations;
-  fetchEURINR: typeof fetchEURINR;
+  fetchCurrencyRate: typeof fetchCurrencyRate;
   convertCurrency: typeof convertCurrency;
   refreshPortfolioNAVs: (state: FireOSState) => Promise<void>;
 }
@@ -98,8 +104,11 @@ export function createFeaturePorts(): FeaturePorts {
       fiProgress,
       floatIndicator,
       portfolioComposition,
+      attributeNetWorthChange,
+      esopConcentration,
       calculateAllocationDrift,
       calculateFIAge,
+      calculateCoastFire,
     },
     widgets: {
       renderCashflowSummary,
@@ -112,7 +121,7 @@ export function createFeaturePorts(): FeaturePorts {
       fetchStockQuote,
       fetchCurrencyToInr,
       fetchEsopValuations,
-      fetchEURINR,
+      fetchCurrencyRate,
       convertCurrency,
       refreshPortfolioNAVs,
     },

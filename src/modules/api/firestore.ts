@@ -204,3 +204,13 @@ export async function commitBatch(
   batch.set(portfolioRef(initializedServices.db, uid), updates, { merge: true });
   await batch.commit();
 }
+
+export async function deletePortfolio(uid: string): Promise<void> {
+  if (!services) throw new Error('Firestore has not been initialized');
+  const initializedServices = services;
+  const holdings = await getDocs(holdingsRef(initializedServices.db, uid));
+  const batch = writeBatch(initializedServices.db);
+  holdings.docs.forEach((holding) => batch.delete(holding.ref));
+  batch.delete(portfolioRef(initializedServices.db, uid));
+  await batch.commit();
+}

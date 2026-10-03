@@ -41,6 +41,7 @@ import { initCalculatorsModule, renderCalculators } from './modules/calculators'
 import { initInsuranceModule, renderInsurance } from './modules/insurance';
 import { initPlanModule, renderPlan } from './modules/plan';
 import { initEsopModule, renderEsop } from './modules/esop';
+import { initAssistantModule, renderAssistant } from './modules/assistant';
 import { totalNetWorth } from './modules/dashboard/kpis';
 import { checkNewMilestones } from './modules/plan/milestones';
 import { executeMonthlyWithdrawal } from './modules/calculators/swp-scheduler';
@@ -147,10 +148,22 @@ featureRegistry.register({
   },
 });
 
+featureRegistry.register({
+  id: 'assistant',
+  label: 'Assistant',
+  mount(container, context) {
+    if (!initializedFeatures.has('assistant')) {
+      initAssistantModule(container, context);
+      initializedFeatures.add('assistant');
+      return;
+    }
+    renderAssistant(context);
+  },
+});
+
 function resetLiveAppState(): void {
   Object.assign(appState, initializeState());
-  appState.niftyData = undefined;
-  appState.eurInrData = undefined;
+  delete appState.niftyData;
 }
 
 async function teardownAuthSession(): Promise<void> {
@@ -202,9 +215,9 @@ function hasLocalPortfolioData(state: FireOSState): boolean {
 function initApp() {
   try {
     setupErrorHandling();
-    initAPIModule(appState);
     const cachedState = loadData();
     if (cachedState) Object.assign(appState, cachedState);
+    initAPIModule(appState);
     renderApp();
 
     // Initialize UI module with error handling
@@ -257,6 +270,7 @@ function renderApp() {
         <a class="nav-tab" href="/insurance" data-tab="insurance">Insurance</a>
         <a class="nav-tab" href="/plan" data-tab="plan">Plan</a>
         <a class="nav-tab" href="/esop" data-tab="esop">ESOP Tools</a>
+        <a class="nav-tab" href="/assistant" data-tab="assistant">Assistant</a>
       </div>
       <div style="display: flex; gap: 1rem; align-items: center;">
         <label class="theme-switch" title="Toggle Theme">
@@ -276,8 +290,8 @@ function renderApp() {
       <div id="insurance" class="tab"></div>
       <div id="plan" class="tab"></div>
       <div id="esop" class="tab"></div>
+      <div id="assistant" class="tab"></div>
     </div>
-    <footer class="app-footer">Planning estimates, not investment advice. Guest data is stored unencrypted in this browser.</footer>
   `;
 
   // Initialize and render auth screen

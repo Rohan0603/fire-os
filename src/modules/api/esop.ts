@@ -3,7 +3,7 @@
  * Fetches stock prices from Yahoo Finance Chart API for configured ESOP holdings
  */
 import { getLogger } from '../../lib/logger';
-import { convertCurrency } from './eurInr';
+import { convertCurrency } from './currency';
 import type { EsopHolding } from '../../types/state';
 
 const logger = getLogger();
@@ -146,7 +146,7 @@ export async function fetchCurrencyToInr(currency: string): Promise<number | nul
   }
   if (normalized === 'EUR') {
     const rate = await convertCurrency(1, 'EUR', 'INR');
-    console.log('[ESOP API] Currency conversion', { currency: normalized, rate, source: 'EURINR API' });
+    console.log('[ESOP API] Currency conversion', { currency: normalized, rate, source: 'currency API' });
     return rate;
   }
   const rate = await convertCurrency(1, normalized, 'INR');

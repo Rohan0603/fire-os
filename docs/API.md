@@ -148,7 +148,7 @@ export function initializeNAVCache(cacheMap: Map<string, CachedNAV>): void
 
 **Primary Endpoint:** `https://query1.finance.yahoo.com/v7/finance/quote?symbols=^NSEI`
 
-**CORS Proxy:** `https://api.allorigins.win/raw?url=...`
+**CORS Proxy:** `https://corsproxy.io/?key=<VITE_CORSPROXY_API_KEY>&url=...`
 
 ### Request
 
@@ -157,7 +157,7 @@ export function initializeNAVCache(cacheMap: Map<string, CachedNAV>): void
 GET https://query1.finance.yahoo.com/v7/finance/quote?symbols=^NSEI
 
 # Via CORS proxy
-GET https://api.allorigins.win/raw?url=https%3A%2F%2Fquery1.finance.yahoo.com%2Fv7%2Ffinance%2Fquote%3Fsymbols%3D%5ENSEI
+GET https://corsproxy.io/?key=$VITE_CORSPROXY_API_KEY&url=https%3A%2F%2Fquery1.finance.yahoo.com%2Fv7%2Ffinance%2Fquote%3Fsymbols%3D%5ENSEI
 ```
 
 ### Response (Yahoo Finance)
@@ -252,7 +252,7 @@ async function fetchYahooNifty(): Promise<Partial<NiftyData> | null> {
     const url = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=^NSEI';
     const corsUrl = encodeURIComponent(url);
     const response = await fetch(
-      `https://api.allorigins.win/raw?url=${corsUrl}`,
+      `https://corsproxy.io/?key=${apiKey}&url=${corsUrl}`,
       { signal: AbortSignal.timeout(5000) }
     );
     
@@ -315,7 +315,7 @@ export async function showManualNiftyModal(): Promise<NiftyData>
 ### Request
 
 ```bash
-GET https://api.allorigins.win/raw?url=https%3A%2F%2Fquery1.finance.yahoo.com%2Fv7%2Ffinance%2Fquote%3Fsymbols%3DEURINR%3DX
+GET https://corsproxy.io/?key=$VITE_CORSPROXY_API_KEY&url=https%3A%2F%2Fquery1.finance.yahoo.com%2Fv7%2Ffinance%2Fquote%3Fsymbols%3DEURINR%3DX
 ```
 
 ### Response
@@ -360,7 +360,7 @@ export async function fetchEURINR(): Promise<number | null> {
     const url = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=EURINR=X';
     const corsUrl = encodeURIComponent(url);
     const response = await fetch(
-      `https://api.allorigins.win/raw?url=${corsUrl}`,
+      `https://corsproxy.io/?key=${apiKey}&url=${corsUrl}`,
       { signal: AbortSignal.timeout(5000) }
     );
     
@@ -760,13 +760,13 @@ fetch('https://api.mfapi.in/mf/122639')
 
 // Test Nifty API
 const url = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=^NSEI';
-fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`)
+fetch(`https://corsproxy.io/?key=${apiKey}&url=${encodeURIComponent(url)}`)
   .then(r => r.text())
   .then(d => console.log(JSON.parse(d).quoteResponse.result[0]));
 
 // Test EUR/INR API
 const url = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=EURINR=X';
-fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`)
+fetch(`https://corsproxy.io/?key=${apiKey}&url=${encodeURIComponent(url)}`)
   .then(r => r.text())
   .then(d => console.log(JSON.parse(d).quoteResponse.result[0]));
 ```
@@ -778,10 +778,10 @@ fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`)
 curl https://api.mfapi.in/mf/122639
 
 # Test Nifty
-curl "https://api.allorigins.win/raw?url=https%3A%2F%2Fquery1.finance.yahoo.com%2Fv7%2Ffinance%2Fquote%3Fsymbols%3D%5ENSEI"
+curl "https://corsproxy.io/?key=$VITE_CORSPROXY_API_KEY&url=https%3A%2F%2Fquery1.finance.yahoo.com%2Fv7%2Ffinance%2Fquote%3Fsymbols%3D%5ENSEI"
 
 # Test EUR/INR
-curl "https://api.allorigins.win/raw?url=https%3A%2F%2Fquery1.finance.yahoo.com%2Fv7%2Ffinance%2Fquote%3Fsymbols%3DEURINR%3DX"
+curl "https://corsproxy.io/?key=$VITE_CORSPROXY_API_KEY&url=https%3A%2F%2Fquery1.finance.yahoo.com%2Fv7%2Ffinance%2Fquote%3Fsymbols%3DEURINR%3DX"
 ```
 
 ### Automated Tests (Playwright)
@@ -818,5 +818,5 @@ test('EUR/INR fetch returns valid rate', async () => {
 ## See Also
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — Overall system architecture
-- [CLAUDE.md](../CLAUDE.md) — Development guide
-- [README.md](../README.md) — Feature overview
+- [ANTIGRAVITY.md](ANTIGRAVITY.md) — Development guide
+- [README.md](README.md) — Feature overview

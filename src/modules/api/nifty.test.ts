@@ -8,9 +8,7 @@ describe('Nifty API fallback proxies', () => {
   });
 
   it('authenticates the CorsProxy fallback', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({ ok: false, status: 503 })
-      .mockResolvedValueOnce({
+    const fetchMock = vi.fn().mockResolvedValueOnce({
         ok: true,
         status: 200,
         json: async () => ({
@@ -21,13 +19,14 @@ describe('Nifty API fallback proxies', () => {
     vi.stubEnv('VITE_CORSPROXY_API_KEY', 'test-key');
 
     const { fetchNifty } = await import('./nifty');
-    await expect(fetchNifty()).resolves.toEqual({
+    await expect(fetchNifty()).resolves.toMatchObject({
       level: 24000,
       high52w: 26000,
       source: 'Yahoo Finance API (corsproxy)',
+      status: 'live',
     });
 
-    const [request] = fetchMock.mock.calls[1] as [string, RequestInit];
+    const [request] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(request).toContain('key=test-key');
   });
 });

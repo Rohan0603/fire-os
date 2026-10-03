@@ -3,7 +3,7 @@
  * Covers user accounts and synchronization metadata
  */
 
-import type { NiftyData, EURINRData } from './api';
+import type { CurrencyRateCacheMap, CurrencyRateData, NiftyData } from './api';
 import { isPersistedPortfolioData } from './state';
 import type { FireOSState } from './state';
 import type { User as FirebaseSDKUser } from 'firebase/auth';
@@ -42,12 +42,16 @@ export interface PortfolioData {
   esop?: FireOSState['esop'];
   bonds?: FireOSState['bonds'];
   otherHoldings?: FireOSState['otherHoldings'];
+  liabilities?: FireOSState['liabilities'];
   demat?: FireOSState['demat'];
   nav?: FireOSState['nav'];
   niftyHigh?: number;
   niftyData?: NiftyData;
+  currencyRates?: CurrencyRateCacheMap;
+  /** @deprecated Legacy EUR/INR data accepted during migration. */
   eurInr?: number;
-  eurInrData?: EURINRData;
+  /** @deprecated Legacy EUR/INR data accepted during migration. */
+  eurInrData?: CurrencyRateData;
   alphaTrackerData?: FireOSState['alphaTrackerData'];
   coorgCorpus?: number;
   coorgStartDate?: string;
@@ -117,8 +121,8 @@ function isIsoTimestamp(value: unknown): value is string {
 }
 
 const persistedFields = new Set<keyof PersistedPortfolioData>([
-  'profile', 'mf', 'sip', 'fd', 'epf', 'esop', 'bonds', 'otherHoldings', 'demat', 'nav',
-  'niftyHigh', 'niftyData', 'eurInr', 'eurInrData', 'alphaTrackerData',
+  'profile', 'mf', 'sip', 'fd', 'epf', 'esop', 'bonds', 'otherHoldings', 'liabilities', 'demat', 'nav',
+  'niftyHigh', 'niftyData', 'currencyRates', 'eurInr', 'eurInrData', 'alphaTrackerData',
   'coorgCorpus', 'coorgStartDate', 'coorgTarget', 'coorgMonthlyAmount',
   'watchdogRules', 'swpSchedule', 'taxCalendar', 'expenses', 'netWorthHistory',
   'completedActions', 'achievedMilestones', 'insurance', 'esopDetails',

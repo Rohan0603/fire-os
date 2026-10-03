@@ -15,6 +15,7 @@ import { NAVCache } from '../types/api';
 import { buildEnvelopeFromState } from './merge';
 import type { SyncCoordinator } from './syncCoordinator';
 import type { PortfolioEnvelope } from '../types/firebase';
+import { recordPortfolioSnapshot, undoLastPortfolioSnapshot } from './snapshot-history';
 
 const LEGACY_STORAGE_KEY = 'fireOS_v2';
 const ANONYMOUS_STORAGE_KEY = 'fireOS_v2:anonymous';
@@ -146,10 +147,6 @@ export function saveData(state: FireOSState): void {
       return;
     }
 
-    if ('eurInrData' in state && !isPersistedPortfolioData({ eurInrData: state.eurInrData })) {
-      delete state.eurInrData;
-    }
-
     // Update last saved timestamp
     state._lastSavedAt = new Date().toISOString();
 
@@ -157,6 +154,12 @@ export function saveData(state: FireOSState): void {
     void currentUser;
     void _syncMetadata;
     void _lastSavedAt;
+    // Drop undefined-valued keys (JSON.stringify does the same), so optional
+    // fields cleared with `= undefined` don't poison validation.
+    const persistedRecord = persisted as Record<string, unknown>;
+    for (const key of Object.keys(persistedRecord)) {
+      if (persistedRecord[key] === undefined) delete persistedRecord[key];
+    }
     if (!isPersistedPortfolioData(persisted)) {
       const invalidKeys = Object.keys(persisted).filter((key) =>
         !isPersistedPortfolioData({ [key]: persisted[key as keyof typeof persisted] }),
@@ -167,6 +170,7 @@ export function saveData(state: FireOSState): void {
 
     const serialized = JSON.stringify(persisted);
     localStorage.setItem(activeStorageKey!, serialized);
+    recordPortfolioSnapshot(activeStorageKey!, persisted);
 
     // Log success in dev mode
     if (import.meta.env.DEV) {
@@ -179,6 +183,12 @@ export function saveData(state: FireOSState): void {
     }
     console.error('[Storage] Error saving data:', error);
   }
+}
+
+/** Restore the previous validated local portfolio snapshot, if one exists. */
+export function undoLastSavedPortfolioChange(state: FireOSState): boolean {
+  if (!activeStorageKey) return false;
+  return undoLastPortfolioSnapshot(activeStorageKey, state);
 }
 
 export interface PersistPortfolioOptions {

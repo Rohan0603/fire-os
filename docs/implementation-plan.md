@@ -75,19 +75,21 @@ Existing capabilities to verify in-browser before extending: XIRR and SIP analys
 - `npm test`
 - `npm run test:rules:emulator`
 - `npm run test:e2e`
+- `npm run test:http` with `BASE_URL` set to deployed Hosting URL
 - Production HTTP checks for routes, redirects, headers, and discovery files
 - Playwright checks at desktop and approximately 380px wide
 
 ## Current implementation status
 
-- Completed: explicit Nifty unavailable state, removed ETF/default/stale fallback branches, calculator provenance message, local pinned Chart.js and PDF.js assets, homepage metadata, canonical policy, report-only security headers, disclaimer and plaintext guest notice, planning-tools navigation label, expanded deploy gates, seven-route smoke script, owner state deletion, and related documentation/tests.
-- Verified: production build and 53 unit tests pass; smoke script passes ESLint and Prettier.
-- Blocked: full lint has 2,913 existing repository findings; Firestore emulator validation could not start because port 8082 is occupied.
-- Remaining P0/P1: replace report-only CSP after browser review, add route-specific metadata assertions, make market-data provenance consistent across all APIs, add sync/privacy panel and completeness/freshness UI, complete browser accessibility/mobile pass, and decide whether public CORS proxies remain acceptable.
-- Dependency risk: `npm audit --audit-level=high` reports 1 critical, 13 high, and 10 moderate vulnerabilities. Remediate through controlled dependency upgrades and rerun the audit.
+- Completed: explicit Nifty unavailable state and live/cache/manual provenance, generic currency module/file naming with pair-keyed caching and ISO 4217 validation, generic currency-rate persistence with legacy EUR/INR import support, bounded liabilities with canonical net-worth subtraction and Firestore allowlisting, net-worth attribution helper, Coast FIRE helper, ESOP concentration helper, dashboard sync/freshness panel, local backup export/reminder, basic profile completeness display, bounded local snapshot history with one-step undo, NAV and currency source/freshness metadata, authenticated-only CorsProxy market fallback, removed ETF/default/stale Nifty fallback branches, genuine SIP XIRR, canonical calculator net-worth wiring, local pinned Chart.js and PDF.js assets, homepage metadata and JSON-LD, generated route metadata assertions, canonical policy, enforced security headers, disclaimer and plaintext guest notice, planning-tools navigation label, expanded deploy gates, seven-route smoke script, HTTP/header verification script, owner state deletion, mobile E2E coverage, and related documentation/tests.
+- Verified: production build, generated metadata for seven routes, 15 unit-test files (67 tests), 3 Playwright E2E tests, Firestore rules tests against the active emulator, full lint, and full format check.
+- Known deployment gap: the live Hosting deployment does not yet expose the current security headers and homepage metadata; redeploy before treating `npm run test:http` as passed.
+- Remaining P0/P1: finish module-by-module provenance presentation, complete controlled major-version dependency remediation, and redeploy before rerunning deployed `test:http`.
+- Dependency risk: Firebase CLI patch upgrade and removal of unused `pdfjs-dist` reduced findings to 10 high and 4 moderate vulnerabilities. Remaining Firebase tooling transitive advisories require controlled upgrades.
 
 ## Product decisions required
 
 - Whether manual Nifty input is acceptable for crash scenarios and how long it remains trusted.
-- Whether authenticated users can delete all cloud portfolio state.
-- Which external APIs are approved by the final CSP and privacy notice.
+- Authenticated users may delete all cloud portfolio state from Profile after confirmation; local browser data remains.
+- Manual Nifty values are allowed only when live data is unavailable and are labeled `manual`; users should refresh them before relying on drawdown calculations.
+- CorsProxy is the approved authenticated market-data fallback; direct provider or first-party backend replacement remains a future production hardening option.

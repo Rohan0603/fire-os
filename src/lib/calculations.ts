@@ -46,6 +46,49 @@ export function sipCostBasis(
   return monthlyAmount * monthsSinceStart;
 }
 
+export interface CashFlow {
+  date: Date;
+  amount: number;
+}
+
+/** Calculate annualized return for dated cash flows using Newton-Raphson. */
+export function calculateXirr(cashFlows: CashFlow[]): number | null {
+  if (cashFlows.length < 2) return null;
+
+  const validFlows = cashFlows.filter(
+    flow => Number.isFinite(flow.amount) && !Number.isNaN(flow.date.getTime()),
+  );
+  if (validFlows.length < 2) return null;
+
+  const start = validFlows[0].date.getTime();
+  const years = validFlows.map(flow => (flow.date.getTime() - start) / 86_400_000 / 365);
+  const hasPositive = validFlows.some(flow => flow.amount > 0);
+  const hasNegative = validFlows.some(flow => flow.amount < 0);
+  if (!hasPositive || !hasNegative) return null;
+
+  let rate = 0.1;
+  for (let iteration = 0; iteration < 100; iteration++) {
+    if (rate <= -0.999999) rate = -0.999999;
+    const base = 1 + rate;
+    let value = 0;
+    let derivative = 0;
+
+    validFlows.forEach((flow, index) => {
+      const discount = Math.pow(base, years[index]);
+      value += flow.amount / discount;
+      derivative -= years[index] * flow.amount / (discount * base);
+    });
+
+    if (!Number.isFinite(value) || !Number.isFinite(derivative) || derivative === 0) return null;
+    const nextRate = rate - value / derivative;
+    if (!Number.isFinite(nextRate) || nextRate <= -1 || nextRate > 1e6) return null;
+    if (Math.abs(nextRate - rate) < 1e-8) return nextRate;
+    rate = nextRate;
+  }
+
+  return null;
+}
+
 /**
  * Emergency Runway: Months of Survival on Liquid Assets
  * How long can you survive on liquid assets at current expense rate?

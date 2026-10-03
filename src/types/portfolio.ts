@@ -26,6 +26,14 @@ export interface OtherHolding {
   annualReturn: number;
 }
 
+/** A bounded liability recorded in INR for net-worth calculations. */
+export interface Liability {
+  name: string;
+  amount: number;
+}
+
+export type Liabilities = Record<string, Liability>;
+
 /** Represents a demat stock holding (from Consolidated Account Statement) */
 export interface DematHolding {
   isin: string;

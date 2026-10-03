@@ -262,7 +262,7 @@ Remote data follows the same validation boundary before it can mutate the curren
 | Service | Source/module | Freshness and timeout | Fallback |
 | --- | --- | --- | --- |
 | Mutual-fund NAV | `api.mfapi.in/mf/{schemeCode}` via `src/modules/api/mfapi.ts` | 4-hour cache; 30-second abort timeout; in-flight request deduplication | Stale cached NAV, then `null` and manual entry UI |
-| Nifty 50 | Yahoo Finance Chart API through AllOrigins or corsproxy via `src/modules/api/nifty.ts` | 1-hour cache; 8-second proxy request timeout | Gold ETF NAV approximation, stale cache, then default values/manual entry recommendation |
+| Nifty 50 | Yahoo Finance Chart API through authenticated CorsProxy via `src/modules/api/nifty.ts` | 1-hour cache; 8-second proxy request timeout | Manual entry when live data is unavailable |
 | EUR/INR | Yahoo Finance `EURINR=X` Chart API through `corsproxy.io` via `src/modules/api/eurInr.ts` | 24-hour cache; 10-second abort timeout; rate range 80-150 | Stale cached rate, then manual EUR/INR modal |
 | Portfolio sync | Firebase Cloud Firestore project `fire-os-dd6d6` via `src/modules/api/firestore.ts` | Debounced and retried by `SyncCoordinator` | Local state remains available; pending write waits for reconnect |
 
@@ -276,7 +276,7 @@ Public APIs and proxies can impose their own rate limits and availability polici
 
 `fetchNifty()` first returns a fresh cached value. Otherwise it tries Yahoo Finance Chart API data for `%5ENSEI` through two proxy options:
 
-1. `https://api.allorigins.win/get?url=...`
+1. `https://corsproxy.io/?key=...&url=...`
 2. `https://corsproxy.io/?key=...&url=...` when `VITE_CORSPROXY_API_KEY` exists
 
 If both proxy paths fail, the module fetches scheme `135106` as a Gold ETF proxy, estimates the index level and 52-week high, and marks the source as an approximation. It then returns an expired cache when available. The current implementation finally supplies dated default values with a manual-entry recommendation, so the UI may still render rather than receiving `null`.
@@ -455,7 +455,7 @@ When adding a persisted feature:
 
 ## See Also
 
-- [API.md](docs/API.md) - external API contracts, caching, errors, and fallbacks
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - detailed architecture, lifecycle, persistence, and security notes
+- [API.md](API.md) - external API contracts, caching, errors, and fallbacks
+- [ARCHITECTURE.md](ARCHITECTURE.md) - detailed architecture, lifecycle, persistence, and security notes
 - [QUICKSTART.md](QUICKSTART.md) - setup, Firebase configuration, and common developer commands
 - [README.md](README.md) - product overview, feature list, Firebase setup, and user workflows

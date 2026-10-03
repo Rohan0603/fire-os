@@ -9,6 +9,8 @@ import { parseCASPDF, CASParseResult } from './pdf-parser';
 import { validateFormInput, handleError, ValidationRules } from '../../lib/error-handler';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
 import { calculateAgeFromDateOfBirth } from '../../types/portfolio';
+import { undoLastSavedPortfolioChange } from '../../lib/storage';
+import { profileCompletenessPercent as calculateProfileCompleteness } from '../../lib/completeness';
 import type { EsopHolding } from '../../types/state';
 import './styles.css';
 
@@ -18,12 +20,13 @@ const CORE_HOLDING_ROWS = {
   52: { name: 'EPF', stateKey: 'epf' },
   53: { name: 'Bonds', stateKey: 'bonds' },
 } as const;
-let debounceTimer: NodeJS.Timeout | null = null;
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let activeContext = createFeatureContext();
 let D = activeContext.state;
 let esopValueRequest: Promise<void> | null = null;
 const editingEsopIndices = new Set<number>();
 const editingOtherHoldingIndices = new Set<number>();
+const editingLiabilityIndices = new Set<number>();
 
 /**
  * Initialize profile module
@@ -108,12 +111,25 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
       </div>
 
       <div class="profile-section">
+        <h3>Liabilities</h3>
+        <p class="form-hint">Optional INR liabilities. Used to calculate net worth.</p>
+        <div id="liabilities-list" class="liabilities-form">${renderLiabilityFields()}</div>
+        <button id="add-liability-btn" class="btn-secondary" type="button">+ Add Liability</button>
+      </div>
+
+      <div class="profile-section">
         <h3>Data Management</h3>
         <div class="data-actions" style="display: flex; gap: 1rem; align-items: center; margin-top: 0.5rem;">
           <button id="import-pdf-btn" class="btn-primary">📄 Import CAS PDF</button>
+          <button id="export-backup-btn" class="btn-secondary">Download Backup</button>
+          <button id="undo-change-btn" class="btn-secondary" type="button">Undo Last Change</button>
+          <button id="delete-cloud-btn" class="btn-danger" type="button">Delete Cloud Data</button>
           <button id="save-cloud-btn" class="btn-primary">☁ Save to Firestore</button>
           <span class="save-cloud-hint" style="display: none; color: var(--text-secondary); font-size: 0.875rem;">Log in to sync to Firestore</span>
         </div>
+        <p id="backup-reminder" class="form-hint"></p>
+        <p class="privacy-notice"><strong>Privacy:</strong> portfolio data stays in this browser unless you sign in and choose cloud sync. Backups download as a local JSON file; no identifiers are included in the backup.</p>
+        <p class="completeness-status">Profile completeness: ${calculateProfileCompleteness(D)}%</p>
         <input type="file" id="pdf-input" accept=".pdf" style="display: none;">
       </div>
 
@@ -273,13 +289,13 @@ function renderOtherHoldingsFields(): string {
             return `
               <tr style="border-bottom: 1px solid var(--border-primary);">
                 <td style="padding: 8px 16px;">
-                  <input type="text" class="other-holding-name" data-index="${index}" placeholder="e.g. Gold, Crypto" value="${escapeHtml(holding?.name || '')}" ${editingOtherHoldingIndices.has(index) ? '' : 'readonly'} style="width: 100%; min-width: 200px; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+                  <input type="text" class="other-holding-name profile-editable-field ${editingOtherHoldingIndices.has(index) ? 'is-editing' : 'is-readonly'}" data-index="${index}" placeholder="e.g. Gold, Crypto" value="${escapeHtml(holding?.name || '')}" ${editingOtherHoldingIndices.has(index) ? '' : 'readonly'} style="width: 100%; min-width: 200px; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
                 </td>
                 <td style="padding: 8px 16px;">
-                  <input type="number" class="other-holding-amount" data-index="${index}" min="0" step="0.01" placeholder="₹0" value="${holding?.amount || ''}" ${editingOtherHoldingIndices.has(index) ? '' : 'readonly'} style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+                  <input type="number" class="other-holding-amount profile-editable-field ${editingOtherHoldingIndices.has(index) ? 'is-editing' : 'is-readonly'}" data-index="${index}" min="0" step="0.01" placeholder="₹0" value="${holding?.amount || ''}" ${editingOtherHoldingIndices.has(index) ? '' : 'readonly'} style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
                 </td>
                 <td style="padding: 8px 16px;">
-                  <input type="number" class="other-holding-return" data-index="${index}" min="0" max="100" step="0.1" placeholder="0" value="${holding?.annualReturn ?? ''}" ${editingOtherHoldingIndices.has(index) ? '' : 'readonly'} style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+                  <input type="number" class="other-holding-return profile-editable-field ${editingOtherHoldingIndices.has(index) ? 'is-editing' : 'is-readonly'}" data-index="${index}" min="0" max="100" step="0.1" placeholder="0" value="${holding?.annualReturn ?? ''}" ${editingOtherHoldingIndices.has(index) ? '' : 'readonly'} style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
                 </td>
                 <td style="padding: 8px 16px;">
                   <button type="button" class="btn-secondary edit-other-holding-btn" data-index="${index}" aria-label="${editingOtherHoldingIndices.has(index) ? 'Save' : 'Modify'} ${escapeHtml(holding?.name || 'holding')}" title="${editingOtherHoldingIndices.has(index) ? 'Save changes' : 'Modify holding'}">${editingOtherHoldingIndices.has(index) ? '✓' : '✎'}</button>
@@ -294,6 +310,34 @@ function renderOtherHoldingsFields(): string {
   `;
 }
 
+function renderLiabilityFields(): string {
+  const liabilities = D.liabilities || {};
+  const indices = Object.keys(liabilities)
+    .map((key) => Number(key.replace('liability', '')))
+    .filter((index) => Number.isInteger(index) && index > 0)
+    .sort((a, b) => a - b);
+
+  return indices.map((index) => {
+    const liability = liabilities[`liability${index}`];
+    const editing = editingLiabilityIndices.has(index);
+    const label = escapeHtml(liability?.name || `Liability ${index}`);
+    return `<div class="liability-row" data-index="${index}">
+      <div class="form-group">
+        <label for="liability-name-${index}">Liability ${index}</label>
+        <input id="liability-name-${index}" class="liability-name profile-editable-field ${editing ? 'is-editing' : 'is-readonly'}" data-index="${index}" type="text" maxlength="100" placeholder="e.g. Home loan" value="${escapeHtml(liability?.name || '')}" ${editing ? '' : 'readonly'}>
+      </div>
+      <div class="form-group">
+        <label for="liability-amount-${index}">Amount (INR)</label>
+        <input id="liability-amount-${index}" class="liability-amount profile-editable-field ${editing ? 'is-editing' : 'is-readonly'}" data-index="${index}" type="number" min="0" step="0.01" placeholder="Amount (INR)" value="${liability?.amount || ''}" ${editing ? '' : 'readonly'}>
+      </div>
+      <div class="liability-actions">
+        <button type="button" class="btn-secondary edit-liability-btn" data-index="${index}" aria-label="${editing ? 'Save' : 'Modify'} ${label}" title="${editing ? 'Save changes' : 'Modify liability'}">${editing ? '✓' : '✎'}</button>
+        <button type="button" class="btn-secondary delete-liability-btn" data-index="${index}" aria-label="Delete ${label}" title="Delete liability">🗑</button>
+      </div>
+    </div>`;
+  }).join('') || '<p class="form-hint">No liabilities added.</p>';
+}
+
 function renderEsopProfileFields(): string {
   const details = D.esopDetails;
   const holdings = details.holdings || [];
@@ -304,8 +348,8 @@ function renderEsopProfileFields(): string {
         <tbody>
           ${holdings.map((holding, index) => `
             <tr>
-              <td><input class="esop-name" data-index="${index}" type="text" value="${escapeHtml(holding.name)}" placeholder="Company name" ${editingEsopIndices.has(index) ? '' : 'readonly'}></td>
-              <td><input class="esop-quantity" data-index="${index}" type="number" min="0" step="1" value="${holding.quantity}" ${editingEsopIndices.has(index) ? '' : 'readonly'}></td>
+              <td><input class="esop-name profile-editable-field ${editingEsopIndices.has(index) ? 'is-editing' : 'is-readonly'}" data-index="${index}" type="text" value="${escapeHtml(holding.name)}" placeholder="Company name" ${editingEsopIndices.has(index) ? '' : 'readonly'}></td>
+              <td><input class="esop-quantity profile-editable-field ${editingEsopIndices.has(index) ? 'is-editing' : 'is-readonly'}" data-index="${index}" type="number" min="0" step="1" value="${holding.quantity}" ${editingEsopIndices.has(index) ? '' : 'readonly'}></td>
               <td><span class="esop-value" data-index="${index}">Fetching...</span></td>
               <td>
                 <button type="button" class="btn-secondary edit-esop-holding-btn" data-index="${index}" aria-label="${editingEsopIndices.has(index) ? 'Save' : 'Modify'} ${escapeHtml(holding.name || 'holding')}" title="${editingEsopIndices.has(index) ? 'Save changes' : 'Modify holding'}">${editingEsopIndices.has(index) ? '✓' : '✎'}</button>
@@ -427,6 +471,49 @@ function attachProfileHandlers(context: FeatureContext) {
     });
   }
 
+  const liabilitiesList = document.getElementById('liabilities-list');
+  liabilitiesList?.querySelectorAll('input').forEach((input) => input.addEventListener('blur', debounceProfileSave));
+  liabilitiesList?.querySelectorAll<HTMLButtonElement>('.delete-liability-btn').forEach((button) => {
+    button.addEventListener('click', () => {
+      const index = Number(button.dataset.index);
+      delete D.liabilities[`liability${index}`];
+      editingLiabilityIndices.clear();
+      const container = document.getElementById('profile');
+      if (container) renderProfile(container, context);
+      saveProfile();
+    });
+  });
+  liabilitiesList?.querySelectorAll<HTMLButtonElement>('.edit-liability-btn').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const index = Number(button.dataset.index);
+      if (!editingLiabilityIndices.has(index)) {
+        editingLiabilityIndices.add(index);
+        const container = document.getElementById('profile');
+        if (container) renderProfile(container, context);
+        return;
+      }
+
+      const valid = await saveProfile();
+      if (!valid) return;
+      editingLiabilityIndices.delete(index);
+      const container = document.getElementById('profile');
+      if (container) renderProfile(container, context);
+    });
+  });
+
+  document.getElementById('add-liability-btn')?.addEventListener('click', () => {
+    if (!D.liabilities) D.liabilities = {};
+    for (let i = 1; i <= 50; i++) {
+      if (!D.liabilities[`liability${i}`]) {
+        D.liabilities[`liability${i}`] = { name: '', amount: 0 };
+        editingLiabilityIndices.add(i);
+        const container = document.getElementById('profile');
+        if (container) renderProfile(container, context);
+        return;
+      }
+    }
+  });
+
   const esopFields = document.getElementById('esop-profile-fields');
   esopFields?.querySelectorAll('input').forEach((input) => input.addEventListener('blur', debounceProfileSave));
   esopFields?.querySelectorAll<HTMLButtonElement>('.delete-esop-holding-btn').forEach((button) => {
@@ -512,6 +599,43 @@ function attachProfileHandlers(context: FeatureContext) {
     document.getElementById('pdf-input')?.click();
   });
 
+  const backupReminder = document.getElementById('backup-reminder');
+  const lastExport = localStorage.getItem('fire-os:last-exported-at');
+  if (backupReminder) {
+    backupReminder.textContent = lastExport
+      ? `Last backup: ${new Date(lastExport).toLocaleString()}`
+      : 'No backup downloaded yet.';
+  }
+  document.getElementById('export-backup-btn')?.addEventListener('click', () => {
+    const { currentUser, _syncMetadata, _lastSavedAt, ...backup } = D;
+    void currentUser;
+    void _syncMetadata;
+    void _lastSavedAt;
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `fire-os-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    const exportedAt = new Date().toISOString();
+    localStorage.setItem('fire-os:last-exported-at', exportedAt);
+    if (backupReminder) backupReminder.textContent = `Last backup: ${new Date(exportedAt).toLocaleString()}`;
+  });
+  document.getElementById('undo-change-btn')?.addEventListener('click', async () => {
+    if (!undoLastSavedPortfolioChange(D)) return;
+    await activeContext.portfolio.save(D);
+    const container = document.getElementById('profile');
+    if (container) renderProfile(container, activeContext);
+  });
+  document.getElementById('delete-cloud-btn')?.addEventListener('click', async () => {
+    const uid = D.currentUser?.uid;
+    if (!uid || !activeContext.portfolio.deleteCloud) return;
+    const confirmed = window.confirm('Delete all cloud portfolio data for this account? Local browser data will remain.');
+    if (!confirmed) return;
+    await activeContext.portfolio.deleteCloud(uid);
+  });
+
   document.getElementById('pdf-input')?.addEventListener('change', handlePDFImport);
 
   // Confirmation modal
@@ -521,10 +645,12 @@ function attachProfileHandlers(context: FeatureContext) {
   // Save to Firestore button
   const saveCloudBtn = document.getElementById('save-cloud-btn') as HTMLButtonElement;
   if (saveCloudBtn) {
+    const deleteCloudBtn = document.getElementById('delete-cloud-btn') as HTMLButtonElement | null;
     const updateButtonState = () => {
       const isAuthed = !!D.currentUser?.uid;
       saveCloudBtn.disabled = !isAuthed;
       saveCloudBtn.classList.toggle('btn-disabled', !isAuthed);
+      if (deleteCloudBtn) deleteCloudBtn.disabled = !isAuthed;
 
       const hint = document.querySelector('.save-cloud-hint') as HTMLElement;
       if (hint) {
@@ -657,6 +783,21 @@ export async function saveProfile(): Promise<boolean> {
     const fiTargetInput = document.getElementById('fi-target') as HTMLInputElement;
     const monthlyIncomeInput = document.getElementById('monthly-income') as HTMLInputElement;
     const taxSlabRateInput = document.getElementById('tax-slab-rate') as HTMLInputElement;
+
+    if (!D.liabilities) D.liabilities = {};
+    document.querySelectorAll<HTMLInputElement>('.liability-name').forEach((nameInput) => {
+      const index = nameInput.dataset.index;
+      const amountInput = document.querySelector<HTMLInputElement>(`.liability-amount[data-index="${index}"]`);
+      const name = nameInput.value.trim();
+      const amount = Number(amountInput?.value || 0);
+      if (name && Number.isFinite(amount) && amount >= 0) {
+        D.liabilities[`liability${index}`] = { name, amount };
+      } else if (!name && amount === 0) {
+        delete D.liabilities[`liability${index}`];
+      } else if (name && (!Number.isFinite(amount) || amount < 0)) {
+        validationErrors.push({ field: `liability-${index}`, message: 'Liability amount must be zero or greater' });
+      }
+    });
 
     // Validate name (optional but if provided, must be 2+ chars)
     if (nameInput?.value) {

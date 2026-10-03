@@ -1,11 +1,10 @@
 /**
  * Nifty 50 Index Data Fetching Module
- * CRITICAL FIX (v2.2): Attempts real NSE API first, falls back to ETF approximation with disclaimer
+ * CRITICAL FIX (v2.2): Uses real index data or requires manual entry
  *
  * Data Sources (in priority order):
  * 1. NSE Public API (if available) - returns true Nifty50 index level + 52W high
- * 2. ETF NAV fallback (scheme 135106 - ICICI Gold ETF as proxy) - marked with disclaimer
- * 3. Manual entry via modal - user provides level + 52W high
+ * 2. Manual entry via modal - user provides level + 52W high
  *
  * Cache TTL: 1 hour (index data changes daily, refresh frequently)
  */
@@ -31,23 +30,19 @@ const NIFTY_CACHE_TTL = CONFIG.cacheTtl.nifty;
 /**
  * Fetch Nifty 50 level and 52-week high
  * PRIORITY 1: Try NSE/Yahoo Finance real data
- * PRIORITY 2: Fall back to ETF NAV approximation (with disclaimer)
- * PRIORITY 3: Return cached value if available
- * PRIORITY 4: Return null (user must enter manually)
+ * PRIORITY 2: Return null (user must enter manually)
  *
  * @returns { level, high52w, source } or null if all sources fail
  */
-export async function fetchNifty(): Promise<{
-  level: number;
-  high52w: number;
-  source: string;
-} | null> {
+export async function fetchNifty(): Promise<NiftyData | null> {
   // Check cache first
   if (niftyCache && Date.now() - new Date(niftyCache.timestamp).getTime() < NIFTY_CACHE_TTL) {
     return {
       level: niftyCache.level,
       high52w: niftyCache.high52w,
       source: niftyCache.source,
+      timestamp: niftyCache.timestamp,
+      status: 'cache-fresh',
     };
   }
 
@@ -55,20 +50,24 @@ export async function fetchNifty(): Promise<{
   try {
     const niftyReal = await fetchNiftyFromYahoo();
     if (niftyReal) {
+      const timestamp = new Date().toISOString();
       niftyCache = {
         level: niftyReal.level,
         high52w: niftyReal.high52w,
-        timestamp: new Date().toISOString(),
+        timestamp,
         source: 'Yahoo Finance (NSE data)',
+        status: 'live',
       };
       return {
         level: niftyReal.level,
         high52w: niftyReal.high52w,
         source: niftyReal.source,
+        timestamp,
+        status: 'live',
       };
     }
   } catch (error) {
-    logger.warn('Yahoo Finance fetch failed, attempting ETF fallback', error);
+    logger.warn('Yahoo Finance fetch failed; manual entry is required', error);
   }
 
   logger.warn('All Nifty data sources failed; manual entry is required');
@@ -86,10 +85,7 @@ async function fetchNiftyFromYahoo(): Promise<{
   high52w: number;
   source: string;
 } | null> {
-  const proxies = [
-    { url: 'https://api.allorigins.win/get?url=', name: 'allorigins' },
-    { url: 'https://corsproxy.io/?', name: 'corsproxy' }
-  ];
+  const proxies = [{ url: 'https://corsproxy.io/?', name: 'corsproxy' }];
 
   // Yahoo Finance Chart API gives exact JSON data for Nifty 50
   const yahooApiUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI?interval=1d&range=1y';
@@ -102,9 +98,7 @@ async function fetchNiftyFromYahoo(): Promise<{
         continue;
       }
 
-      const proxyUrl = proxy.name === 'corsproxy'
-        ? `${proxy.url}key=${encodeURIComponent(proxyKey!)}&url=${encodeURIComponent(yahooApiUrl)}`
-        : `${proxy.url}${encodeURIComponent(yahooApiUrl)}`;
+      const proxyUrl = `${proxy.url}key=${encodeURIComponent(proxyKey!)}&url=${encodeURIComponent(yahooApiUrl)}`;
 
       logger.log(`Nifty fetch via ${proxy.name}:`, proxyUrl);
 
@@ -123,14 +117,7 @@ async function fetchNiftyFromYahoo(): Promise<{
         continue;
       }
 
-      let data: any;
-      if (proxy.name === 'allorigins') {
-        // allorigins /get returns JSON with a contents string
-        const alloriginsResponse = await response.json();
-        data = JSON.parse(alloriginsResponse.contents);
-      } else {
-        data = await response.json();
-      }
+      const data = await response.json();
 
       if (data?.chart?.result?.[0]) {
         const result = data.chart.result[0];
@@ -176,6 +163,7 @@ export function setCachedNifty(level: number, high52w: number, source: string = 
     high52w,
     timestamp: new Date().toISOString(),
     source,
+    status: 'manual',
   };
   logger.log('Nifty cache set', { level, high52w, source });
 }

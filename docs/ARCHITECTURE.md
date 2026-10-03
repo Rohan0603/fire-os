@@ -190,4 +190,4 @@ When adding a persisted feature:
 ## See Also
 
 - [API.md](API.md) - external API integrations and response contracts
-- [QUICKSTART.md](../QUICKSTART.md) - developer setup and common commands# FIRE OS Architecture
+- [QUICKSTART.md](QUICKSTART.md) - developer setup and common commands# FIRE OS Architecture

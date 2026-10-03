@@ -4,7 +4,7 @@
  */
 
 import { getLogger } from '../../lib/logger';
-import type { NAVCacheMap, MFAPIResponse } from '../../types/api';
+import type { MarketDataStatus, NAVCacheMap, MFAPIResponse } from '../../types/api';
 import { CONFIG } from '../../lib/config';
 
 const logger = getLogger();
@@ -18,6 +18,10 @@ const inFlightRequests: Map<string, Promise<number | null>> = new Map();
 // Constants
 const MFAPI_BASE_URL = CONFIG.api.mfapiBaseUrl;
 const NAV_CACHE_TTL = CONFIG.cacheTtl.nav;
+
+function cacheStatus(timestamp: string): MarketDataStatus {
+  return Date.now() - new Date(timestamp).getTime() < NAV_CACHE_TTL ? 'cache-fresh' : 'stale';
+}
 
 /**
  * Fetch latest NAV for a given scheme code
@@ -85,6 +89,8 @@ export async function fetchNAV(schemeCode: string): Promise<number | null> {
         nav,
         timestamp: new Date().toISOString(),
         ttl: NAV_CACHE_TTL,
+        source: 'api.mfapi.in',
+        status: 'live',
       };
 
       return nav;
@@ -128,6 +134,8 @@ export function setCachedNAV(schemeCode: string, nav: number): void {
     nav,
     timestamp: new Date().toISOString(),
     ttl: NAV_CACHE_TTL,
+    source: 'manual',
+    status: 'manual',
   };
 }
 
@@ -135,7 +143,12 @@ export function setCachedNAV(schemeCode: string, nav: number): void {
  * Get entire cache map (for debugging)
  */
 export function getNAVCacheMap(): NAVCacheMap {
-  return { ...navCache };
+  return Object.fromEntries(
+    Object.entries(navCache).map(([schemeCode, cache]) => [schemeCode, {
+      ...cache,
+      status: cache.status === 'manual' ? 'manual' : cacheStatus(cache.timestamp),
+    }]),
+  );
 }
 
 /**

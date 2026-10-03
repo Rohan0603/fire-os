@@ -113,8 +113,7 @@ fire-os/
 ├── vite.config.ts                # Vite config (root: src/, outDir: dist/)
 ├── tsconfig.json                 # TypeScript strict mode config
 ├── playwright.config.ts          # Playwright config (baseURL: localhost:5173)
-├── CLAUDE.md                     # Claude Code developer guide
-└── ANTIGRAVITY.md                # This file
+└── docs/                         # Centralized product and engineering documentation
 ```
 
 ## Architecture & Patterns
@@ -170,8 +169,8 @@ export function renderProfile(container: HTMLElement): void {
 | API                 | Endpoint                                  | Cache TTL | Fallback                        |
 |---------------------|-------------------------------------------|-----------|----------------------------------|
 | Mutual Fund NAV     | `api.mfapi.in/mf/{schemeCode}`            | 4 hours   | Cached value → manual entry      |
-| Nifty 50            | Yahoo Finance via `api.allorigins.win`    | 1 hour    | Gold ETF NAV approximation       |
-| EUR/INR             | Yahoo Finance via `api.allorigins.win`    | 24 hours  | Cached rate → manual entry       |
+| Nifty 50            | Yahoo Finance via authenticated `corsproxy.io` | 1 hour | Manual entry only when unavailable |
+| Currency rates       | Yahoo Finance via authenticated `corsproxy.io` | Pair TTL | Cached rate or manual entry      |
 
 **Scheme codes:** 122639 (Parag Parikh), 118668 (Nippon Growth), 118778 (Nippon Small), 135106 (Gold ETF)
 

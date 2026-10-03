@@ -38,7 +38,7 @@ Do not treat functionality, visual design, mobile, accessibility, or production-
 | PDF.js | Entry-point PDF.js is version-pinned on jsDelivr; runtime fallback is version-pinned on cdnjs, but remains third-party executable code. | Verified in [src/index.html](src/index.html) and [src/modules/profile/pdf-parser.ts](src/modules/profile/pdf-parser.ts) |
 | Crawler files | `robots.txt`, `sitemap.xml`, and `llms.txt` exist in the repository. Their deployed availability remains unverified. | Verified in [public/robots.txt](public/robots.txt), [public/sitemap.xml](public/sitemap.xml), and [public/llms.txt](public/llms.txt) |
 | Plan/action centre | Plan-related health, actions, milestones, cash flow, and history are present in prerendered route content. Calling a deeper action centre feature missing is unsupported without interactive testing. | Verified in [scripts/prerender-routes.mjs](scripts/prerender-routes.mjs) |
-| Guest privacy | Guest mode and no guest Firestore writes are documented. Plaintext-storage and sync-state disclosure in the product UI remain incomplete or unverified. | Documented in [README.md](README.md) and [public/llms.txt](public/llms.txt) |
+| Guest privacy | Guest mode and no guest Firestore writes are documented. Plaintext-storage and sync-state disclosure in the product UI remain incomplete or unverified. | Documented in [README.md](README.md) and [public/llms.txt](../public/llms.txt) |
 | Canonical slash behavior | The supplied audit reports a possible slash/redirect mismatch. Source generates slashless section canonicals, but production redirect behavior needs HTTP verification. | Source verified; deployment unverified |
 | Live content | The supplied audits report useful static content on all seven URLs. This report does not independently re-fetch production. | Observed by supplied audits |
 
@@ -89,7 +89,7 @@ This is a valid data-retention choice only if made explicit. Otherwise it confli
 
 ### Privacy and disclaimer communication
 
-[README.md](README.md) documents guest storage, cloud sync, external APIs, plaintext browser storage, and a general financial disclaimer. [public/llms.txt](public/llms.txt) documents guest behavior and privacy at a high level.
+[README.md](README.md) documents guest storage, cloud sync, external APIs, plaintext browser storage, and a general financial disclaimer. [public/llms.txt](../public/llms.txt) documents guest behavior and privacy at a high level.
 
 The inspected static route shell does not visibly communicate plaintext local storage, third-party market-data requests, sync status, or a financial disclaimer. The crash panel renders a generic `Source:` value in [src/modules/calculators/index.ts](src/modules/calculators/index.ts), but does not visibly distinguish live, cached, approximate, default, or manual data.
 

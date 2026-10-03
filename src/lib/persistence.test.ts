@@ -116,6 +116,23 @@ describe('portfolio persistence contracts', () => {
     expect(coordinator.markDirty).not.toHaveBeenCalled();
   });
 
+  it('persists Nifty market data locally for subsequent assistant context builds', () => {
+    const state = initializeState();
+    state.niftyHigh = 25000;
+    state.niftyData = {
+      level: 24000,
+      high52w: 25000,
+      timestamp: '2026-10-03T10:00:00.000Z',
+      source: 'Yahoo Finance',
+      status: 'live',
+    };
+
+    persistPortfolioState(state, { sync: false });
+
+    expect(loadData()?.niftyData).toEqual(state.niftyData);
+    expect(loadData()?.niftyHigh).toBe(25000);
+  });
+
   it('keeps local data when cloud enqueue fails', async () => {
     const coordinator = {
       markDirty: vi.fn(() => { throw new Error('offline'); }),

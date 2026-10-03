@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Install assistant server dependencies
+        run: npm ci --prefix server
+
       - name: Build
         run: npm run build
         env:
@@ -39,6 +42,9 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
           VITE_FIREBASE_MEASUREMENT_ID: ${{ vars.VITE_FIREBASE_MEASUREMENT_ID }}
 
+      - name: Verify generated route metadata
+        run: npm run test:metadata
+
       - name: Lint
         run: npm run lint
 
@@ -47,6 +53,9 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      - name: Assistant proxy tests
+        run: npm run test:server
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
@@ -57,8 +66,10 @@ jobs:
       - name: Validate Firestore rules
         run: npm run test:rules:emulator
 
+      # Requires the OPENROUTER_API_KEY secret to be provisioned once:
+      #   firebase functions:secrets:set OPENROUTER_API_KEY
       - name: Deploy to Firebase
-        run: npx --no-install firebase-tools deploy --only hosting,firestore:rules,firestore:indexes --project fire-os-dd6d6 --token "$FIREBASE_TOKEN"
+        run: npx --no-install firebase-tools deploy --only hosting,functions,firestore:rules,firestore:indexes --project fire-os-dd6d6 --token "$FIREBASE_TOKEN"
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
 

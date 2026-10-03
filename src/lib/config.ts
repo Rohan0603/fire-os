@@ -18,16 +18,14 @@ export const CONFIG = {
   // API Endpoints
   api: {
     mfapiBaseUrl: 'https://api.mfapi.in/mf',
-    alloriginsBaseUrl: 'https://api.allorigins.win/get?url=',
     yahooFinanceNifty: 'https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI',
-    yahooFinanceEurInr: 'https://query1.finance.yahoo.com/v8/finance/chart/EURINR=X',
   },
 
   // Cache TTLs in milliseconds
   cacheTtl: {
     nav: 4 * 60 * 60 * 1000,        // 4 hours
     nifty: 60 * 60 * 1000,          // 1 hour
-    eurInr: 24 * 60 * 60 * 1000,     // 24 hours
+    currencyRate: 24 * 60 * 60 * 1000, // 24 hours
   },
 
   // Target Allocations (%)

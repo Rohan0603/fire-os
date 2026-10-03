@@ -13,6 +13,23 @@
       }
     }
   },
+  "functions": [
+    {
+      "source": "server",
+      "codebase": "assistant",
+      "ignore": [
+        "node_modules/**",
+        ".git/**",
+        "**/*.test.js",
+        "**/vitest.config.js",
+        "test/**",
+        ".env",
+        ".env.*",
+        "*.log",
+        ".gitignore"
+      ]
+    }
+  ],
   "hosting": {
     "public": "dist",
     "trailingSlash": false,
@@ -23,12 +40,16 @@
       ".git",
       ".github",
       "CLAUDE.md",
-      "ANTIGRAVITY.md",
+      "docs/**",
       "README.md",
       "package.json",
       "package-lock.json"
     ],
     "rewrites": [
+      {
+        "source": "/api/assistant/**",
+        "function": "assistantProxy"
+      },
       {
         "source": "**",
         "destination": "/index.html"
@@ -38,7 +59,7 @@
       {
         "source": "**",
         "headers": [
-          { "key": "Content-Security-Policy-Report-Only", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://identitytoolkit.googleapis.com https://api.allorigins.win https://corsproxy.io https://query1.finance.yahoo.com https://api.mfapi.in; font-src 'self' data:; worker-src 'self' blob:; frame-ancestors 'none'; report-uri /csp-report" },
+          { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' 'unsafe-inline' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://identitytoolkit.googleapis.com https://corsproxy.io https://query1.finance.yahoo.com https://api.mfapi.in; font-src 'self' data:; worker-src 'self' blob:; frame-ancestors 'none'" },
           { "key": "X-Content-Type-Options", "value": "nosniff" },
           { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
           { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },

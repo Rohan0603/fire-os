@@ -3,8 +3,8 @@
  * Defines the complete FireOSState interface and initialization logic
  */
 
-import type { PortfolioProfile, Holdings, DematHoldings, AlphaTrackerDataCollection, SIPFunds, OtherHoldings } from './portfolio';
-import type { NiftyData, EURINRData, NAVCacheMap } from './api';
+import type { PortfolioProfile, Holdings, DematHoldings, AlphaTrackerDataCollection, SIPFunds, OtherHoldings, Liabilities } from './portfolio';
+import type { CurrencyRateCacheMap, CurrencyRateData, NiftyData, NAVCacheMap } from './api';
 import type { SyncMetadata, FirebaseUser } from './firebase';
 
 // Firebase User type - Firebase authenticated user or null
@@ -54,14 +54,18 @@ export interface FireOSState {
   esop: Holdings; // ESOP stocks
   bonds: Holdings; // Bonds
   otherHoldings: OtherHoldings; // User-defined holdings
+  liabilities: Liabilities;
   demat: DematHoldings; // Demat stock holdings
 
   // API Cache and Live Data
   nav: NAVCacheMap; // Cached NAV values for mutual funds
   niftyHigh: number; // Nifty 52-week high (or current level as fallback)
   niftyData?: NiftyData; // Complete Nifty data with timestamp
-  eurInr: number; // EUR/INR exchange rate
-  eurInrData?: EURINRData; // Complete exchange rate data with timestamp
+  currencyRates: CurrencyRateCacheMap;
+  /** @deprecated Read legacy data only; new writes use currencyRates. */
+  eurInr?: number;
+  /** @deprecated Read legacy data only; new writes use currencyRates. */
+  eurInrData?: CurrencyRateData;
 
   // Alpha Tracking
   alphaTrackerData: AlphaTrackerDataCollection; // Fund vs benchmark returns
@@ -127,9 +131,10 @@ export interface FireOSState {
   esopDetails: EsopDetails;
 }
 
-const PERSISTED_STATE_KEYS = [
-  'profile', 'mf', 'fd', 'epf', 'sip', 'esop', 'bonds', 'otherHoldings', 'demat', 'nav',
-  'niftyHigh', 'niftyData', 'eurInr', 'eurInrData', 'alphaTrackerData',
+/** Top-level keys accepted in persisted portfolio data (allowlist). */
+export const PERSISTED_STATE_KEYS = [
+  'profile', 'mf', 'fd', 'epf', 'sip', 'esop', 'bonds', 'otherHoldings', 'liabilities', 'demat', 'nav',
+  'niftyHigh', 'niftyData', 'currencyRates', 'eurInr', 'eurInrData', 'alphaTrackerData',
   'coorgCorpus', 'coorgStartDate', 'coorgTarget', 'coorgMonthlyAmount',
   'watchdogRules', 'swpSchedule', 'taxCalendar', 'expenses', 'netWorthHistory',
   'completedActions', 'achievedMilestones', 'insurance', 'esopDetails',
@@ -218,28 +223,50 @@ function isNavMap(value: unknown): boolean {
   if (!isRecord(value)) return false;
   return Object.values(value).every((cache) =>
     isRecord(cache)
-    && hasOnlyKeys(cache, ['schemeCode', 'nav', 'timestamp', 'ttl'])
+    && hasOnlyKeys(cache, ['schemeCode', 'nav', 'timestamp', 'ttl', 'source', 'status'])
     && typeof cache.schemeCode === 'string'
     && isFiniteNumber(cache.nav)
     && isTimestamp(cache.timestamp)
-    && isFiniteNumber(cache.ttl),
+    && isFiniteNumber(cache.ttl)
+    && (!('source' in cache) || typeof cache.source === 'string')
+    && (!('status' in cache) || cache.status === 'live' || cache.status === 'cache-fresh' || cache.status === 'stale' || cache.status === 'manual'),
   );
 }
 
 function isNiftyData(value: unknown): boolean {
   return isRecord(value)
-    && hasOnlyKeys(value, ['level', 'high52w', 'timestamp', 'source'])
+    && hasOnlyKeys(value, ['level', 'high52w', 'timestamp', 'source', 'status'])
     && isFiniteNumber(value.level)
     && isFiniteNumber(value.high52w)
     && isTimestamp(value.timestamp)
-    && typeof value.source === 'string';
+    && typeof value.source === 'string'
+    && (!('status' in value) || value.status === 'live' || value.status === 'cache-fresh' || value.status === 'manual');
 }
 
-function isEurInrData(value: unknown): boolean {
+function isCurrencyRateData(value: unknown): boolean {
   return isRecord(value)
-    && hasOnlyKeys(value, ['rate', 'timestamp'])
+    && hasOnlyKeys(value, ['rate', 'timestamp', 'sourceCurrency', 'targetCurrency', 'source', 'status'])
     && isFiniteNumber(value.rate)
-    && isTimestamp(value.timestamp);
+    && isTimestamp(value.timestamp)
+    && (!('sourceCurrency' in value) || typeof value.sourceCurrency === 'string')
+    && (!('targetCurrency' in value) || typeof value.targetCurrency === 'string')
+    && (!('source' in value) || typeof value.source === 'string')
+    && (!('status' in value) || value.status === 'live' || value.status === 'cache-fresh' || value.status === 'stale' || value.status === 'manual');
+}
+
+function isCurrencyRateMap(value: unknown): boolean {
+  return isRecord(value) && Object.values(value).every(isCurrencyRateData);
+}
+
+function isLiabilities(value: unknown): boolean {
+  return isRecord(value)
+    && Object.keys(value).length <= 50
+    && Object.values(value).every((entry) => isRecord(entry)
+      && hasOnlyKeys(entry, ['name', 'amount'])
+      && typeof entry.name === 'string'
+      && entry.name.length <= 100
+      && isFiniteNumber(entry.amount)
+      && entry.amount >= 0);
 }
 
 function isAlphaTrackerMap(value: unknown): boolean {
@@ -381,12 +408,14 @@ export function isPersistedPortfolioData(value: unknown): value is Partial<FireO
     if (key in data && !isHoldingMap(data[key])) return false;
   }
   if ('otherHoldings' in data && !isOtherHoldingMap(data.otherHoldings)) return false;
+  if ('liabilities' in data && !isLiabilities(data.liabilities)) return false;
   if ('demat' in data && !isDematMap(data.demat)) return false;
   if ('nav' in data && !isNavMap(data.nav)) return false;
   if ('niftyHigh' in data && !isFiniteNumber(data.niftyHigh)) return false;
   if ('niftyData' in data && !isNiftyData(data.niftyData)) return false;
+  if ('currencyRates' in data && !isCurrencyRateMap(data.currencyRates)) return false;
   if ('eurInr' in data && !isFiniteNumber(data.eurInr)) return false;
-  if ('eurInrData' in data && !isEurInrData(data.eurInrData)) return false;
+  if ('eurInrData' in data && !isCurrencyRateData(data.eurInrData)) return false;
   if ('alphaTrackerData' in data && !isAlphaTrackerMap(data.alphaTrackerData)) return false;
   for (const key of ['coorgCorpus', 'coorgTarget', 'coorgMonthlyAmount'] as const) {
     if (key in data && !isFiniteNumber(data[key])) return false;
@@ -429,12 +458,13 @@ export function initializeState(): FireOSState {
     esop: {},
     bonds: {},
     otherHoldings: {},
+    liabilities: {},
     demat: {},
 
     // API cache and defaults
     nav: {},
     niftyHigh: 0,
-    eurInr: 0,
+    currencyRates: {},
 
     // Tracking
     alphaTrackerData: {},
@@ -554,7 +584,7 @@ export function isFireOSState(value: unknown): value is FireOSState {
   const persistedData = Object.fromEntries(
     PERSISTED_STATE_KEYS.filter((key) => key in value).map((key) => [key, value[key]]),
   );
-  const requiredPersistedKeys = PERSISTED_STATE_KEYS.filter((key) => key !== 'niftyData' && key !== 'eurInrData');
+  const requiredPersistedKeys = PERSISTED_STATE_KEYS.filter((key) => !['niftyData', 'eurInr', 'eurInrData'].includes(key));
   if (!requiredPersistedKeys.every((key) => key in value) || !isPersistedPortfolioData(persistedData)) return false;
   if (value.currentUser !== null && !isRecord(value.currentUser)) return false;
   if (!isTimestamp(value._lastSavedAt)) return false;
@@ -587,9 +617,11 @@ export function mergeState(existing: FireOSState, incoming: Partial<FireOSState>
     ...(incoming.esop && { esop: { ...existing.esop, ...incoming.esop } }),
     ...(incoming.bonds && { bonds: { ...existing.bonds, ...incoming.bonds } }),
     ...(incoming.demat && { demat: { ...existing.demat, ...incoming.demat } }),
+    ...(incoming.liabilities && { liabilities: { ...existing.liabilities, ...incoming.liabilities } }),
     ...(incoming.nav && { nav: { ...existing.nav, ...incoming.nav } }),
     ...(incoming.niftyHigh && { niftyHigh: incoming.niftyHigh }),
     ...(incoming.niftyData !== undefined && { niftyData: incoming.niftyData }),
+    ...(incoming.currencyRates && { currencyRates: { ...existing.currencyRates, ...incoming.currencyRates } }),
     ...(incoming.eurInr !== undefined && { eurInr: incoming.eurInr }),
     ...(incoming.eurInrData !== undefined && { eurInrData: incoming.eurInrData }),
     ...(incoming.alphaTrackerData && { alphaTrackerData: { ...existing.alphaTrackerData, ...incoming.alphaTrackerData } }),
