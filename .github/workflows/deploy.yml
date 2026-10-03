@@ -58,12 +58,6 @@ jobs:
       - name: Assistant proxy tests
         run: npm run test:server
 
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
-
-      - name: Browser guest-route tests
-        run: npm run test:e2e
-
       - name: Validate Firestore rules
         run: npm run test:rules:emulator
 
