@@ -101,15 +101,15 @@ ever sees them.
 
 ```
 OPENROUTER_API_URL=https://openrouter.ai/api/v1/chat/completions  # optional
-OPENROUTER_API_KEY=...        # local: server/.env or repo-root .env — cloud: Secret Manager (see below)
+OPENROUTER_API_KEY=...        # local: repo-root .env — cloud: Worker Secret (see below)
 OPENROUTER_FALLBACK_MODELS=qwen/qwen3.8-27b:free,google/gemma-4-31b-it:free  # optional, comma-separated; at most 2 fallbacks
 OPENROUTER_HTTP_REFERER=https://fire-os-dd6d6.web.app  # optional; attribution only
 ASSISTANT_RATE_LIMIT=20                      # optional
 PORT=3001                                    # optional (local only)
 ```
 
-`.env` loading: `server/.env` first (wins), repo-root `.env` as fallback — regardless
-of the working directory you start the server from.
+`.env` loading: the server reads only the repository-root `.env`, regardless of the
+working directory you start it from. Copy `.env.example` to `.env`; never commit `.env`.
 
 ### Model choice
 

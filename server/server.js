@@ -3,16 +3,13 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
-import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildSystemPrompt, buildMessages } from './lib/prompt.js';
 import { checkPromptPolicy, validateRequestBody, extractProposedChanges } from './lib/policy.js';
 import { getOpenRouterModels } from './lib/model.js';
 
-// Load env regardless of cwd: server/.env wins, repo-root .env fills the gaps.
-const serverDir = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.resolve(serverDir, '.env') });
-dotenv.config({ path: path.resolve(serverDir, '..', '.env') });
+// Load the single repository-root env file regardless of the current directory.
+dotenv.config({ path: fileURLToPath(new URL('../.env', import.meta.url)) });
 
 const app = express();
 const PORT = process.env.PORT || 3001;

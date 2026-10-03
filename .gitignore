@@ -32,7 +32,12 @@ firebase-debug.log
 # OS artifacts
 .DS_Store
 Thumbs.db
-# .env is tracked intentionally - contains public Firebase client config
+# Local environment files are never committed. The example template is tracked.
+.env
+.env.*
+!.env.example
+server/.env*
+!server/.env.example
 .env.production.local
 
 # Environment & Config

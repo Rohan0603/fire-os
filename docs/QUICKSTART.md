@@ -28,8 +28,9 @@ npm run dev
 
 ## Firebase Configuration
 
-Copy the existing project’s web configuration into the root `.env` file. The
-required values are:
+Copy `.env.example` to `.env`, then fill in the secret placeholders. The root
+`.env` is shared by Vite and the local assistant server and must never be committed.
+The Firebase values are:
 
 ```text
 VITE_FIREBASE_API_KEY=...

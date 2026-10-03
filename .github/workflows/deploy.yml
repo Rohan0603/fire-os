@@ -1,4 +1,4 @@
-name: Deploy to Firebase Hosting
+name: Deploy Firebase Hosting and Assistant Worker
 
 on:
   push:
@@ -71,6 +71,20 @@ jobs:
         run: npx --no-install firebase-tools deploy --only hosting,firestore:rules,firestore:indexes --project fire-os-dd6d6 --token "$FIREBASE_TOKEN"
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      - name: Verify Cloudflare credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing GitHub Actions secret: CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing GitHub Actions secret: CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+
+      - name: Deploy Assistant Worker
+        run: npx --yes wrangler@latest deploy --config worker/wrangler.toml
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Post-deploy route smoke test
         run: node scripts/smoke-routes.mjs
