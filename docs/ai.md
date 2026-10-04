@@ -87,9 +87,11 @@ PII/raw dumps/full portfolio disclosure (403). Each user turn in the submitted
 history is checked. This is pattern filtering, not semantic moderation.
 
 Cloudflare Worker route: only `POST /api/assistant/query` and OPTIONS are
-handled. It applies a Cloudflare rate limit of 20 requests per minute per
-`CF-Connecting-IP` (binding failure => 503), validates the configured upstream
-secret, and has a 25s upstream timeout. CORS allows configured `ALLOWED_ORIGIN`
+handled. In order it rejects a missing `OPENROUTER_API_KEY` (500), enforces the
+100 KB body cap (413), parses JSON (400), validates message shape and prompt
+policy, then applies a Cloudflare rate limit of 20 requests per minute per
+`CF-Connecting-IP` (binding failure => 503) before calling upstream with a 25s
+timeout. CORS allows configured `ALLOWED_ORIGIN`
 or `*`. OpenRouter request uses `Authorization: Bearer ...`, `HTTP-Referer`,
 `X-OpenRouter-Title: FIRE OS`, selected model fallbacks, `max_tokens: 180`,
 non-streaming response. Provider failure maps to 502; timeout 504; malformed

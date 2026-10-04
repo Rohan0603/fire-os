@@ -122,7 +122,9 @@ engine. Read [UI](ui.md) for tab-level logic and additional calculations.
   and conditional SWP/expense/advisor widgets.
 - **Planning Tools** (`src/modules/calculators/`): crash protocol, emergency
   runway, SIP pause, LTCG tax planner, SWP scheduler.
-- **Insurance** (`src/modules/insurance/`): term, health and vehicle cover data.
+- **Insurance** (`src/modules/insurance/`): term and health cover data. Term
+  expiry/provider, health provider and vehicle cover exist in state only and have
+  no UI input.
 - **Plan** (`src/modules/plan/`): health score, action list, milestones,
   cashflow and history-oriented planning.
 - **ESOP Tools** (`src/modules/esop/`): vesting, triggers and quoted valuation.

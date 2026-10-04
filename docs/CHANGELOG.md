@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   troubleshooting guidance into `docs/README.md`.
 - Removed duplicated and historical planning documents.
 
-## [3.0.0] - 2026-12-15
+## [3.0.0] - 2026-10-03
 
 ### Added
 - **SWP Automation**: Monthly withdrawal scheduler with FIFO redemption strategy
@@ -23,9 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Mutual Funds UI/UX Improvements**: Redesigned SIP/MF UI with table-based layout
 
 ### Technical
-- Added swp-scheduler, tax-optimizer, advisor-webhook, expense-tracker modules
-- Extended D object with swpSchedule, taxCalendar, expenses fields
-- Cloud Functions for automated monthly withdrawals
+- Added swp-scheduler, ltcg-planner, advisor-webhook, expense-tracker modules
+- Extended `FireOSState` with swpSchedule, taxCalendar, expenses fields
+- In-browser daily SWP execution (`checkDailyTasks()` in `src/main.ts`); no
+  Firebase Functions are used or deployed
 - Tax reporting calendar (April-March fiscal year)
 - Expense validation against 3% SWR target (₹122K/month)
 - E2E tests verifying dashboard wiring

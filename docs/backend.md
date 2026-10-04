@@ -289,9 +289,10 @@ request uses Yahoo symbol `EURINR=X`, chart range 1 day. Only supported ISO
 codes, finite positive rate and numeric provider quote are accepted. Convert
 returns same amount for identical codes, fresh cached rate if available, else
 network or null. `fetchCurrencyRate()` falls back to cached rate including stale
-after failed refresh. Manual rate modal accepts positive value and caches it.
-FX persistence reads/writes all normalized rate records; legacy `eurInrData` is
-hydrated as `EURINR` if no generic map exists.
+after failed refresh. Manual rate modal accepts positive value and caches it; no screen currently calls
+it. `state.currencyRates` is read and merge-reconciled but has no writer — rates
+are memory-cache only. Legacy `eurInrData` is hydrated as `EURINR` at bootstrap if
+no generic map exists.
 
 Stock symbols are normalized uppercase; prefix `EPA:`, `NSE:`, `BSE:` maps to
 `.PA`, `.NS`, `.BO`. Quotes use Yahoo daily chart `regularMarketPrice` and

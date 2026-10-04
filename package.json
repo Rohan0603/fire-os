@@ -1,6 +1,6 @@
 {
   "name": "fire-os",
-  "version": "2.2.0",
+  "version": "3.0.0",
   "description": "A comprehensive personal finance dashboard for FIRE (Financial Independence, Retire Early) planning with TypeScript + Vite. Track investments, simulate market crashes, calculate retirement timelines, and manage tax-efficient strategies.",
   "type": "module",
   "scripts": {

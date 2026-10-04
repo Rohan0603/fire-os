@@ -91,9 +91,11 @@ above for displayed behavior.
 
 ### Insurance — `src/modules/insurance/`
 
-Captures term cover/premium/expiry/provider, health cover/premium/family size/
-provider and vehicle covered/premium. No insurance quote API is present. Health
-assessment and action-engine thresholds are described under Plan below.
+Captures term cover/premium and health cover/premium/family size. The
+`insurance.term.expiryDate`, `insurance.term.provider`, `insurance.health.provider`
+and `insurance.vehicle` fields exist in state and validators but have no UI
+input. No insurance quote API is present. Health assessment and action-engine
+thresholds are described under Plan below.
 
 ### Plan — `src/modules/plan/`
 
@@ -121,10 +123,12 @@ health renderers.
 
 ### ESOP Tools — `src/modules/esop/`
 
-Stores grant/shares, vesting schedule, triggers and optional holdings by ticker,
-quantity and currency. Quotes use Yahoo Finance through corsproxy; FX converts
-to INR. Value = quantity × quote × INR rate. Holdings may be manually valued
-when external data is unavailable. Stock quote freshness is 15 minutes.
+Stores grant/shares, liquidation shares, vesting FMV, triggers and optional
+holdings by ticker, quantity and currency. `esopDetails.vestingSchedule` is
+persisted and validated but is no longer rendered or edited anywhere. Quotes use
+Yahoo Finance through corsproxy; FX converts to INR. Value = quantity × quote ×
+INR rate. There is no manual holding valuation path: a failed quote or missing
+FX rate renders as unavailable. Stock quote freshness is 15 minutes.
 
 ### Assistant — `src/modules/assistant/`
 
@@ -161,8 +165,8 @@ after a 500ms debounce, and are saved only if the DOM differs from `appState`.
 ### Personal assumptions
 
 Inputs are name, DOB, monthly expenses, FI target, monthly income and tax slab.
-Although the state field is called `profile.annualExpenses`, the Profile and
-Insurance screens label/use the value as **monthly expenses**. The Plan's cash
+Although the state field is called `profile.annualExpenses`, the Profile
+screen labels/uses the value as **monthly expenses**. The Plan's cash
 flow and plain-English summary multiply it by 12; the emergency runway screen
 uses it directly as monthly expenses. Keep this mismatch explicit when reading
 or changing calculations. DOB uses native `type=date`; a date helper computes
