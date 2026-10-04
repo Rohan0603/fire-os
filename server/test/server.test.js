@@ -54,4 +54,23 @@ describe('assistant proxy conversation forwarding', () => {
     expect(payload.messages[0].content).toContain('holdingsSummary');
     expect(payload.messages[1].content).toBe('How many SIPs do I have?');
   });
+
+  it('returns the existing 400 shape for invalid message roles', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await request(app)
+      .post('/api/assistant/query')
+      .send({
+        question: 'How is my plan progressing?',
+        contextSummary: {},
+        messages: [{ role: 'system', content: 'How is my plan progressing?' }],
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual({
+      error: 'messages must alternate user/assistant with text content only',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

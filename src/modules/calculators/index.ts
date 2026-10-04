@@ -8,6 +8,7 @@ import { createFeatureContext, type FeatureContext } from '../../core/feature-co
 import './styles.css';
 import { initTaxModule } from './tax';
 import { executeMonthlyWithdrawal } from './swp-scheduler';
+import { compareFIScenarios, type FIScenarioInput, type FIScenarioResult } from './scenario-modeler';
 
 let activeContext = createFeatureContext();
 let D = activeContext.state;
@@ -53,6 +54,7 @@ export function renderCalculators(container: HTMLElement, context: FeatureContex
         <button class="calc-tab" data-calc="sip-pause">⏸️ SIP Pause</button>
         <button class="calc-tab" data-calc="tax-planner">Tax Planner</button>
         <button class="calc-tab" data-calc="swp-scheduler">⏸️ SWP Scheduler</button>
+        <button class="calc-tab" data-calc="scenario-compare">📊 Scenario Compare</button>
       </div>
 
       <div id="crash" class="calc-panel active">
@@ -67,6 +69,9 @@ export function renderCalculators(container: HTMLElement, context: FeatureContex
       <div id="tax-planner" class="calc-panel"></div>
       <div id="swp-scheduler" class="calc-panel">
         ${renderSWPScheduler()}
+      </div>
+      <div id="scenario-compare" class="calc-panel">
+        ${renderScenarioCompare(context)}
       </div>
     </div>
   `;
@@ -271,6 +276,9 @@ function attachCalculatorHandlers(context: FeatureContext) {
   // SIP Pause
   document.getElementById('calculate-sip-btn')?.addEventListener('click', calculateSIPPause);
 
+  // Scenario Compare (read-only projection, never saves state)
+  document.getElementById('compare-scenarios-btn')?.addEventListener('click', () => runScenarioCompare(context));
+
   // SWP Scheduler handlers
   document.getElementById('save-swp-btn')?.addEventListener('click', () => {
     const enabledInput = document.getElementById('swp-enabled') as HTMLInputElement;
@@ -444,6 +452,135 @@ function renderSWPScheduler(): string {
       </div>
     </div>
   `;
+}
+
+function renderScenarioCompare(context: FeatureContext): string {
+  const { netWorth } = context.ports.calculations.totalNetWorth(D);
+  const fiGoal = D.profile.fiTarget || 55_000_000;
+  const currentAge = D.profile.age || 25;
+  const monthlySip = Object.values(D.sip).reduce((sum, sip) => sum + (sip.monthlyAmount || 0), 0);
+
+  const scenarioColumn = (key: 'a' | 'b', name: string, ret: number, stepUp: number): string => `
+    <div class="compare-scenario">
+      <div class="calc-input-group">
+        <label for="cmp-${key}-label">Scenario name</label>
+        <input type="text" id="cmp-${key}-label" value="${escapeHtml(name)}">
+      </div>
+      <div class="compare-assumptions">
+        <div class="calc-input-group">
+          <label for="cmp-${key}-corpus">Current corpus (₹)</label>
+          <input type="number" id="cmp-${key}-corpus" min="0" value="${Math.round(netWorth)}">
+        </div>
+        <div class="calc-input-group">
+          <label for="cmp-${key}-sip">Monthly SIP (₹)</label>
+          <input type="number" id="cmp-${key}-sip" min="0" value="${monthlySip}">
+        </div>
+        <div class="calc-input-group">
+          <label for="cmp-${key}-ret">Expected annual return (%)</label>
+          <input type="number" id="cmp-${key}-ret" min="0" max="50" step="0.1" value="${ret}">
+        </div>
+        <div class="calc-input-group">
+          <label for="cmp-${key}-stepup">Annual SIP step-up (%)</label>
+          <input type="number" id="cmp-${key}-stepup" min="0" max="50" step="0.1" value="${stepUp}">
+        </div>
+        <div class="calc-input-group">
+          <label for="cmp-${key}-goal">FI goal (₹)</label>
+          <input type="number" id="cmp-${key}-goal" min="1" value="${fiGoal}">
+        </div>
+        <div class="calc-input-group">
+          <label for="cmp-${key}-age">Current age</label>
+          <input type="number" id="cmp-${key}-age" min="0" step="1" value="${currentAge}">
+        </div>
+      </div>
+    </div>
+  `;
+
+  return `
+    <div class="calc-card">
+      <h3>Scenario Comparison</h3>
+      <p class="calc-info">Compare two FI plans side by side. Outputs below are projections (estimates) based on the assumptions you enter — not guaranteed or actual returns.</p>
+
+      <div class="compare-grid">
+        ${scenarioColumn('a', 'Balanced', 15, 10)}
+        ${scenarioColumn('b', 'Conservative', 10, 5)}
+      </div>
+
+      <button id="compare-scenarios-btn" class="btn btn-primary">Compare Scenarios</button>
+
+      <div id="compare-result" class="calc-result">
+        <p class="calc-info" style="margin-bottom: 0;">Enter assumptions and press Compare Scenarios to see projections.</p>
+      </div>
+    </div>
+  `;
+}
+
+function runScenarioCompare(context: FeatureContext) {
+  const readNumber = (id: string): number =>
+    parseFloat((document.getElementById(id) as HTMLInputElement | null)?.value ?? '');
+  const readLabel = (id: string): string =>
+    ((document.getElementById(id) as HTMLInputElement | null)?.value ?? '').trim();
+
+  const scenarios: FIScenarioInput[] = (['a', 'b'] as const).map((key) => ({
+    label: readLabel(`cmp-${key}-label`) || `Scenario ${key.toUpperCase()}`,
+    currentCorpus: readNumber(`cmp-${key}-corpus`),
+    monthlySip: readNumber(`cmp-${key}-sip`),
+    annualStepUpPercent: readNumber(`cmp-${key}-stepup`),
+    annualReturnPercent: readNumber(`cmp-${key}-ret`),
+    fiGoal: readNumber(`cmp-${key}-goal`),
+    currentAge: readNumber(`cmp-${key}-age`),
+  }));
+
+  const results = compareFIScenarios(scenarios);
+  const skipped = scenarios.length - results.length;
+  if (skipped > 0) {
+    context.ports.ui.showToast(`${skipped} scenario(s) skipped: invalid assumptions`, 3000, 'warning');
+  }
+  renderCompareResults(results, skipped);
+}
+
+function renderCompareResults(results: FIScenarioResult[], skipped: number) {
+  const resultDiv = document.getElementById('compare-result');
+  if (!resultDiv) return;
+
+  if (results.length === 0) {
+    resultDiv.innerHTML =
+      '<p class="calc-info" style="margin-bottom: 0;">No valid scenarios. Assumptions must be non-negative and the FI goal must be above zero.</p>';
+    return;
+  }
+
+  const row = (metric: string, cells: string[]): string =>
+    `<tr><td>${metric}</td>${cells.map((cell) => `<td>${cell}</td>`).join('')}</tr>`;
+
+  resultDiv.innerHTML = `
+    <table class="compare-table">
+      <thead>
+        <tr><th>Projection (estimate)</th>${results.map((r) => `<th>${escapeHtml(r.label)}</th>`).join('')}</tr>
+      </thead>
+      <tbody>
+        ${row('Estimated months to goal', results.map((r) => String(r.monthsToGoal)))}
+        ${row('Estimated age at goal', results.map((r) => r.ageAtGoal.toFixed(1)))}
+        ${row('Projected corpus (estimate)', results.map((r) => formatCurrency(r.projectedCorpus)))}
+        ${row(
+          'Assumptions used',
+          results.map(
+            (r) =>
+              `${r.assumptions.annualReturnPercent}% p.a. • ${r.assumptions.annualStepUpPercent}% step-up • ${formatCurrency(r.assumptions.monthlySip)}/mo SIP`,
+          ),
+        )}
+      </tbody>
+    </table>
+    <p class="compare-disclaimer">Estimates only: projections assume the constant annual return and step-up shown above. Actual market returns will differ; these are not guaranteed or actual returns.${skipped > 0 ? ` ${skipped} scenario(s) skipped due to invalid assumptions.` : ''}</p>
+  `;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[character] || character);
 }
 
 

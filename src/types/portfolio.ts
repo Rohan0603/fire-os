@@ -2,6 +2,7 @@
  * Portfolio and holding type definitions
  * Covers mutual funds, fixed deposits, EPF, SIP, ESOP, and demat stocks
  */
+import { differenceInCalendarDays, differenceInCalendarYears, isValid, parse } from 'date-fns';
 
 /** Represents a single SIP (Systematic Investment Plan) fund */
 export interface SIPFund {
@@ -64,14 +65,24 @@ export interface PortfolioProfile {
 
 export function calculateAgeFromDateOfBirth(dateOfBirth: string, today = new Date()): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOfBirth)) return null;
-  const [year, month, day] = dateOfBirth.split('-').map(Number);
-  const birthDate = new Date(Date.UTC(year, month - 1, day));
-  if (birthDate.getUTCFullYear() !== year || birthDate.getUTCMonth() !== month - 1 || birthDate.getUTCDate() !== day) return null;
+  // Legacy Date.UTC windowing mapped years 0000-0099 to 1900-1999 and failed the
+  // round-trip check, so those inputs never produced an age. Keep that boundary.
+  if (Number(dateOfBirth.slice(0, 4)) < 100) return null;
 
-  let age = today.getUTCFullYear() - year;
-  const birthdayPassed = today.getUTCMonth() > month - 1
-    || (today.getUTCMonth() === month - 1 && today.getUTCDate() >= day);
-  if (!birthdayPassed) age -= 1;
+  const birthDate = parse(dateOfBirth, 'yyyy-MM-dd', today);
+  if (!isValid(birthDate)) return null;
+
+  // Project today's UTC calendar fields onto local time so date-fns calendar
+  // math reproduces the original UTC arithmetic.
+  const todayDate = new Date(0);
+  todayDate.setFullYear(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  todayDate.setHours(0, 0, 0, 0);
+
+  let age = differenceInCalendarYears(todayDate, birthDate);
+  // Compare the anniversary inside today's year so the year gap cannot mask an
+  // upcoming birthday (Feb 29 rolls to Mar 1 in non-leap years, as before).
+  const anniversary = new Date(todayDate.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+  if (differenceInCalendarDays(anniversary, todayDate) > 0) age -= 1;
   return age >= 0 ? age : null;
 }
 

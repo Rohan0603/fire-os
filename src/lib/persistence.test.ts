@@ -1,10 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildEnvelopeFromState, mergeEnvelopes } from './merge';
 import { SyncCoordinator } from './syncCoordinator';
-import { initializeState, isFireOSState } from '../types/state';
+import { applyPersistedState, HISTORY_CACHE_MAX_BYTES, initializeState, isFireOSState } from '../types/state';
+import type { HistoricalSeries } from '../types/api';
 import { isPortfolioEnvelope } from '../types/firebase';
-import { configurePortfolioStorageScope, configurePortfolioSync, loadData, persistPortfolioState } from './storage';
-import { createFeatureContext } from '../core/feature-context';
+import {
+  configurePortfolioStorageScope,
+  configurePortfolioSync,
+  getPortfolioStorageKey,
+  loadData,
+  persistPortfolioState,
+  undoLastSavedPortfolioChange,
+  PERSISTED_PAYLOAD_CEILING,
+} from './storage';
+import { getHistoryCacheMap, initAPIModule, initializeHistoryCache } from '../modules/api';
+import { NAV_HISTORY_MAX_POINTS } from '../modules/api/mfapi';
+import { NIFTY_HISTORY_MAX_POINTS } from '../modules/api/nifty';
+import { createFeatureContext, type FeatureContext } from '../core/feature-context';
+import { restorePortfolioBackup } from '../modules/profile/backup-import';
 import { FeatureRegistry, type FeatureModule } from '../app/feature-registry';
 import { createPortfolioRepository } from '../core/persistence/portfolio-repository';
 
@@ -20,11 +33,25 @@ function createLocalStorage() {
   };
 }
 
+function makeHistorySeries(count: number, start = '2015-01-01'): HistoricalSeries {
+  const startMs = Date.parse(start);
+  return {
+    points: Array.from({ length: count }, (_, index) => ({
+      date: new Date(startMs + index * 86_400_000).toISOString().slice(0, 10),
+      value: 100 + index * 0.5,
+    })),
+    source: 'test-provider',
+    fetchedAt: new Date().toISOString(),
+    status: 'live',
+  };
+}
+
 describe('portfolio persistence contracts', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', createLocalStorage());
     configurePortfolioStorageScope(null);
     configurePortfolioSync(null, null);
+    initializeHistoryCache({});
   });
 
   afterEach(() => {
@@ -264,5 +291,206 @@ describe('portfolio persistence contracts', () => {
     expect(repository.load()).not.toBeNull();
     expect(coordinator.markDirty).toHaveBeenCalledOnce();
     expect(coordinator.flush).toHaveBeenCalledOnce();
+  });
+
+  it('persists market history locally and keeps it inside the active scope', () => {
+    const state = initializeState();
+    state.marketHistory = { nifty: makeHistorySeries(5) };
+
+    persistPortfolioState(state, { sync: false });
+    expect(loadData()?.marketHistory).toEqual(state.marketHistory);
+
+    configurePortfolioStorageScope('user-history');
+    const otherState = initializeState();
+    otherState.currentUser = { uid: 'user-history' } as typeof otherState.currentUser;
+    persistPortfolioState(otherState, { sync: false });
+    expect(loadData()?.marketHistory).toEqual({});
+
+    configurePortfolioStorageScope(null);
+    expect(loadData()?.marketHistory).toEqual(state.marketHistory);
+  });
+
+  it('mirrors the module history cache into persisted state on save', () => {
+    const series = makeHistorySeries(5);
+    initializeHistoryCache({ nifty: series });
+
+    persistPortfolioState(initializeState(), { sync: false });
+
+    expect(loadData()?.marketHistory).toEqual({ nifty: series });
+  });
+
+  it('hands persisted history through loadData → app state → initAPIModule → save', () => {
+    const series = makeHistorySeries(5);
+    localStorage.setItem(getPortfolioStorageKey()!, JSON.stringify({
+      profile: { name: 'Ada', age: 35, annualExpenses: 80000, fiTarget: 24000000, monthlyIncome: 150000 },
+      marketHistory: { nifty: series },
+    }));
+
+    const appState = initializeState();
+    const cachedState = loadData();
+    expect(cachedState?.marketHistory?.nifty?.points).toHaveLength(5);
+    // The real wiring used by main.ts and the auth-session controller:
+    // applyPersistedState copies the non-enumerable history field that
+    // Object.assign drops (that drop was the H1 bug).
+    applyPersistedState(appState, cachedState!);
+    initAPIModule(appState);
+
+    expect(getHistoryCacheMap().nifty?.points).toHaveLength(5);
+
+    persistPortfolioState(appState, { sync: false });
+    const saved = JSON.parse(localStorage.getItem(getPortfolioStorageKey()!)!);
+    expect(saved.marketHistory?.nifty?.points).toHaveLength(5);
+  });
+
+  it('persists existing history when both the module cache and state are empty', () => {
+    const series = makeHistorySeries(5);
+    localStorage.setItem(getPortfolioStorageKey()!, JSON.stringify({
+      profile: { name: 'Ada', age: 35, annualExpenses: 80000, fiTarget: 24000000, monthlyIncome: 150000 },
+      marketHistory: { nifty: series },
+    }));
+    // Module cache deliberately unwarmed (beforeEach resets it); app state
+    // freshly initialized, so both in-memory sources are empty.
+    const appState = initializeState();
+
+    persistPortfolioState(appState, { sync: false });
+
+    const saved = JSON.parse(localStorage.getItem(getPortfolioStorageKey()!)!);
+    expect(saved.marketHistory?.nifty?.points).toHaveLength(5);
+  });
+
+  it('drops malformed persisted history without discarding the portfolio', () => {
+    localStorage.setItem('fireOS_v2', JSON.stringify({
+      profile: { name: 'Ada', age: 35, annualExpenses: 80000, fiTarget: 24000000, monthlyIncome: 150000 },
+      marketHistory: { nifty: { points: 'nope' } },
+    }));
+
+    const loaded = loadData();
+
+    expect(loaded?.profile.name).toBe('Ada');
+    expect(loaded?.marketHistory).toEqual({});
+    expect(loaded?.otherHoldings).toEqual({});
+  });
+
+  it('enforces per-series point caps and the byte budget before persisting', () => {
+    initializeHistoryCache({
+      nifty: makeHistorySeries(1400),
+      'nav:122639': makeHistorySeries(3000),
+    });
+
+    persistPortfolioState(initializeState(), { sync: false });
+
+    const raw = localStorage.getItem(getPortfolioStorageKey()!)!;
+    const history = JSON.parse(raw).marketHistory;
+    expect(history.nifty.points).toHaveLength(NIFTY_HISTORY_MAX_POINTS);
+    expect(history['nav:122639'].points).toHaveLength(NAV_HISTORY_MAX_POINTS);
+    expect(JSON.stringify(history).length).toBeLessThanOrEqual(HISTORY_CACHE_MAX_BYTES);
+    expect(raw.length).toBeLessThanOrEqual(PERSISTED_PAYLOAD_CEILING);
+  });
+
+  it('keeps the persisted payload under the ceiling by dropping history first', () => {
+    const state = initializeState();
+    state.expenses = Array.from({ length: 10600 }, () => ({
+      date: '2026-01-01',
+      category: 'misc',
+      amount: 1,
+      linkedToSWP: false,
+    }));
+    state.marketHistory = { nifty: makeHistorySeries(NIFTY_HISTORY_MAX_POINTS) };
+    // marketHistory is non-enumerable on state, so measure the would-be
+    // persisted payload by adding its history bytes explicitly.
+    const baseBytes = JSON.stringify(state).length;
+    const historyBytes = JSON.stringify(state.marketHistory).length;
+    expect(baseBytes).toBeLessThanOrEqual(PERSISTED_PAYLOAD_CEILING);
+    expect(baseBytes + historyBytes).toBeGreaterThan(PERSISTED_PAYLOAD_CEILING);
+
+    persistPortfolioState(state, { sync: false });
+
+    const raw = localStorage.getItem(getPortfolioStorageKey()!)!;
+    const persisted = JSON.parse(raw);
+    expect(raw.length).toBeLessThanOrEqual(PERSISTED_PAYLOAD_CEILING);
+    expect(persisted.marketHistory).toBeUndefined();
+    expect(persisted.expenses).toHaveLength(10600);
+    expect(loadData()?.expenses).toHaveLength(10600);
+  });
+
+  it('excludes market history from the cloud envelope', () => {
+    const coordinator = { markDirty: vi.fn(), flush: vi.fn(async () => undefined) };
+    const state = initializeState();
+    state.currentUser = { uid: 'user-1' } as typeof state.currentUser;
+    configurePortfolioStorageScope('user-1');
+    configurePortfolioSync(coordinator as never);
+    initializeHistoryCache({ nifty: makeHistorySeries(5) });
+
+    persistPortfolioState(state, { sync: true });
+
+    expect(coordinator.markDirty).toHaveBeenCalledOnce();
+    const envelope = coordinator.markDirty.mock.calls[0][0];
+    expect('marketHistory' in envelope.data).toBe(false);
+    expect(isPortfolioEnvelope(envelope)).toBe(true);
+    expect(loadData()?.marketHistory?.nifty).toBeDefined();
+  });
+
+  it('keeps market history through an undo snapshot restore', () => {
+    vi.stubGlobal('sessionStorage', createLocalStorage());
+    const series = makeHistorySeries(5);
+    initializeHistoryCache({ nifty: series });
+    const state = initializeState();
+
+    persistPortfolioState(state, { sync: false }); // snapshot 1
+    state.niftyHigh = 12345;
+    state.marketHistory = { nifty: makeHistorySeries(3) };
+    persistPortfolioState(state, { sync: false }); // snapshot 2
+
+    const snapshots = JSON.parse(sessionStorage.getItem('fireOS_v2:anonymous:snapshots')!);
+    expect(snapshots).toHaveLength(2);
+    expect(snapshots.every((entry: Record<string, unknown>) => !('marketHistory' in entry))).toBe(true);
+
+    expect(undoLastSavedPortfolioChange(state)).toBe(true);
+    expect(state.niftyHigh).toBe(0); // snapshot 1 values restored
+    expect(state.marketHistory?.nifty?.points).toHaveLength(3); // history survives undo
+  });
+
+  it('keeps market history through a portfolio backup restore', async () => {
+    const series = makeHistorySeries(5);
+    initializeHistoryCache({ nifty: series });
+    const state = initializeState();
+    state.marketHistory = { nifty: series };
+    persistPortfolioState(state, { sync: false });
+
+    const context = {
+      state,
+      portfolio: {
+        save: vi.fn(async (candidate: typeof state) => {
+          persistPortfolioState(candidate, { sync: false });
+        }),
+      },
+    } as unknown as FeatureContext;
+
+    await restorePortfolioBackup({ profile: { ...initializeState().profile, name: 'Restored' } }, context, true);
+
+    expect(state.profile.name).toBe('Restored'); // restore actually applied
+    expect(state.marketHistory?.nifty?.points).toHaveLength(5); // in-memory history survives
+    const saved = JSON.parse(localStorage.getItem(getPortfolioStorageKey()!)!);
+    expect(saved.marketHistory?.nifty?.points).toHaveLength(5); // payload keeps it too
+  });
+
+  it('adopts scoped history on a scope switch and mirrors the global cache (intentional)', () => {
+    // The module cache is global by design (M2): market history is public
+    // market data, so a scope switch does not re-hydrate it.
+    initializeHistoryCache({ nifty: makeHistorySeries(5) });
+    localStorage.setItem('fireOS_v2:user:user-1', JSON.stringify({
+      profile: { name: 'User', age: 30, annualExpenses: 1, fiTarget: 2, monthlyIncome: 3 },
+      marketHistory: { nifty: makeHistorySeries(3) },
+    }));
+
+    configurePortfolioStorageScope('user-1');
+    const appState = initializeState();
+    applyPersistedState(appState, loadData()!);
+    expect(appState.marketHistory?.nifty?.points).toHaveLength(3); // state adopts scope history
+
+    appState.currentUser = { uid: 'user-1' } as typeof appState.currentUser;
+    persistPortfolioState(appState, { sync: false });
+    const saved = JSON.parse(localStorage.getItem('fireOS_v2:user:user-1')!);
+    expect(saved.marketHistory?.nifty?.points).toHaveLength(5); // global cache mirrors in
   });
 });

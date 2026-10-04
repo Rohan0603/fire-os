@@ -63,6 +63,26 @@ export interface NAVCache {
 /** Collection of cached NAV entries indexed by scheme code */
 export type NAVCacheMap = Record<string, NAVCache>;
 
+/** Single normalized historical observation from a provider series */
+export interface HistoricalDataPoint {
+  date: string; // YYYY-MM-DD (provider calendar date)
+  value: number; // finite, > 0
+}
+
+/** Normalized bounded historical series returned by market adapters */
+export interface HistoricalSeries {
+  points: HistoricalDataPoint[]; // ascending by date, deduped, capped per source
+  source: string; // Data source identifier (e.g., "api.mfapi.in")
+  fetchedAt: string; // ISO timestamp of fetch
+  status: MarketDataStatus;
+}
+
+/** Inclusive date window for history requests (YYYY-MM-DD) */
+export interface HistoryRange {
+  start: string;
+  end: string;
+}
+
 /** API error response structure */
 export interface APIError {
   message: string;

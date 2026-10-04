@@ -5,8 +5,10 @@ import type { AuthSession } from '../lib/authCoordinator';
 import type { PortfolioSession } from './portfolio-session';
 import type { PortfolioEnvelope } from '../types/firebase';
 import type { FireOSState } from '../types/state';
+import { applyPersistedState } from '../types/state';
 import { applyEnvelopeToState, buildEnvelopeFromState, mergeEnvelopes } from '../lib/merge';
 import { persistPortfolioState } from '../lib/storage';
+import { syncStatusStore } from '../core/stores';
 import { SyncCoordinator } from '../lib/syncCoordinator';
 import type { CrashAlert } from '../modules/api/nifty-monitor';
 
@@ -80,7 +82,7 @@ export class AuthSessionController {
     await this.dependencies.portfolioSession.teardown();
     this.dependencies.configureStorageScope(null);
     const cachedState = this.dependencies.loadData();
-    if (cachedState) Object.assign(this.dependencies.state, cachedState);
+    if (cachedState) applyPersistedState(this.dependencies.state, cachedState);
     this.dependencies.state.currentUser = null;
     this.guestSessionActive = true;
 
@@ -118,7 +120,7 @@ export class AuthSessionController {
       this.authPromptRequested = false;
       this.dependencies.configureStorageScope(user.uid);
       const scopedState = this.dependencies.loadData();
-      if (scopedState) Object.assign(state, scopedState);
+      if (scopedState) applyPersistedState(state, scopedState);
       state.currentUser = user;
       const logoutButton = document.getElementById('logout-btn');
       if (logoutButton) logoutButton.style.display = 'block';
@@ -171,8 +173,7 @@ export class AuthSessionController {
       const coordinator = new SyncCoordinator({
         uid: user.uid,
         save: this.dependencies.savePortfolio,
-        onStatusChange: (status) =>
-          document.dispatchEvent(new CustomEvent('syncStatusChanged', { detail: status })),
+        onStatusChange: (status) => syncStatusStore.set(status),
       });
       portfolioSession.setSyncCoordinator(coordinator);
       portfolioSession.setEnvelope(merged.envelope);

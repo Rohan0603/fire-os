@@ -10,7 +10,7 @@
  */
 
 import { getLogger } from '../../lib/logger';
-import type { NiftyData } from '../../types/api';
+import type { HistoricalDataPoint, HistoricalSeries, HistoryRange, NiftyData } from '../../types/api';
 import { CONFIG } from '../../lib/config';
 
 const logger = getLogger();
@@ -254,4 +254,151 @@ export async function showManualNiftyModal(): Promise<{
       resolve(null);
     });
   });
+}
+
+/**
+ * Maximum retained Nifty history points per series.
+ * Yahoo serves the history we request at `interval=1d` (daily bars); the
+ * `range=5y` window is ~1,260 NSE trading days (~252/year), so 1,260 points
+ * equals the largest window we fetch and keeps the Task 2 history cache small.
+ * Oversized results keep the newest points.
+ */
+export const NIFTY_HISTORY_MAX_POINTS = 1260;
+
+const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+const HISTORY_RANGE_YEARS = 5;
+
+function isValidIsoDate(value: string): boolean {
+  const match = ISO_DATE_PATTERN.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
+}
+
+function isValidHistoryRange(range: HistoryRange): boolean {
+  return isValidIsoDate(range.start) && isValidIsoDate(range.end) && range.start <= range.end;
+}
+
+function fiveYearsBefore(isoDate: string): string {
+  const [year, month, day] = isoDate.split('-').map(Number);
+  return new Date(Date.UTC(year - HISTORY_RANGE_YEARS, month - 1, day)).toISOString().slice(0, 10);
+}
+
+function normalizeNiftyHistory(result: unknown): HistoricalDataPoint[] | null {
+  if (!result || typeof result !== 'object') return null;
+
+  const { timestamp, indicators } = result as {
+    timestamp?: unknown;
+    indicators?: { quote?: Array<{ close?: unknown }> };
+  };
+  const quote = Array.isArray(indicators?.quote) ? indicators.quote[0] : undefined;
+  const closes = quote?.close;
+  if (!Array.isArray(timestamp) || !Array.isArray(closes)) return null;
+
+  const points: HistoricalDataPoint[] = [];
+  const seenDates = new Set<string>();
+  const length = Math.min(timestamp.length, closes.length);
+
+  for (let index = 0; index < length; index++) {
+    const seconds = timestamp[index];
+    if (typeof seconds !== 'number' || !Number.isFinite(seconds)) continue;
+    const time = seconds * 1000;
+    if (!Number.isFinite(time) || Math.abs(time) > 8.64e15) continue;
+
+    const date = new Date(time).toISOString().slice(0, 10);
+    if (seenDates.has(date)) continue;
+
+    const close = closes[index];
+    const value = typeof close === 'number' ? close : NaN;
+    if (!Number.isFinite(value) || value <= 0) continue;
+
+    seenDates.add(date);
+    points.push({ date, value });
+  }
+
+  if (points.length === 0) return null;
+  return points.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+async function fetchNiftyHistoryFromYahoo(): Promise<HistoricalDataPoint[] | null> {
+  const proxyKey = import.meta.env.VITE_CORSPROXY_API_KEY;
+  if (!proxyKey) {
+    logger.warn('Nifty history request skipped: VITE_CORSPROXY_API_KEY is not configured');
+    return null;
+  }
+
+  const yahooApiUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI?interval=1d&range=5y';
+  const proxyUrl = `https://corsproxy.io/?key=${encodeURIComponent(proxyKey)}&url=${encodeURIComponent(yahooApiUrl)}`;
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+    const response = await fetch(proxyUrl, {
+      method: 'GET',
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      logger.warn(`Nifty history returned HTTP ${response.status}`);
+      return null;
+    }
+
+    const data = await response.json();
+    return normalizeNiftyHistory(data?.chart?.result?.[0]);
+  } catch (error) {
+    logger.warn('Nifty history fetch failed', error);
+    return null;
+  }
+}
+
+/**
+ * Fetch a bounded, normalized Nifty 50 history series
+ * Uses the existing Yahoo chart endpoint through corsproxy with
+ * `interval=1d&range=5y`. Timestamps are validated (finite epoch seconds),
+ * converted to UTC calendar dates, deduplicated keeping the first provider
+ * record per date, and sorted ascending; null/invalid closes are dropped so
+ * sparse provider gaps stay sparse. Requests older than the five-year window
+ * are clamped to it (bounded, never extrapolated); invalid ranges are rejected
+ * before any request; failures and non-overlapping windows return null.
+ *
+ * @param range - Optional inclusive YYYY-MM-DD window
+ * @returns Normalized series or null when no usable history exists
+ */
+export async function fetchNiftyHistory(range?: HistoryRange): Promise<HistoricalSeries | null> {
+  if (range && !isValidHistoryRange(range)) {
+    logger.warn('fetchNiftyHistory: rejected invalid range', range);
+    return null;
+  }
+
+  const points = await fetchNiftyHistoryFromYahoo();
+  if (!points) return null;
+
+  let inRange = points;
+  if (range) {
+    const earliest = fiveYearsBefore(range.end);
+    const effectiveStart = range.start > earliest ? range.start : earliest;
+    inRange = points.filter((point) => point.date >= effectiveStart && point.date <= range.end);
+  }
+
+  if (inRange.length === 0) {
+    logger.warn('fetchNiftyHistory: requested range outside provider history');
+    return null;
+  }
+
+  return {
+    points: inRange.length > NIFTY_HISTORY_MAX_POINTS
+      ? inRange.slice(inRange.length - NIFTY_HISTORY_MAX_POINTS)
+      : inRange,
+    source: 'Yahoo Finance API (corsproxy)',
+    fetchedAt: new Date().toISOString(),
+    status: 'live',
+  };
 }

@@ -55,18 +55,54 @@ allowlisted by `PERSISTED_STATE_KEYS`. Major sections: `profile`; MF and SIP
 fund maps; FD, EPF, ESOP, bonds, custom assets, liabilities and demat; NAV/Nifty/
 FX caches; benchmark tracker; Coorg goal; fund watchdog inputs; SWP and tax
 calendar; expenses; net-worth history; completed actions and milestones;
-insurance; ESOP detail/vesting. `currentUser`, `_lastSavedAt`, and `_syncMetadata`
-are runtime-only. `isPersistedPortfolioData()` validates exact key shapes,
-types, finite numbers and selected limits; `normalizePersistedState()` fills
-omitted fields from defaults. `mergeState()` deep-merges known object sections,
+insurance; ESOP detail/vesting; and `marketHistory`, a bounded local cache of
+market series. `currentUser`, `_lastSavedAt`, and `_syncMetadata`
+are runtime-only. `persistedPortfolioSchema` (Valibot) and
+`isPersistedPortfolioData()` enforce exact key/nested shapes, types, finite
+numbers and selected limits; `normalizePersistedState()` fills omitted fields
+from defaults, discarding a malformed `marketHistory` without discarding the
+portfolio. Firestore rules independently validate their boundary.
+`mergeState()` deep-merges known object sections,
 unions milestones, deduplicates history dates, and keeps metadata explicit.
 
 Storage keys are `fireOS_v2:anonymous` and `fireOS_v2:user:{uid}`; legacy
 `fireOS_v2` is copied to the anonymous scope on first read. `saveData()` refuses
 to write outside the selected identity scope, strips runtime fields and invalid
-payloads, saves locally, and records a portfolio undo snapshot. `persistPortfolioState()`
-saves local-first, emits `portfolioStateSaved`, and optionally queues cloud sync.
-Guests never queue a cloud write. Snapshot history backs Assistant undo.
+payloads, mirrors the in-memory history cache into `marketHistory` (schema
+validated, per-series point caps of 1260 Nifty / 2520 NAV points, at most 8
+series, 256 KB section budget, 24h TTL), saves locally, and records a portfolio
+undo snapshot without history. `marketHistory` is attached to state
+non-enumerably: JSON representations (Firestore envelopes, snapshots, backups,
+Assistant context) never contain it, and a save over the 750 KB local ceiling
+drops history first. Loaded state is adopted with `applyPersistedState()`
+(startup and auth scope switches) because plain `Object.assign` skips the
+non-enumerable field; the module cache is intentionally global across scopes
+(market history is public market data). `persistPortfolioState()`
+saves local-first, publishes the portfolio-save signal (`portfolioSavedStore`),
+and optionally queues cloud sync. Guests never queue a cloud write. Snapshot
+history backs Assistant undo.
+Profile JSON restore validates the persisted allowlist, previews normalized
+replacement data, and saves through the active repository only after explicit
+confirmation; runtime identity/sync metadata remains scoped to the active
+session. CSV import parses the export schema into a row-validated candidate
+(`parsePortfolioCsv`), previews valid rows plus row issues, and applies only
+after an explicit merge/replace choice and confirmation through the same
+save-then-assign repository path: merge overwrites only the top-level sections
+present in the file, replace is full normalized replacement (sections absent
+from the CSV reset to defaults), and empty, cancelled, or invalid previews
+never write.
+
+Reactive UI signals are vanilla Nanostores atoms in `src/core/stores.ts`:
+`portfolioSavedStore` (monotonic save invalidation) and `syncStatusStore`
+(`SyncCoordinator` status: `idle`, `pending`, `syncing`, `offline`, `error`,
+`conflict`). They are ephemeral signals only — there is no
+`@nanostores/persistent` and no second copy of the portfolio: durable
+portfolio persistence remains in `PortfolioRepository`/`storage.ts`
+(identity-scoped localStorage) plus Firestore. `main.ts` subscribes the
+dashboard refresh to the save store and keeps its requestAnimationFrame
+coalescing; session teardown disposes the coordinator (resetting status to
+`idle`) and runs registered unsubscribes so a previous identity cannot push
+stale updates to the next one.
 
 Authenticated synchronization uses an envelope (`schemaVersion`, `lastSavedAt`,
 client metadata, section clocks, persisted `data`) and merge helpers in
@@ -83,7 +119,13 @@ Firestore's 1 MiB document ceiling.
 Market clients live in `src/modules/api/`. MFAPI NAV calls use a four-hour
 cache, in-flight deduplication, a 30s timeout and stale-cache fallback. Nifty
 uses Yahoo chart data through corsproxy.io (configured public proxy key), a
-one-hour cache, then manual entry. FX uses Yahoo Finance through corsproxy.io,
+one-hour cache, then manual entry. History adapters (`fetchNiftyHistory(range?)`,
+`fetchNAVHistory(code, range?)`) normalize provider series to at most 1260 Nifty
+/ 2520 NAV daily points and are exposed through `FeaturePorts.marketData`; the
+bounded cache hydrates from persisted `marketHistory` at startup and serves a
+series as `cache-fresh` inside the 24h TTL, returns provider results as `live`,
+and falls back to expired cache as `stale` only when the provider fails —
+provider failures never erase a valid cache. FX uses Yahoo Finance through corsproxy.io,
 validates ISO currency codes, and caches for 24h; same-currency conversion is
 identity. ESOP stock quotes are cached for 15 minutes in memory and
 localStorage, map `EPA:`, `NSE:`, `BSE:` symbols to Yahoo suffixes, then convert
@@ -98,7 +140,7 @@ Core formulas and their code locations:
 | SIP P&L | Current value minus explicit cost basis or monthly contribution × elapsed months; XIRR approximates monthly cash outflows and current value | `src/modules/dashboard/kpis.ts`, `src/lib/calculations.ts` |
 | FI progress | Net worth / user-entered FI target; achieved => 0 years remaining, otherwise unknown | `src/modules/dashboard/kpis.ts` |
 | SIP future value | `P × (((1+r)^n − 1)/r)` with monthly rate; zero-rate fallback `P × n` | `src/lib/calculations.ts` |
-| XIRR | Newton-Raphson on dated discounted cash flows; null on invalid/no sign change/no convergence | `src/lib/calculations.ts` |
+| XIRR | `xirr` package (Newton-Raphson) solves annualized return on dated cash flows; invalid dates/non-finite amounts are dropped (null when fewer than two valid flows remain), null when a sign is missing, and any package error (same-day flows, nonconvergence) or non-finite result converts to null | `src/lib/calculations.ts` |
 | Allocation drift | Current bucket percentage minus target (40/30/20/10); recommend when absolute rounded drift >5 percentage points | `src/modules/calculators/portfolio-rebalancing.ts` |
 | FIRE-age scenario | Monthly compounding from annual CAGR, add SIP monthly, annual step-up default 10%, stop at goal or 1,000 months | `src/modules/calculators/scenario-modeler.ts` |
 | Coast FIRE | Required today = target / `(1+return)^years`; coast age solves compound growth without contributions | `src/modules/calculators/scenario-modeler.ts` |
@@ -107,6 +149,7 @@ Core formulas and their code locations:
 | SWP | Monthly amount redeemed by fixed fund order PPFCF, Growth, SmallCap, Gold; records expense and reduces units | `src/modules/calculators/swp-scheduler.ts` |
 | Insurance gap | Term target = max(annual income × 10, ₹1Cr); health target ₹20L for family ≤2 else ₹50L | `src/modules/plan/action-engine.ts`, `health-status.ts` |
 | Savings rate | (annual income − profile annualExpenses × 12) / annual income; red <15%, yellow <30% | `src/modules/plan/health-status.ts` |
+| Profile age | date-fns strict `YYYY-MM-DD` parse; age from the UTC calendar day of today with the anniversary taken in today's year; null on malformed/impossible/future DOB or years 0000–0099 | `src/types/portfolio.ts` |
 
 These are app calculation semantics, including simplifications and defaults;
 they do not imply external trade execution. SWP modifies simulated portfolio
@@ -116,9 +159,18 @@ engine. Read [UI](ui.md) for tab-level logic and additional calculations.
 ## User-facing feature map
 
 - **Profile** (`src/modules/profile/`): profile and portfolio data entry,
-  validation, JSON backup/import, CSV download, PDF/CAS parsing and save.
+  validation, JSON backup/import, CSV export/import round trip (PapaParse
+  serialization with spreadsheet formula protection in
+  `src/lib/portfolioCsv.ts`, parse/preview/merge-replace apply in
+  `src/modules/profile/csv-import.ts`), PDF/CAS parsing and save.
 - **Dashboard** (`src/modules/dashboard/`): net worth, SIP P&L, FI progress,
-  market drawdown, allocation visualization, cashflow/data trust panels, goals,
+  market drawdown, allocation visualization, and analytics charts over two
+  distinct series — persisted daily net-worth snapshots (sparse, never
+  backfilled or interpolated) and fetched Nifty market history (benchmark
+  only, always labeled with provider, freshness and span). Plain `chart.js`
+  dependency; module-local lifecycle helpers replace each chart instance on
+  repaint and destroy them on unmount, with a no-op fallback when no 2D
+  canvas context exists; cashflow/data trust panels, goals,
   and conditional SWP/expense/advisor widgets.
 - **Planning Tools** (`src/modules/calculators/`): crash protocol, emergency
   runway, SIP pause, LTCG tax planner, SWP scheduler.
@@ -138,13 +190,15 @@ backend resource. See [UI reference](ui.md) for per-module behavior.
 
 The browser builds the summary in `src/lib/assistant/sanitize.ts`, explicitly
 transmits exact totals only with the request's `sendExact` choice, and POSTs to
-`/api/assistant/query`. The Worker and local Express validate message shape,
-apply prompt policy, rate limit, forward a system prompt and conversation to
+`/api/assistant/query`. The Worker and local Express validate request and
+extracted-proposal envelopes with Valibot in `shared/assistant-policy.js`, apply
+the separate prompt regex policy, rate limit, forward a system prompt and conversation to
 OpenRouter, extract a JSON proposal from model output, and return the reply.
-OpenRouter credentials remain server-side. Client proposals are allowlisted,
-merged into a candidate, validated against persisted-state validators, diffed,
-confirmed, optionally reauthenticated, then locally/cloud persisted. Full flow
-and boundaries are in [AI reference](ai.md).
+OpenRouter credentials remain server-side. `PERSISTED_ALLOWLIST` remains the
+server's top-level output projection; the browser merges proposals into a
+candidate and validates the full persisted state before review/acceptance.
+Firestore rules independently validate their write boundary. Full flow and
+boundaries are in [AI reference](ai.md).
 
 ## Configuration and operational checks
 
@@ -198,8 +252,9 @@ Login/signup form validation -> Firebase Auth call -> auth-state callback ->
 UID storage scope -> local restore -> remote envelope fetch -> section timestamp
 merge -> apply shared `appState` -> local cache update -> Firestore listeners +
 sync coordinator -> refresh active UI. Each edit calls repository save, which
-validates and persists local data first, dispatches a dashboard refresh event,
-then queues cloud sync if authenticated. Explicit Profile cloud-save awaits the
+validates and persists local data first, publishes the save signal that
+refreshes the dashboard, then queues cloud sync if authenticated. Explicit
+Profile cloud-save awaits the
 Firestore result. A remote listener repeats envelope merge and local apply
 without echoing remote data back to cloud. On sign-out/account switch, listeners
 stop, pending save receives bounded flush attempt, UID scope is disabled and

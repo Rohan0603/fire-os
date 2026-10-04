@@ -10,12 +10,14 @@
  * Implements offline-first architecture with 4-hour NAV cache TTL
  */
 
-import { FireOSState, isPersistedPortfolioData, normalizePersistedState } from '../types/state';
+import { FireOSState, isPersistedPortfolioData, normalizePersistedState, type MarketHistoryCacheMap } from '../types/state';
 import { NAVCache } from '../types/api';
 import { buildEnvelopeFromState } from './merge';
 import type { SyncCoordinator } from './syncCoordinator';
 import type { PortfolioEnvelope } from '../types/firebase';
 import { recordPortfolioSnapshot, undoLastPortfolioSnapshot } from './snapshot-history';
+import { getHistoryCacheMap, sanitizeHistoryCache } from '../modules/api';
+import { notifyPortfolioSaved } from '../core/stores';
 
 const LEGACY_STORAGE_KEY = 'fireOS_v2';
 const ANONYMOUS_STORAGE_KEY = 'fireOS_v2:anonymous';
@@ -24,6 +26,13 @@ const USER_ID_PATTERN = /^[A-Za-z0-9._~-]{1,128}$/;
 
 // NAV cache TTL: 4 hours in milliseconds
 const NAV_CACHE_TTL = 4 * 60 * 60 * 1000; // 14400000ms
+
+/**
+ * Serialized local payload ceiling documented in docs/README.md
+ * ("Portfolio storage sizing"): a state payload above 750 KB warns. Market
+ * history is expendable cache, so it is dropped first to stay under it.
+ */
+export const PERSISTED_PAYLOAD_CEILING = 750 * 1024;
 
 let activeSyncCoordinator: SyncCoordinator | null = null;
 let activeEnvelope: PortfolioEnvelope | null = null;
@@ -136,6 +145,26 @@ export function loadData(): FireOSState | null {
 }
 
 /**
+ * Raw pre-overwrite read of the active scope's persisted history section.
+ * Used as the last-resort save fallback when both in-memory sources are empty.
+ */
+function readPersistedHistoryCache(): MarketHistoryCacheMap {
+  if (!activeStorageKey) return {};
+  try {
+    const raw = localStorage.getItem(activeStorageKey);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as { marketHistory?: unknown };
+    if (!parsed || typeof parsed !== 'object'
+      || typeof parsed.marketHistory !== 'object' || parsed.marketHistory === null) {
+      return {};
+    }
+    return sanitizeHistoryCache(parsed.marketHistory as MarketHistoryCacheMap);
+  } catch {
+    return {};
+  }
+}
+
+/**
  * Save portfolio data to localStorage synchronously
  * Updates timestamp before saving. Callers should debounce (500ms) at call site
  * @param state FireOSState to persist
@@ -150,10 +179,29 @@ export function saveData(state: FireOSState): void {
     // Update last saved timestamp
     state._lastSavedAt = new Date().toISOString();
 
+    // Mirror the bounded history cache into the persisted copy. The mirror is
+    // intentionally cross-scope: the module cache is global and market history
+    // is public market data (index/NAV series), never user data — so a guest
+    // save may carry series fetched before sign-in and vice versa.
+    // state.marketHistory is non-enumerable (local-only cache), so the spread
+    // destructure below drops it; assign it explicitly onto `persisted`.
+    const moduleHistory = getHistoryCacheMap();
+    let sanitizedHistory = sanitizeHistoryCache(
+      Object.keys(moduleHistory).length > 0 ? moduleHistory : (state.marketHistory ?? {}),
+    );
+    if (Object.keys(sanitizedHistory).length === 0) {
+      // Both in-memory sources are empty (cache merely unwarmed or a handoff
+      // gap): never let that erase an already-persisted history section.
+      sanitizedHistory = readPersistedHistoryCache();
+    }
+
     const { currentUser, _syncMetadata, _lastSavedAt, ...persisted } = state;
     void currentUser;
     void _syncMetadata;
     void _lastSavedAt;
+    if (Object.keys(sanitizedHistory).length > 0) {
+      persisted.marketHistory = sanitizedHistory;
+    }
     // Drop undefined-valued keys (JSON.stringify does the same), so optional
     // fields cleared with `= undefined` don't poison validation.
     const persistedRecord = persisted as Record<string, unknown>;
@@ -168,9 +216,19 @@ export function saveData(state: FireOSState): void {
       return;
     }
 
-    const serialized = JSON.stringify(persisted);
+    let serialized = JSON.stringify(persisted);
+    if (serialized.length > PERSISTED_PAYLOAD_CEILING && 'marketHistory' in persisted) {
+      console.warn('[Storage] Persisted payload exceeds ceiling; dropping market history cache');
+      delete persisted.marketHistory;
+      serialized = JSON.stringify(persisted);
+    }
+    if (serialized.length > PERSISTED_PAYLOAD_CEILING) {
+      console.warn(`[Storage] Persisted payload exceeds the ${PERSISTED_PAYLOAD_CEILING} byte ceiling (${serialized.length} bytes)`);
+    }
     localStorage.setItem(activeStorageKey!, serialized);
-    recordPortfolioSnapshot(activeStorageKey!, persisted);
+    // Snapshots exclude history: keeps sessionStorage bounded and undo from
+    // resurrecting a stale cache (the module cache keeps serving either way).
+    recordPortfolioSnapshot(activeStorageKey!, { ...persisted, marketHistory: undefined });
 
     // Log success in dev mode
     if (import.meta.env.DEV) {
@@ -204,9 +262,7 @@ export function persistPortfolioState(
   options: PersistPortfolioOptions = {},
 ): void | Promise<void> {
   saveData(state);
-  if (typeof document !== 'undefined') {
-    document.dispatchEvent(new Event('portfolioStateSaved'));
-  }
+  notifyPortfolioSaved();
   if (options.sync === false || !state.currentUser?.uid) return;
 
   const queued = queuePortfolioSave(state.currentUser.uid, state);
@@ -222,11 +278,18 @@ export async function queuePortfolioSave(uid: string, state: FireOSState): Promi
   if (!activeSyncCoordinator) {
     throw new Error(`Firestore sync is not active for user ${uid}`);
   }
-  const envelope = buildEnvelopeFromState(state, {
-    clientId: 'browser',
-    appVersion: '2.2.0',
-    platform: 'web',
-  }, state._lastSavedAt, activeEnvelope ?? undefined);
+  const envelope = buildEnvelopeFromState(
+    // Market history is a local-only cache: Firestore rules and the envelope
+    // allowlist do not include it, and it must not inflate the cloud document.
+    { ...state, marketHistory: undefined },
+    {
+      clientId: 'browser',
+      appVersion: '2.2.0',
+      platform: 'web',
+    },
+    state._lastSavedAt,
+    activeEnvelope ?? undefined,
+  );
   activeEnvelope = envelope;
   activeSyncCoordinator.markDirty(envelope);
   await activeSyncCoordinator.flush();

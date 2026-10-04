@@ -1,3 +1,5 @@
+import * as v from 'valibot';
+
 const DESTRUCTIVE_PATTERNS = [
   /\bdelete\s+(all|everything)\b/i,
   /\bclear\s+(all|everything|my\s+account)\b/i,
@@ -7,6 +9,32 @@ const DESTRUCTIVE_PATTERNS = [
   /\breset\s+(all|my\s+(account|data|portfolio))\b/i,
   /\bremove\s+(all|everything)\b/i,
 ];
+
+const messageSchema = v.strictObject({
+  role: v.union([v.literal('user'), v.literal('assistant')]),
+  content: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(6000)),
+});
+const requestSchema = v.record(v.string(), v.unknown());
+const questionSchema = v.pipe(v.string(), v.trim(), v.minLength(1));
+const contextSummarySchema = v.pipe(
+  v.unknown(),
+  v.check((value) => value !== null),
+);
+const messagesSchema = v.pipe(
+  v.array(messageSchema),
+  v.minLength(1),
+  v.maxLength(12),
+  v.check(
+    (messages) =>
+      messages.every((message, index) => message.role === (index % 2 === 0 ? 'user' : 'assistant')),
+    'messages must alternate user/assistant with text content only',
+  ),
+);
+const latestMessageSchema = v.pipe(
+  messageSchema,
+  v.check((message) => message.role === 'user', 'last message must match question'),
+);
+const proposalEnvelopeSchema = v.record(v.string(), v.unknown());
 
 const PII_REQUEST_PATTERNS = [
   /\b(show|give|send|reveal|return|dump|list|share)\b[^.?!]*\b(email|e-mail|uid|user\s*id|transaction\s*(id|ids)|account\s*(number|numbers)|ssn|social\s*security|pan\s*number|dob|date\s+of\s+birth)\b/i,
@@ -71,41 +99,30 @@ export function checkPromptPolicy(question) {
 
 /** @returns {null | { status: number, error: string }} */
 export function validateAssistantRequest(body) {
-  if (typeof body !== 'object' || body === null) {
+  if (!v.is(requestSchema, body)) {
     return { status: 400, error: 'JSON body required' };
   }
-  if (typeof body.question !== 'string' || !body.question.trim()) {
+  if (!v.is(questionSchema, body.question)) {
     return { status: 400, error: 'question is required' };
   }
-  if (body.contextSummary === undefined || body.contextSummary === null) {
+  if (body.contextSummary === undefined || !v.is(contextSummarySchema, body.contextSummary)) {
     return { status: 400, error: 'contextSummary is required' };
   }
-  if (!Array.isArray(body.messages) || body.messages.length === 0 || body.messages.length > 12) {
+  if (!v.is(v.pipe(v.array(v.unknown()), v.minLength(1), v.maxLength(12)), body.messages)) {
     return { status: 400, error: 'messages must contain 1–12 conversation messages' };
   }
-  for (let index = 0; index < body.messages.length; index += 1) {
-    const message = body.messages[index];
-    const expectedRole = index % 2 === 0 ? 'user' : 'assistant';
-    if (
-      typeof message !== 'object' ||
-      message === null ||
-      Object.keys(message).some((key) => !['role', 'content'].includes(key)) ||
-      message.role !== expectedRole ||
-      typeof message.content !== 'string' ||
-      !message.content.trim() ||
-      message.content.length > 6000
-    ) {
-      return {
-        status: 400,
-        error: 'messages must alternate user/assistant with text content only',
-      };
-    }
+  const result = v.safeParse(messagesSchema, body.messages);
+  if (!result.success) {
+    return {
+      status: 400,
+      error: 'messages must alternate user/assistant with text content only',
+    };
   }
   const latestMessage = body.messages.at(-1);
-  if (latestMessage.role !== 'user' || latestMessage.content !== body.question) {
+  if (!v.is(latestMessageSchema, latestMessage) || latestMessage.content !== body.question) {
     return { status: 400, error: 'last message must match question' };
   }
-  if (body.sendExact !== undefined && typeof body.sendExact !== 'boolean') {
+  if (body.sendExact !== undefined && !v.is(v.boolean(), body.sendExact)) {
     return { status: 400, error: 'sendExact must be boolean' };
   }
   if (JSON.stringify(body).length > 100_000) {
@@ -121,7 +138,7 @@ export function extractProposedChanges(reply) {
   if (!match) return null;
   try {
     const parsed = JSON.parse(match[0]);
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
+    if (!v.is(proposalEnvelopeSchema, parsed)) return null;
     const allowed = new Set(PERSISTED_ALLOWLIST);
     const filtered = {};
     for (const [key, value] of Object.entries(parsed)) {
@@ -133,7 +150,7 @@ export function extractProposedChanges(reply) {
         continue;
       }
       if (
-        (typeof value === 'object' && value !== null) ||
+        (value !== null && typeof value === 'object' && value !== null) ||
         ['number', 'string', 'boolean'].includes(typeof value)
       ) {
         filtered[key] = value;

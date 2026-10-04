@@ -1,14 +1,16 @@
+import Papa from 'papaparse';
 import type { FireOSState } from '../types/state';
 import { getFundSchemeCode } from './fundMatcher';
 
-function csvCell(value: string | number | undefined): string {
-  let text = String(value ?? '');
-  if (typeof value === 'string' && /^[\t\r ]*[=+@-]/.test(text)) text = `'${text}`;
-  return `"${text.replace(/"/g, '""')}"`;
+type CsvValue = string | number | undefined;
+
+function formulaSafe(value: CsvValue): string | number {
+  if (typeof value !== 'string') return value ?? '';
+  return /^\s*[=+@-]/.test(value) ? `'${value}` : value;
 }
 
 export function buildPortfolioCsv(state: FireOSState): string {
-  const rows: (string | number | undefined)[][] = [
+  const rows: CsvValue[][] = [
     ['Category', 'Name', 'Units', 'Monthly contribution', 'Cost basis', 'Value', 'Currency'],
   ];
 
@@ -35,5 +37,5 @@ export function buildPortfolioCsv(state: FireOSState): string {
     rows.push(['Liability', liability.name, '', '', '', liability.amount, 'INR']);
   }
 
-  return rows.map((row) => row.map(csvCell).join(',')).join('\r\n');
+  return Papa.unparse(rows.map((row) => row.map(formulaSafe)), { quotes: true, newline: '\r\n' });
 }

@@ -1,3 +1,4 @@
+import { differenceInCalendarMonths, isValid, parse } from 'date-fns';
 import type { FireOSState } from '../../../types/state';
 import { getFundSchemeCode } from '../../../lib/fundMatcher';
 
@@ -43,15 +44,11 @@ export function calculateLTCGHarvestPlan(
     // 1. monthsElapsed
     let monthsElapsed = 0;
     if (fund.startDate) {
-      const parts = fund.startDate.split('-');
-      const year = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10);
-      if (!isNaN(year) && !isNaN(month)) {
-        const startDate = new Date(year, month - 1, 1);
-        monthsElapsed = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth()) + 1;
-        if (monthsElapsed < 0) {
-          monthsElapsed = 0;
-        }
+      const month = fund.startDate.length === 10 ? fund.startDate.slice(0, 7) : fund.startDate;
+      const startDate = parse(month, 'yyyy-MM', new Date(2000, 0, 1));
+      if (/^\d{4}-\d{2}$/.test(month) && isValid(startDate)) {
+        monthsElapsed = differenceInCalendarMonths(now, startDate) + 1;
+        monthsElapsed = Math.max(0, monthsElapsed);
       }
     }
 

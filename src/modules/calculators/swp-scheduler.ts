@@ -1,3 +1,5 @@
+import { addMonths, isValid, parseISO } from 'date-fns';
+
 interface Holding {
   units: number;
   nav: number; // Net Asset Value
@@ -55,17 +57,20 @@ export function generateSWPSchedule(
   state.swpSchedule.enabled = true;
   state.swpSchedule.startDate = fiTriggerDate;
 
-  // Create monthly withdrawal tasks in Firebase
-  const withdrawalDates: string[] = [];
-  let currentDate = new Date(fiTriggerDate + "-01");
+  // Create monthly withdrawal tasks in Firebase; persistence is simulated.
+  getSWPWithdrawalDates(fiTriggerDate);
 
-  for (let i = 0; i < 360; i++) {
-    // 30 years of withdrawals
-    withdrawalDates.push(currentDate.toISOString().split("T")[0]);
-    currentDate.setMonth(currentDate.getMonth() + 1);
-  }
+  // Simulated: saveToFirebase("users/swpSchedule", getSWPWithdrawalDates(fiTriggerDate));
+}
 
-  // Simulated: saveToFirebase("users/swpSchedule", withdrawalDates);
+export function getSWPWithdrawalDates(fiTriggerDate: string): string[] {
+  if (!/^\d{4}-\d{2}$/.test(fiTriggerDate)) throw new RangeError('Invalid SWP start month');
+  const startDate = parseISO(`${fiTriggerDate}-01T00:00:00Z`);
+  if (!isValid(startDate)) throw new RangeError('Invalid SWP start month');
+
+  return Array.from({ length: 360 }, (_, index) =>
+    addMonths(startDate, index).toISOString().split('T')[0],
+  );
 }
 
 export async function executeMonthlyWithdrawal(state: any): Promise<void> {

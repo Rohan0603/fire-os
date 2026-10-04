@@ -75,8 +75,9 @@ base URL it is same-origin. Browser timeout defaults to 30s. JSON body:
 }
 ```
 
-Message history has 1–12 entries, strictly alternating user/assistant starting
-with user; text must be non-empty and ≤6,000 chars. The last message must be the
+Shared Valibot schemas in `shared/assistant-policy.js` validate request and
+proposal-envelope shapes. Message history has 1–12 strict message objects,
+strictly alternating user/assistant starting with user; text must be non-empty and ≤6,000 chars. The last message must be the
 user question exactly. Question is required and ≤4,000 chars. Body is capped at
 100 KB (Worker validates JSON string size and Content-Length). `sendExact` must
 be boolean if present. Extra message keys are rejected.
@@ -115,10 +116,11 @@ clarifies `exact.holdings.sip` means current SIP market value, while
 Model configuration defaults to `openrouter/free`, then configured free-model
 fallbacks, capped at OpenRouter's 3-model limit. Reply extraction reads first
 choice content (or compatible `content` field). Proposal extraction parses the
-first greedy `{...}` substring as JSON object, keeps only allowlisted persisted
-top-level fields, removes runtime/underscore keys, and accepts JSON values.
-Extraction does not establish semantic correctness; client validation is the
-authoritative state boundary.
+first greedy `{...}` substring as a Valibot-validated object envelope, then
+`PERSISTED_ALLOWLIST` projects allowed persisted top-level fields and removes
+runtime/underscore keys. Extraction does not establish semantic correctness;
+the browser applies the complete persisted-state schema to the merged candidate
+before review or acceptance. Firestore rules independently validate cloud writes.
 
 ## Proposal validation and user-mediated writes
 
@@ -237,10 +239,10 @@ and are independent of the assistant audit.
 
 Server proposal extraction uses greedy regex from first `{` through last `}` in
 reply; malformed/mixed JSON text yields no proposal. Server allowlist prevents
-unknown top-level output, but nested payload contents are not deeply validated
-there. Client constructs candidate from current state and one-level merges each
-plain object section; complete persisted-state validator then validates
-recursive known shapes. Extra unknown nested keys fail exact shape checks.
+unknown top-level output; nested payloads remain the browser's responsibility.
+Client constructs candidate from current state and one-level merges each plain
+object section; complete persisted-state validator then validates recursive
+known shapes. Extra unknown nested keys fail exact shape checks.
 
 Client `classifyProposal()` treats top-level object updates in holdings key set
 as a full key set when detecting removals; because the actual candidate merge

@@ -26,18 +26,41 @@ Local persistence scopes are:
 
 Only the active identity can persist. `saveData()` serializes validated
 persisted fields, excluding `currentUser`, `_lastSavedAt`, `_syncMetadata`; it
-keeps stale market cache values available as fallback. Invalid/corrupt local
-data is rejected with a warning. `persistPortfolioState()` writes locally
-first, dispatches `portfolioStateSaved`, and only then optionally enqueues
-Firestore. Sign-out tears down listeners, attempts a bounded sync flush, clears
-scope and resets memory. Guest writes are never sent to cloud.
+keeps stale market cache values available as fallback. Market history is
+local-only: on every save the in-memory history cache is schema-validated and
+trimmed (1260 Nifty / 2520 NAV points per series, at most 8 series, 256 KB
+section budget) before being written as `marketHistory`, and it is dropped
+first when a save would exceed the 750 KB local payload ceiling.
+`marketHistory` is a non-enumerable field on state, so envelope clones,
+undo snapshots, backups and Assistant context JSON never include it; it is
+also stripped from the cloud envelope because Firestore rules allowlist the
+persisted `data` fields. Because `Object.assign` copies only enumerable
+properties, state handoffs use `applyPersistedState()` (startup load and both
+auth scope switches) to carry history onto app state — a plain `Object.assign`
+would leave the empty default and the next save would erase the persisted
+cache; if both in-memory sources are empty, `saveData()` falls back to the
+already-persisted section rather than overwriting it with nothing. The module
+history cache is global across identity scopes by design: market history is
+public market data (index/NAV series), never user data, so saves mirror the
+same cache into whichever scope is active. Invalid/corrupt local
+data (including a malformed `marketHistory`) is rejected with a warning while
+keeping the rest of the portfolio. `persistPortfolioState()` writes locally
+first, publishes the save signal (`portfolioSavedStore` in
+`src/core/stores.ts`), and only then optionally enqueues Firestore. Sign-out
+tears down listeners, attempts a bounded sync flush, clears scope and resets
+memory. Guest writes are never sent to cloud. The Nanostores atoms are
+ephemeral UI signals only: durable portfolio persistence remains in
+`PortfolioRepository`/`storage.ts` (identity-scoped localStorage) and
+Firestore — `@nanostores/persistent` is deliberately not used and no portfolio
+data is mirrored into the stores.
 
 On sign-in, controller restores the user's local scope, reads remote data, and
 merges local+remote envelopes (`src/lib/merge.ts`). Realtime listeners observe
 both canonical state and MF holding subcollection. `SyncCoordinator` queues the
 latest envelope, debounces writes (1s), retries transient errors up to three
 times with exponential delays starting at 500ms, pauses offline, flushes on
-reconnect, and emits sync status events. Section clocks/entry timestamps
+reconnect, and publishes status changes to `syncStatusStore`. Section
+clocks/entry timestamps
 support merge decisions. The state envelope uses schema `fireOS_v4` for writes;
 rules accept v2/v3/v4.
 
@@ -60,11 +83,18 @@ removes child holdings and state. Rules permit only authenticated owner reads,
 writes and deletes; state and MF shapes have allowlists, bounded strings/maps,
 lists and schema versions. The Firestore source is `firestore.rules`.
 
-State validators are shared at the client boundary in `src/types/state.ts`.
-They enforce exact keys and finite numbers, plus limits such as 50 liabilities,
-20 ESOP quote holdings, bounded names/returns and valid market-cache statuses.
-Firestore rules independently enforce owner and envelope/selected field shape;
-do not rely on client validation as authorization.
+`persistedPortfolioSchema` in `src/types/state.ts` is the Valibot client
+boundary; `isPersistedPortfolioData()` delegates to it and normalization still
+fills legacy partial payloads from defaults. The strict schema enforces exact
+keys and finite numbers, plus limits such as 50 liabilities, 20 ESOP quote
+holdings, bounded names/returns and valid market-cache statuses. The optional
+`marketHistory` section is a record of strict `HistoricalSeries` objects
+(positive finite values, ISO dates, freshness metadata) capped at 8 entries;
+normalization drops a malformed section rather than failing the payload, and
+`isFireOSState()` treats the key as optional while requiring every other
+persisted key. Firestore rules
+independently enforce owner and envelope/selected field shape; do not rely on
+client validation as authorization.
 
 Write-size measurement is in `src/lib/portfolioMetrics.ts`. Dev logs report
 bytes/holding count (not portfolio values); a warning is emitted over 750,000
@@ -100,7 +130,9 @@ when active UID changes.
 
 Production Worker is configured in `worker/wrangler.toml`; secret binding is
 `OPENROUTER_API_KEY`, rate limiter binding is `ASSISTANT_RATE_LIMITER`. The
-endpoint accepts OPTIONS and `POST /api/assistant/query`. It limits body to
+endpoint accepts OPTIONS and `POST /api/assistant/query`. Shared Valibot
+schemas in `shared/assistant-policy.js` validate request fields, strict message
+objects, role alternation, and extracted-proposal envelopes. It limits body to
 100KB, requires 1–12 alternating message objects and matching latest question,
 blocks destructive/PII prompts, limits to 20 req/min/IP, forwards sanitized
 context and messages to OpenRouter, max 180 output tokens and 25s upstream
@@ -170,8 +202,8 @@ returns success for `auth/user-not-found` to avoid exposing account existence.
    exists or an envelope from defaults.
 4. Apply envelope to singleton state, set active envelope, persist merged state
    locally without enqueueing a redundant cloud save, hide auth screen.
-5. Create `SyncCoordinator` with Firestore `savePortfolio`; event
-   `syncStatusChanged` includes status. Subscribe separately to state and MF
+5. Create `SyncCoordinator` with Firestore `savePortfolio`; `onStatusChange`
+   writes `syncStatusStore` (no DOM event). Subscribe separately to state and MF
    holdings snapshots. Each snapshot reconstructs combined data, merges with
    current local envelope and applies state only if auth generation remains
    active; then persists locally and dispatches `profileUpdated`.
@@ -183,8 +215,11 @@ returns success for `auth/user-not-found` to avoid exposing account existence.
 
 `PortfolioSession.teardown()` unsubscribes state+holdings snapshots first,
 pauses coordinator, calls flush with 5,000ms timeout, warns if flush fails,
-disposes coordinator/listeners, cancels Nifty monitor, clears envelope and
-sync config, disables active storage scope and resets singleton state. Auth
+disposes coordinator/listeners (disposal resets `syncStatusStore` to `idle`),
+cancels Nifty monitor, clears envelope and
+sync config, disables active storage scope and resets singleton state.
+Observers registered through the session's unsubscribe slot are removed before
+the flush, so status writes from the old identity cannot reach them. Auth
 generation is incremented on sign-out and callback validity checked after
 async Firestore operations. NAV background loop separately captures UID and
 stops applying results after identity changes.
@@ -256,7 +291,8 @@ are limited to schemaVersion, lastSavedAt, client, serverMetadata, data,
 sectionUpdatedAt, entryUpdatedAt, migration, format. Supported schema strings
 are fireOS_v2/v3/v4. Owner may delete canonical doc and child holdings. Rules
 validate top-level envelope and selected nested structures, bounds and
-allowlisted keys. Client `isPersistedPortfolioData()` does stricter nested
+allowlisted keys independently of Assistant Valibot validation. Client
+`isPersistedPortfolioData()` does stricter nested
 validation for locally loaded/updated data. Keep both rule emulator tests and
 client validator tests when changing schema.
 

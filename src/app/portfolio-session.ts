@@ -1,6 +1,7 @@
 import type { PortfolioEnvelope } from '../types/firebase';
 import type { SyncCoordinator } from '../lib/syncCoordinator';
 import { clearPortfolioStorageScope, configurePortfolioSync } from '../lib/storage';
+import { activeScopeStore, resetScopeStatuses } from '../core/stores';
 
 export interface PortfolioSessionDependencies {
   clearStorageScope: typeof clearPortfolioStorageScope;
@@ -45,6 +46,7 @@ export class PortfolioSession {
   setSyncCoordinator(coordinator: SyncCoordinator | null): void {
     this.syncCoordinator = coordinator;
     this.dependencies.configureSync(coordinator, this.envelope);
+    activeScopeStore.set(coordinator ? 'cloud' : 'local');
   }
 
   setEnvelope(envelope: PortfolioEnvelope | null): void {
@@ -77,5 +79,9 @@ export class PortfolioSession {
     this.dependencies.configureSync(null, null);
     this.dependencies.clearStorageScope();
     this.dependencies.resetState();
+    // Last: clears transient sync/market/scope status published while the
+    // retiring scope was being torn down, so no stale status reaches the
+    // next scope (guest or user) — every transition goes through teardown.
+    resetScopeStatuses();
   }
 }

@@ -13,9 +13,10 @@ activation. CSS tokens/themes are in `src/styles/tokens.css`, layout/global
 styles are in `src/styles/`, with feature CSS under each module.
 
 Theme is saved as `fire-os-theme` and follows OS dark preference on first load.
-Offline banner tracks browser online/offline events. `portfolioStateSaved`
-coalesces dashboard refresh to an animation frame. App root catches module and
-fatal initialization errors and renders fallback messages.
+Offline banner tracks browser online/offline events. The
+`portfolioSavedStore` save signal (Nanostores, `src/core/stores.ts`)
+triggers the dashboard refresh, coalesced to an animation frame. App root
+catches module and fatal initialization errors and renders fallback messages.
 
 ## Tabs and behaviors
 
@@ -26,27 +27,66 @@ expenses, tax slab and FI target; asset records; liabilities; SIP/MF fund
 names/scheme/units/costs; insurance and ESOP state. Changes mutate shared state
 and go through repository persistence. Age helper validates exact YYYY-MM-DD
 dates and accounts for whether the birthday has passed. Import/export includes
-JSON backup and CSV download. `pdf-parser.ts` handles browser PDF/CAS parsing;
+JSON backup plus CSV download and CSV import (preview, row issues, explicit
+merge/replace confirmation). `pdf-parser.ts` handles browser PDF/CAS parsing;
 profile flows can use fund matching to associate scheme names/codes. CSV
-serialization implementation is in `src/lib/portfolioCsv.ts`.
+serialization uses PapaParse in both directions: export lives in
+`src/lib/portfolioCsv.ts`, import parsing/validation in
+`src/modules/profile/csv-import.ts`.
 
 ### Dashboard — `src/modules/dashboard/`
 
 The dashboard refreshes NAVs for positive-unit SIP holdings before computing
 KPIs. It shows net worth/assets/liabilities; SIP current value/invested/P&L;
 FI progress; Nifty drawdown; cashflow summary; market-data freshness, sync mode,
-last-save time, profile completeness and liabilities; category composition
-canvas; FI target progress; Coorg goal; and, when SWP enabled, SWP, tax,
+last-save time, profile completeness and liabilities; category composition pie
+(plain `chart.js`, HTML legend below the canvas); FI target progress; Coorg
+goal; two analytics charts (below); and, when SWP enabled, SWP, tax,
 advisor-review and expense-tracker widgets. A market crash monitor can show a
-severity banner. Dashboard refreshes on state save while active and on theme
-change.
+severity banner. Dashboard refreshes
+on state save while active and on theme change, and its trust-panel sync,
+market-refresh and cloud-mode labels update live from the reactive status
+stores (subscribed on render, unsubscribed by `teardownDashboard`). The
+composition chart instance is replaced on every repaint (previous instance
+destroyed before the markup is rebuilt) and destroyed by `teardownDashboard`;
+mounting no-ops when no canvas or 2D context is available, so tests and odd
+browsers still render the legend and labels.
+
+Analytics charts plot two distinct real series. The **net-worth trend** card
+charts persisted daily snapshots only: points are the recorded
+`state.netWorthHistory` entries filtered by an inclusive date window from
+`src/lib/dates.ts` (both endpoints included) — sparse days stay sparse, with
+no backfill, interpolation, or invented values; a `.chart-meta` provenance
+line names the source, point count and span. Its range buttons (3M/6M/1Y/
+3Y/5Y/All) are native, keyboard-focusable `<button>`s, disabled unless the
+snapshot span reaches within 15 days of that window start, so only supported
+ranges are selectable; an empty history renders an empty state without
+controls. The **Nifty 50 benchmark** card charts fetched market history from
+`FeaturePorts.marketData.fetchNiftyHistory` (bounded cache; ≤5Y provider
+clamp — ranges never exceed 5Y, and windows are cut client-side from the
+fetched series). Its provenance line always identifies the provider, status
+(`live`/`cache-fresh`/`stale (cached)`/`manual`), fetch date, point count and
+span, plus a `partial` flag when history starts more than 7 days into the
+window; the series is labeled benchmark data and is never presented as the
+user's portfolio return. Two views exist — performance (provider index level)
+and drawdown (percent below the running maximum of that same series, derived
+in `chart-data.ts` without adding points). Missing history renders an
+"unavailable" state with no chart and no range/view controls, and current
+value KPIs are computed independently of both series. All three Chart.js
+instances (pie, trend, benchmark) follow the same create/replace/destroy
+discipline: destroyed before every markup rebuild, on `teardownDashboard`,
+and recreated after repaint; range/view clicks rebuild only the affected
+chart in place instead of repainting the dashboard.
 
 Net worth rules: MF and SIP = units × matching cached NAV (MF requires explicit
 scheme code; SIP may use name matcher); FD, EPF, ESOP and bonds sum `amount`;
 demat sums `currentValue`; custom holdings sum `amount`; liabilities are
 clamped nonnegative and subtracted. Composition percentages use gross assets
 (not net worth). SIP invested value uses explicit positive cost basis when
-present, otherwise monthly amount × inclusive elapsed months. SIP XIRR
+present, otherwise monthly amount × inclusive elapsed local-calendar months
+(date-fns `differenceInCalendarMonths`). The start date may be `YYYY-MM` or a
+persisted full `YYYY-MM-DD` (its month is used); non-padded (`2024-1`) or
+impossible (`2024-13`) months count as zero. SIP XIRR
 generates one negative monthly flow from start month plus a positive current
 value on now; total XIRR is the simple mean of fund XIRRs. FI target is user
 entry; progress is current net worth / target (0 when no target), with years
@@ -82,8 +122,10 @@ remaining only when already achieved. Drawdown is max(0, `(high-level)/high`).
 
 Other exported calculation primitives in `src/lib/calculations.ts`: SIP future
 value with monthly rate and zero-rate handling; simple SIP cost basis; XIRR via
-Newton–Raphson (100 iterations, 365-day year, null on invalid/signless or
-nonconvergent flows); emergency runway (returns 999 for positive assets and no
+the `xirr` package (365-day year; invalid dates/non-finite amounts dropped, null
+when fewer than two valid flows remain, on missing sign, same-day flows,
+nonconvergence, or any thrown package error); emergency runway (returns 999 for
+positive assets and no
 expenses); crash drawdown and 10/15/25% of 10% portfolio buffer; FI target =
 25×annual expenses (4% rule); SIP pause future value. UI may implement local
 estimates separately (as SIP pause does), so use the screen-specific logic
@@ -136,16 +178,57 @@ timestamp/freshness and three starter questions.
 
 `src/modules/ui/Modal.ts` wraps native `<dialog>` behavior for shared callers;
 `Toast.ts` exposes transient status notifications. `lib/formatters.ts` provides
-Indian currency/number formatting. Dashboard charts use native canvas (no
-Chart.js dependency). Accessibility uses native inputs/buttons, labels, dialog
+Indian currency/number formatting. The dashboard charts (composition pie,
+net-worth trend, Nifty benchmark) use plain `chart.js` (no chart
+wrapper/framework) with their lifecycle owned by
+`src/modules/dashboard/index.ts` (`mountCompositionChart`,
+`mountNetWorthChart` and `mountBenchmarkChart` replace the previous instance
+on repaint; the matching `destroy*` helper runs before every markup rebuild
+and on unmount), with data shaping isolated in
+`src/modules/dashboard/chart-data.ts`. Accessibility uses native inputs/buttons, labels, dialog
 and live regions where implemented. Route pages are pre-rendered/verified by
 `scripts/routes.mjs`, `prerender-routes.mjs`, and route smoke scripts.
+
+The shared date helpers in `src/lib/dates.ts` parse strictly as `YYYY-MM`
+(year and month) or `YYYY-MM-DD` (calendar date); any other arrangement —
+including partial values such as `2024-1`, extra segments such as
+`2024-01-01T00:00:00Z` when a month is expected, and impossible values such as
+`2024-13` or `2023-02-29` — return null rather than being corrected or rolled
+over, while valid leap days such as `2024-02-29` are accepted. Parsed values
+are local-midnight timestamps, and `isWithinDateRange` treats both endpoints as
+inclusive: a date equal to the range start or range end is within the range,
+and a range whose start falls after its end matches nothing. Existing
+calculated call sites keep their own handling: months that fail their
+`YYYY-MM` guard count as zero in invested/LTCG math (see below).
 
 ## Persistence signals and tests
 
 Modules save through `FeatureContext.portfolio`; storage validates data and
-keeps guest and UID scopes separate. The UI listens for save/sync/auth events;
-offline status is browser connectivity, not proof a queued remote write has
+keeps guest and UID scopes separate. Reactive signals are vanilla Nanostores
+atoms in `src/core/stores.ts`: `portfolioSavedStore` for save invalidation
+(dashboard subscribes with requestAnimationFrame coalescing),
+`syncStatusStore` for coordinator status (`idle`/`pending`/`syncing`/
+`offline`/`error`/`conflict`), `activeScopeStore` for the identity-neutral
+active scope (`local`/`cloud`) and `marketRefreshStatusStore` for market
+refresh cycles (`idle`/`refreshing`/`success`/`error`). Subscriptions return
+unsubscribe callbacks that teardown invokes.
+
+Scope-awareness: `PortfolioSession.teardown()` finishes by calling
+`resetScopeStatuses()`, which clears sync status, market refresh status and
+the scope signal — so guest↔user and user↔user switches never leave stale
+status (including status published while the retiring scope's flush or
+disposal runs). The session also publishes the scope signal when a sync
+coordinator is attached. The dashboard's data-trust panel renders these
+signals (`sync-status-value`, `market-refresh-value`, `scope-mode-label`)
+and re-subscribes on every render without stacking callbacks;
+`teardownDashboard()` unsubscribes them.
+
+Ownership is unchanged: these stores are ephemeral UI signals only — durable
+persistence stays in the portfolio repository/storage (identity-scoped
+localStorage) plus Firestore, never in a Nanostores persistent store, and the
+active uid remains owned by `PortfolioSession`; stores never hold identity.
+Other UI still listens for auth/profile DOM events; offline
+status is browser connectivity, not proof a queued remote write has
 completed. Build/type checks: `npm run build`; format/lint: `npm run format:check`,
 `npm run lint`; unit tests: `npm test`; browser workflows: `npm run test:e2e`.
 
@@ -165,8 +248,13 @@ Although the state field is called `profile.annualExpenses`, the Profile and
 Insurance screens label/use the value as **monthly expenses**. The Plan's cash
 flow and plain-English summary multiply it by 12; the emergency runway screen
 uses it directly as monthly expenses. Keep this mismatch explicit when reading
-or changing calculations. DOB uses native `type=date`; a date helper computes
-age in UTC and rejects impossible/future dates or age >150. Name is optional,
+or changing calculations. DOB uses native `type=date`;
+`calculateAgeFromDateOfBirth()` (`src/types/portfolio.ts`) strictly parses
+`YYYY-MM-DD` with date-fns and computes age from the UTC calendar day of
+`today`, taking the anniversary inside today's year (Feb 29 falls on Mar 1 in
+non-leap years). It returns null for malformed, impossible or future dates and
+for years 0000–0099 (legacy `Date.UTC` windowing); `saveProfile()` additionally
+rejects null or age >150. Name is optional,
 but if present must be at least two characters. Positive-number helper is used
 for expenses, FI target and income; empty fields do not reset existing numeric
 values in `saveProfile()` (except DOB, which is reset to empty). Tax slab range
@@ -244,15 +332,51 @@ INR amount. This refresh is separate from detailed grant/vesting fields in
 
 - **JSON Download Backup:** removes runtime auth/sync fields, serializes the
   remaining state as pretty JSON, downloads `fire-os-backup-YYYY-MM-DD.json`,
-  and stores local `fire-os:last-exported-at` for the reminder. No corresponding
-  Profile import button is rendered in this implementation; do not claim JSON
-  restore is available from this screen.
-- **CSV Export:** `buildPortfolioCsv()` emits CRLF CSV with Category, Name,
-  Units, Monthly contribution, Cost basis, Value, Currency columns. It exports
+  and stores local `fire-os:last-exported-at` for the reminder.
+- **Restore Backup:** selects a JSON file, projects the persisted top-level
+  allowlist (excluding auth/sync runtime fields), and validates the result with
+  `persistedPortfolioSchema`. Invalid JSON or nested data shows validation
+  issues and cannot be confirmed. Valid persisted data is previewed before the
+  user explicitly confirms replacing the current portfolio. Confirmation
+  normalizes omitted sections and saves through the active `FeatureContext`
+  repository, preserving the active identity/runtime metadata. Cancel makes no
+  state change or save; after confirmation the normal local-first, identity-
+  scoped repository behavior applies.
+- **CSV Export:** `buildPortfolioCsv()` serializes with PapaParse
+  (`Papa.unparse` with `newline: '\r\n'` and `quotes: true`): every field is
+  quoted, embedded quotes are doubled, newlines inside cells stay quoted, and
+  rows are separated by CRLF with no trailing newline. Columns are Category,
+  Name, Units, Monthly contribution, Cost basis, Value, Currency. It exports
   MF/SIP market value from cached NAV, holding maps, custom assets, demat and
-  liabilities. String cells are quoted, embedded quotes doubled, and strings
-  beginning with spreadsheet formula characters `= + @ -` receive a leading
-  apostrophe. A missing NAV yields blank value.
+  liabilities. Formula protection runs on string cells before serialization:
+  a string beginning with optional whitespace followed by `=`, `+`, `@`, or
+  `-` gets a leading apostrophe so spreadsheets treat it as text. Numeric cells
+  are never formula-prefixed, so negative amounts stay numeric. A missing NAV
+  yields blank value.
+- **CSV Import:** `parsePortfolioCsv()` reads the same seven columns with
+  PapaParse (`delimiter: ','`, no dynamic typing, BOM-tolerant header check)
+  and validates the built candidate against `persistedPortfolioSchema`. Row
+  numbers in issues are CSV record numbers with the header as row 1. Recognized
+  categories are Mutual fund, SIP, FD, EPF, ESOP, Bonds, Other, Demat,
+  Liability; unknown categories, duplicate Category+Name rows (first row wins),
+  malformed or missing numbers, and raw formula-like names are reported as row
+  issues and their rows are skipped, so a rejected row never partially imports.
+  Blank numeric cells map to absent fields, never 0. Apostrophe policy: a
+  leading `'` is stripped only when the rest of the cell matches the export
+  pattern (`\s*[=+@-]`), which restores round-trip names (internal apostrophes
+  such as `O'Brien` are untouched) and is surfaced as a row issue; unescaped
+  formula-like text is rejected with a row issue instead of imported. The
+  preview dialog lists valid rows and issues and requires an explicit mode
+  choice before applying: **merge** overwrites only the top-level sections
+  present in the file and preserves the rest; **replace** is a full normalized
+  replacement like JSON restore, so sections absent from the CSV (including
+  profile, which the export schema cannot carry) reset to defaults. Empty
+  previews, cancelled dialogs, invalid candidates and failed saves never write;
+  confirmation saves through the active `FeatureContext` repository first and
+  assigns state only after the save resolves. Export-schema losses on import:
+  SIP/MF start date and scheme code (valuation falls back to name matching or
+  NAV refresh), Other-holding annual return (imports as 0), demat ISIN (imports
+  blank), and fund Value (export-derived, re-derived from NAV).
 - **Undo Last Change:** snapshots are in sessionStorage, scoped per active
   portfolio key, validated and capped at 10; identical consecutive snapshots
   are skipped. Undo requires at least two snapshots, restores the prior one,
@@ -280,10 +404,14 @@ it computes inclusive months between start month and now, with minimum one, and
 multiplies monthlyAmount. Current value is units×NAV. XIRR approximation emits
 one negative equal monthly flow from first-of-start-month for every elapsed
 month plus current value on current date; returns are averaged per fund without
-weighting. Invalid start date, nonpositive contribution or nonpositive value
-returns null XIRR. The shared XIRR function requires positive and negative flows,
-uses Newton–Raphson starting at 10%, up to 100 iterations, clips rate below
--0.999999, rejects rates >1e6 and requires convergence delta <1e-8.
+weighting. XIRR requires a plain `YYYY-MM` start date; a full `YYYY-MM-DD` or a
+malformed month returns null XIRR, as do nonpositive contribution or nonpositive
+value. The shared XIRR function requires positive and negative flows,
+drops invalid dates and non-finite amounts (null when fewer than two valid
+flows remain), then solves with the `xirr` package; same-day flows,
+nonconvergence, and any other package error — as well as non-finite results —
+return null instead of throwing. Input order is irrelevant: flows are not
+sorted and results are order-independent.
 
 The 5-minute Nifty monitor fetches `fetchNifty()` immediately and then on a
 recursive timer. Crash percent is rounded to an integer in
@@ -321,11 +449,21 @@ Coast FIRE helper is exported through ports but not displayed in current Plan
 render; required corpus is target/(1+return)^years available; if already above
 threshold coasting begins now; otherwise logs solve years from target/current
 and returns null if no positive return or beyond retirement age.
+`compareFIScenarios()` projects each entered scenario through that same
+`calculateFIAge()` math and returns results in input order with an `assumptions`
+echo of the full input (label, corpus, SIP, step-up, return, goal, age);
+scenarios with non-finite or negative (or zero-goal) assumptions are filtered
+out without throwing. Comparison outputs are labeled estimates — the calculator
+table and disclaimer state the assumptions used and describe every projection as
+an estimate, never as a guaranteed or actual return.
 
 ### Tax planner and tax calendar
 
 LTCG approximation includes only `state.sip`. Months held are inclusive from
-start month to now; long-term months are `max(0, elapsed-12)`. Invested amount
+start month to now using local-calendar month difference; long-term months are
+`max(0, elapsed-12)`. The start date may be `YYYY-MM` or a persisted full
+`YYYY-MM-DD` (its month is used); non-padded or impossible months yield zero
+elapsed months. Invested amount
 uses positive costBasis else monthlyAmount×months; average monthly investment
 divides by max(1,elapsed), and estimated long-term invested is average × long-term
 months. Eligible units are total units × long-termInvested/fundInvested, clamped
@@ -352,7 +490,9 @@ milestones; and for enabled SWP where current YYYY-MM ≥ configured start month
 checks whether an SWP-category expense already exists for that month. If not,
 it calls `executeMonthlyWithdrawal()` asynchronously, persists after success,
 toasts, and refreshes active dashboard. This is per app load/session check, not
-a guaranteed background scheduler. SWP order planning rounds required partial
+a guaranteed background scheduler. Generated SWP dates start at UTC midnight,
+advance in local calendar months and serialize as UTC `YYYY-MM-DD`; the list is
+simulated and not persisted. SWP order planning rounds required partial
 units with `ceil(remaining/NAV)` but execution deducts actual units from SIP
 entries then MF entries and does not write an external order or cap expense to
 available holdings. It appends configured full amount even if holdings did not
