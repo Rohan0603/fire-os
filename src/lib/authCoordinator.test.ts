@@ -55,4 +55,22 @@ describe('AuthCoordinator', () => {
     coordinator.stop();
     expect(unsubscribe).toHaveBeenCalledTimes(2);
   });
+
+  it('reports a signed-out session without Firebase configured', async () => {
+    const coordinator = new AuthCoordinator(null);
+    const listener = vi.fn();
+
+    coordinator.start(listener);
+
+    expect(onAuthStateChanged).not.toHaveBeenCalled();
+    const session = listener.mock.lastCall?.[0];
+    expect(session.user).toBeNull();
+    expect(coordinator.isCurrent(session)).toBe(true);
+    expect(coordinator.getCurrentUser()).toBeNull();
+
+    await coordinator.signOut();
+
+    expect(signOut).not.toHaveBeenCalled();
+    expect(coordinator.isCurrent(session)).toBe(false);
+  });
 });

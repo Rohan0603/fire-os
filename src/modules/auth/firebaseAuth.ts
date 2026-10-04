@@ -10,10 +10,25 @@ import {
   GoogleAuthProvider,
   sendPasswordResetEmail,
 } from 'firebase/auth';
+import type { Auth } from 'firebase/auth';
 import { CONFIG } from '../../lib/config';
-import { getFirebaseServices } from '../../lib/firebase';
+import { getOptionalAuth } from '../../lib/firebase';
 
-const { auth } = getFirebaseServices(CONFIG.firebaseConfig);
+/**
+ * Firebase is optional, so auth may be absent in the supported guest-only mode.
+ * Sign-in surfaces a clear message instead of failing inside the Firebase SDK.
+ */
+function requireAuth(): Auth {
+  const auth = getOptionalAuth(CONFIG.firebaseConfig);
+  if (!auth) {
+    // Routed through the code map so the catch blocks below preserve this message.
+    throw Object.assign(
+      new Error('Sign-in is unavailable: this deployment has no Firebase configuration.'),
+      { code: 'app/firebase-unconfigured' }
+    );
+  }
+  return auth;
+}
 
 /**
  * Firebase error code to user-friendly message mapping
@@ -46,7 +61,7 @@ function getFirebaseErrorMessage(errorCode: string): string {
  */
 export async function signupUser(email: string, password: string): Promise<void> {
   try {
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const userCredential = await createUserWithEmailAndPassword(requireAuth(), email, password);
     console.log('Signup successful:', userCredential.user.uid);
   } catch (error: any) {
     const errorCode = error.code || 'unknown';
@@ -61,7 +76,7 @@ export async function signupUser(email: string, password: string): Promise<void>
  */
 export async function loginUser(email: string, password: string): Promise<void> {
   try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const userCredential = await signInWithEmailAndPassword(requireAuth(), email, password);
     console.log('Login successful:', userCredential.user.uid);
   } catch (error: any) {
     const errorCode = error.code || 'unknown';
@@ -73,7 +88,7 @@ export async function loginUser(email: string, password: string): Promise<void> 
 /** Sign in or sign up with the configured Google provider. */
 export async function loginWithGoogle(): Promise<void> {
   try {
-    await signInWithPopup(auth, new GoogleAuthProvider());
+    await signInWithPopup(requireAuth(), new GoogleAuthProvider());
   } catch (error: any) {
     throw new Error(getFirebaseErrorMessage(error.code || 'unknown'));
   }
@@ -85,7 +100,7 @@ export async function loginWithGoogle(): Promise<void> {
  */
 export async function sendPasswordReset(email: string): Promise<void> {
   try {
-    await sendPasswordResetEmail(auth, email);
+    await sendPasswordResetEmail(requireAuth(), email);
   } catch (error: any) {
     const errorCode = error.code || 'unknown';
     if (errorCode === 'auth/user-not-found') {

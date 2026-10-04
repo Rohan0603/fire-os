@@ -3,7 +3,7 @@ import {
   persistPortfolioState,
 } from './lib/storage';
 import { CONFIG } from './lib/config';
-import { getFirebaseServices } from './lib/firebase';
+import { getOptionalAuth } from './lib/firebase';
 import { AuthCoordinator } from './lib/authCoordinator';
 import { AuthSessionController } from './app/auth-session-controller';
 import { configurePortfolioStorageScope } from './lib/storage';
@@ -61,8 +61,11 @@ import './styles/tokens.css';
 // Firebase configuration
 const firebaseConfig = CONFIG.firebaseConfig;
 
-// Initialize Firebase
-export const auth = getFirebaseServices(firebaseConfig).auth;
+// Firebase is optional: an absent or partial `VITE_FIREBASE_*` configuration is a
+// supported guest-only mode (see docs/README.md). Resolving auth through
+// `getOptionalAuth` keeps a missing config from aborting module evaluation, which
+// would leave the app unrendered.
+export const auth = getOptionalAuth(firebaseConfig);
 const authCoordinator = new AuthCoordinator(auth);
 
 const featureContext = createFeatureContext(appState);

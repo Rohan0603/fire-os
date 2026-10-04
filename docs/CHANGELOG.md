@@ -20,6 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed duplicated and historical planning documents.
 
 ### Fixed
+- **Guest-only startup**: the app no longer fails to render when `VITE_FIREBASE_*`
+  is absent or partial. Firebase `Auth` is now resolved through `getOptionalAuth()`,
+  which returns null instead of throwing during module evaluation, so the
+  documented local-first guest mode actually boots. Sign-in surfaces a clear
+  "no Firebase configuration" message, and Assistant re-authentication treats an
+  unconfigured deployment as a guest.
+
+### Fixed
 - **Backup Restore Hardening**: restored backups are runtime-validated with Valibot before being applied
 - **Date and Duration Fixes**: age from date of birth (anniversary and leap-day handling), strict `YYYY-MM`/`YYYY-MM-DD` parsing, and long-term holding duration thresholds
 

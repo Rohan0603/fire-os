@@ -6,7 +6,7 @@ const { sendPasswordResetEmail } = vi.hoisted(() => ({
 
 vi.mock('firebase/auth', () => ({ sendPasswordResetEmail }));
 vi.mock('../../lib/firebase', () => ({
-  getFirebaseServices: vi.fn(() => ({ auth: {} })),
+  getOptionalAuth: vi.fn(() => ({})),
 }));
 
 import { sendPasswordReset } from './firebaseAuth';
