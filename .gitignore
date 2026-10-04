@@ -76,3 +76,6 @@ temp/
 # Local machine-specific files
 .gemini/settings.json
 fire-os-cleanup.md
+
+# Agent tooling scratch (task briefs, review diffs, build logs)
+.superpowers/

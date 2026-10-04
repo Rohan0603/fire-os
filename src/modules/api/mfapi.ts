@@ -4,7 +4,14 @@
  */
 
 import { getLogger } from '../../lib/logger';
-import type { MarketDataStatus, NAVCacheMap, MFAPIResponse } from '../../types/api';
+import type {
+  HistoricalDataPoint,
+  HistoricalSeries,
+  HistoryRange,
+  MarketDataStatus,
+  NAVCacheMap,
+  MFAPIResponse,
+} from '../../types/api';
 import { CONFIG } from '../../lib/config';
 
 const logger = getLogger();
@@ -162,4 +169,138 @@ export function initializeNAVCache(persistedCache: NAVCacheMap): void {
   logger.log('NAV cache initialized from persistence', {
     entries: Object.keys(navCache).length,
   });
+}
+
+/**
+ * Maximum retained NAV history points per series.
+ * MFAPI returns a scheme's entire life-to-date history in one payload
+ * (old schemes exceed 8,000 rows); 2,520 points equals ~10 years of
+ * business-day NAVs, which bounds the Task 2 history cache while covering
+ * a full market cycle. Oversized results keep the newest points.
+ */
+export const NAV_HISTORY_MAX_POINTS = 2520;
+
+const MFAPI_DATE_PATTERN = /^(\d{2})-(\d{2})-(\d{4})$/;
+const ISO_DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+function isValidIsoDate(value: string): boolean {
+  const match = ISO_DATE_PATTERN.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year
+    && date.getUTCMonth() === month - 1
+    && date.getUTCDate() === day;
+}
+
+function parseMFAPIHistoryDate(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const match = MFAPI_DATE_PATTERN.exec(raw);
+  if (!match) return null;
+  const isoDate = `${match[3]}-${match[2]}-${match[1]}`;
+  return isValidIsoDate(isoDate) ? isoDate : null;
+}
+
+function isValidHistoryRange(range: HistoryRange): boolean {
+  return isValidIsoDate(range.start) && isValidIsoDate(range.end) && range.start <= range.end;
+}
+
+function normalizeNAVHistory(data: unknown): HistoricalDataPoint[] | null {
+  if (!Array.isArray(data) || data.length === 0) return null;
+
+  const points: HistoricalDataPoint[] = [];
+  const seenDates = new Set<string>();
+
+  for (const entry of data) {
+    if (!entry || typeof entry !== 'object') continue;
+    const date = parseMFAPIHistoryDate((entry as { date?: unknown }).date);
+    if (!date || seenDates.has(date)) continue;
+
+    const rawNav = (entry as { nav?: unknown }).nav;
+    const value = typeof rawNav === 'number'
+      ? rawNav
+      : typeof rawNav === 'string'
+        ? Number(rawNav)
+        : NaN;
+    if (!Number.isFinite(value) || value <= 0) continue;
+
+    seenDates.add(date);
+    points.push({ date, value });
+  }
+
+  if (points.length === 0) return null;
+  return points.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+function capNAVHistory(points: HistoricalDataPoint[]): HistoricalDataPoint[] {
+  return points.length > NAV_HISTORY_MAX_POINTS
+    ? points.slice(points.length - NAV_HISTORY_MAX_POINTS)
+    : points;
+}
+
+/**
+ * Fetch a bounded, normalized NAV history series for a scheme
+ * MFAPI has no range parameters: the full history is fetched once, validated,
+ * deduplicated (first provider record per date wins), sorted ascending, then
+ * filtered to the inclusive range and capped to NAV_HISTORY_MAX_POINTS
+ * newest points. Invalid ranges are rejected before any request; provider
+ * failures and empty/non-overlapping results return null. Sparse provider
+ * gaps are preserved, never interpolated.
+ *
+ * @param schemeCode - Mutual fund scheme code (e.g., "122639")
+ * @param range - Optional inclusive YYYY-MM-DD window
+ * @returns Normalized series or null when no usable history exists
+ */
+export async function fetchNAVHistory(
+  schemeCode: string,
+  range?: HistoryRange,
+): Promise<HistoricalSeries | null> {
+  if (!schemeCode || (range && !isValidHistoryRange(range))) {
+    logger.warn('fetchNAVHistory: rejected invalid request', { schemeCode, range });
+    return null;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+    const response = await fetch(`${MFAPI_BASE_URL}/${schemeCode}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const data = (await response.json()) as MFAPIResponse;
+    const points = normalizeNAVHistory(data?.data);
+    if (!points) {
+      logger.warn(`fetchNAVHistory: no usable history for scheme ${schemeCode}`);
+      return null;
+    }
+
+    const inRange = range
+      ? points.filter((point) => point.date >= range.start && point.date <= range.end)
+      : points;
+    if (inRange.length === 0) {
+      logger.warn(`fetchNAVHistory: requested range outside provider history for scheme ${schemeCode}`);
+      return null;
+    }
+
+    return {
+      points: capNAVHistory(inRange),
+      source: 'api.mfapi.in',
+      fetchedAt: new Date().toISOString(),
+      status: 'live',
+    };
+  } catch (error) {
+    logger.warn(`fetchNAVHistory failed for scheme ${schemeCode}`, error);
+    return null;
+  }
 }

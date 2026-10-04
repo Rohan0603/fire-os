@@ -5,8 +5,9 @@
  */
 
 import type { FireOSState } from '../../types/state';
+import { addMonths, differenceInCalendarMonths, isValid, parse } from 'date-fns';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
-import { calculateXirr } from '../../lib/calculations';
+import { calculateXirr, type CashFlow } from '../../lib/calculations';
 
 /**
  * Total Net Worth KPI - sum of all holdings at current market value
@@ -161,11 +162,13 @@ export function sipStatus(state: FireOSState): SIPStatusKPI {
     // Calculate invested: use costBasis if provided, else calculate from monthlyAmount × months elapsed
     let invested = fund.costBasis || 0;
     if (!fund.costBasis && fund.startDate) {
-      const [year, month] = fund.startDate.split('-').map(Number);
-      const startDate = new Date(year, month - 1, 1);
-      const now = new Date();
-      const monthsElapsed = (now.getFullYear() - startDate.getFullYear()) * 12 + (now.getMonth() - startDate.getMonth()) + 1;
-      invested = fund.monthlyAmount * Math.max(1, monthsElapsed);
+      const month = fund.startDate.length === 10 ? fund.startDate.slice(0, 7) : fund.startDate;
+      const startDate = parse(month, 'yyyy-MM', new Date(2000, 0, 1));
+      if (/^\d{4}-\d{2}$/.test(month) && isValid(startDate)) {
+        const now = new Date();
+        const monthsElapsed = differenceInCalendarMonths(now, startDate) + 1;
+        invested = fund.monthlyAmount * Math.max(1, monthsElapsed);
+      }
     }
 
     const currentValue = fund.units * nav;
@@ -207,23 +210,32 @@ export function sipStatus(state: FireOSState): SIPStatusKPI {
 }
 
 function calculateSipXirr(startDate: string, monthlyAmount: number, currentValue: number): number | null {
-  const match = /^(\d{4})-(\d{2})$/.exec(startDate);
-  if (!match || monthlyAmount <= 0 || currentValue <= 0) return null;
-
-  const start = new Date(Number(match[1]), Number(match[2]) - 1, 1);
-  if (Number.isNaN(start.getTime())) return null;
+  if (!/^\d{4}-\d{2}$/.test(startDate) || monthlyAmount <= 0 || currentValue <= 0) return null;
+  const start = parse(startDate, 'yyyy-MM', new Date(2000, 0, 1));
+  if (!isValid(start)) return null;
 
   const now = new Date();
-  const months = Math.max(
-    1,
-    (now.getFullYear() - start.getFullYear()) * 12 + now.getMonth() - start.getMonth() + 1,
-  );
+  const months = Math.max(1, differenceInCalendarMonths(now, start) + 1);
   const cashFlows = Array.from({ length: months }, (_, index) => ({
-    date: new Date(start.getFullYear(), start.getMonth() + index, 1),
+    date: addMonths(start, index),
     amount: -monthlyAmount,
   }));
   cashFlows.push({ date: now, amount: currentValue });
   return calculateXirr(cashFlows);
+}
+
+/**
+ * Annualized return for cash flows within [start, end] (inclusive).
+ * Filters to the period and delegates solving to calculateXirr; never
+ * synthesizes historical holding values that are absent from the flows.
+ * Null when an endpoint is missing or the in-period flows cannot be solved.
+ */
+export function calculatePeriodReturn(cashFlows: CashFlow[], start: Date, end: Date): number | null {
+  if (!isValid(start) || !isValid(end)) return null;
+  const inPeriod = cashFlows.filter(
+    flow => flow.date.getTime() >= start.getTime() && flow.date.getTime() <= end.getTime(),
+  );
+  return calculateXirr(inPeriod);
 }
 
 /**

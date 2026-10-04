@@ -336,6 +336,62 @@
   background: var(--accent-dark);
 }
 
+.compare-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.compare-scenario {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 15px;
+}
+
+.compare-assumptions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.compare-assumptions .calc-input-group {
+  margin-bottom: 0;
+}
+
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.compare-table th,
+.compare-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  color: var(--text-primary);
+}
+
+.compare-table th:first-child,
+.compare-table td:first-child {
+  text-align: left;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.compare-table thead th {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.compare-disclaimer {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
 @media (max-width: 768px) {
   .calc-tabs {
     flex-direction: column;
@@ -347,7 +403,8 @@
 
   .crash-scenarios,
   .runway-breakdown,
-  .benchmark-inputs {
+  .benchmark-inputs,
+  .compare-assumptions {
     grid-template-columns: 1fr;
   }
 }

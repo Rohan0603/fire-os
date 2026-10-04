@@ -10,10 +10,11 @@ import { configurePortfolioStorageScope } from './lib/storage';
 import { initFirestore, loadPortfolio, onPortfolioChange, savePortfolio } from './modules/api/firestore';
 
 // Import types
-import { initializeState } from './types/state';
+import { applyPersistedState, initializeState } from './types/state';
 import type { FireOSState } from './types/state';
 import { appState } from './lib/appState';
 import { createFeatureContext } from './core/feature-context';
+import { portfolioSavedStore } from './core/stores';
 import { FeatureRegistry } from './app/feature-registry';
 import { PortfolioSession } from './app/portfolio-session';
 
@@ -187,7 +188,7 @@ function initApp() {
   try {
     setupErrorHandling();
     const cachedState = loadData();
-    if (cachedState) Object.assign(appState, cachedState);
+    if (cachedState) applyPersistedState(appState, cachedState);
     initAPIModule(appState);
     renderApp();
 
@@ -363,10 +364,8 @@ function setupDashboardAutoRefresh() {
     });
   };
 
-  document.addEventListener('portfolioStateSaved', refreshDashboard);
-  window.addEventListener('pagehide', () => {
-    document.removeEventListener('portfolioStateSaved', refreshDashboard);
-  }, { once: true });
+  const unsubscribe = portfolioSavedStore.subscribe(refreshDashboard);
+  window.addEventListener('pagehide', unsubscribe, { once: true });
 }
 
 /**

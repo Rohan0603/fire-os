@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { initializeState } from '../../types/state';
-import { attributeNetWorthChange, esopConcentration, sipStatus, summarizeOtherHoldings, totalNetWorth } from './kpis';
+import { attributeNetWorthChange, calculatePeriodReturn, esopConcentration, sipStatus, summarizeOtherHoldings, totalNetWorth } from './kpis';
 import { calculateCoastFire } from '../calculators/scenario-modeler';
 import { createFeaturePorts } from '../../core/feature-ports';
 import { calculateXirr } from '../../lib/calculations';
@@ -10,6 +10,23 @@ afterEach(() => {
 });
 
 describe('XIRR calculations', () => {
+  it('counts the start month and current month inclusively for SIP invested value', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2025-01-15T12:00:00Z'));
+    const state = initializeState();
+    state.sip = {
+      fund: {
+        name: 'Test Fund',
+        schemeCode: '123',
+        units: 12,
+        startDate: '2024-12',
+        monthlyAmount: 1000,
+      },
+    };
+
+    expect(sipStatus(state).funds[0].invested).toBe(2000);
+  });
+
   it('calculates annualized return from dated cash flows', () => {
     const xirr = calculateXirr([
       { date: new Date('2024-01-01'), amount: -1000 },
@@ -48,6 +65,126 @@ describe('XIRR calculations', () => {
 
     expect(result.funds[0].xirr).not.toBeNull();
     expect(result.totalXIRR).toBe(result.funds[0].xirr);
+  });
+});
+
+describe('calculatePeriodReturn', () => {
+  const start = new Date('2024-01-01');
+  const end = new Date('2025-01-01');
+
+  it('annualizes contributions, withdrawals, and current value inside the period', () => {
+    const result = calculatePeriodReturn(
+      [
+        { date: new Date('2023-06-01'), amount: -500 },
+        { date: new Date('2024-01-01'), amount: -1000 },
+        { date: new Date('2024-07-01'), amount: 300 },
+        { date: new Date('2025-01-01'), amount: 1100 },
+        { date: new Date('2025-06-01'), amount: -200 },
+      ],
+      start,
+      end,
+    );
+    const expected = calculateXirr([
+      { date: new Date('2024-01-01'), amount: -1000 },
+      { date: new Date('2024-07-01'), amount: 300 },
+      { date: new Date('2025-01-01'), amount: 1100 },
+    ]);
+
+    expect(result).not.toBeNull();
+    expect(result!).toBeCloseTo(expected!, 10);
+    expect(result!).toBeGreaterThan(0);
+  });
+
+  it('returns null when a period endpoint is missing', () => {
+    const flows = [
+      { date: new Date('2024-01-01'), amount: -1000 },
+      { date: new Date('2025-01-01'), amount: 1100 },
+    ];
+
+    expect(calculatePeriodReturn(flows, new Date('not-a-date'), end)).toBeNull();
+    expect(calculatePeriodReturn(flows, start, new Date('not-a-date'))).toBeNull();
+    expect(calculatePeriodReturn(flows, undefined as unknown as Date, end)).toBeNull();
+  });
+
+  it('returns null when fewer than two flows fall inside the period', () => {
+    expect(calculatePeriodReturn(
+      [
+        { date: new Date('2024-01-01'), amount: -1000 },
+        { date: new Date('2025-06-01'), amount: 1100 },
+      ],
+      start,
+      end,
+    )).toBeNull();
+    expect(calculatePeriodReturn(
+      [{ date: new Date('2023-06-01'), amount: -1000 }, { date: new Date('2025-06-01'), amount: 1100 }],
+      start,
+      end,
+    )).toBeNull();
+  });
+
+  it('returns null when in-period flows lack a positive/negative mix', () => {
+    expect(calculatePeriodReturn(
+      [
+        { date: new Date('2024-01-01'), amount: 1000 },
+        { date: new Date('2025-01-01'), amount: 1100 },
+      ],
+      start,
+      end,
+    )).toBeNull();
+    expect(calculatePeriodReturn(
+      [
+        { date: new Date('2024-01-01'), amount: -1000 },
+        { date: new Date('2025-01-01'), amount: -1100 },
+      ],
+      start,
+      end,
+    )).toBeNull();
+  });
+});
+
+describe('SIP startDate month parsing', () => {
+  it('rejects non-padded or impossible start months for invested value', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-15T12:00:00Z'));
+    const state = initializeState();
+    state.sip = {
+      singleDigit: {
+        name: 'Single Digit',
+        schemeCode: '123',
+        units: 12,
+        startDate: '2024-1',
+        monthlyAmount: 1000,
+      },
+      impossible: {
+        name: 'Impossible',
+        schemeCode: '123',
+        units: 12,
+        startDate: '2024-13',
+        monthlyAmount: 1000,
+      },
+    };
+
+    const result = sipStatus(state);
+
+    expect(result.funds.find((f) => f.key === 'singleDigit')?.invested).toBe(0);
+    expect(result.funds.find((f) => f.key === 'impossible')?.invested).toBe(0);
+  });
+
+  it('counts a full YYYY-MM-DD startDate from its month', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-03-15T12:00:00Z'));
+    const state = initializeState();
+    state.sip = {
+      fund: {
+        name: 'Test Fund',
+        schemeCode: '123',
+        units: 12,
+        startDate: '2026-01-01',
+        monthlyAmount: 1000,
+      },
+    };
+
+    expect(sipStatus(state).funds[0].invested).toBe(3000);
   });
 });
 

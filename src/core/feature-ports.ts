@@ -4,6 +4,8 @@ import {
   fetchCurrencyRate,
   convertCurrency,
   getNAVCacheMap,
+  fetchNiftyHistory,
+  fetchNAVHistory,
 } from '../modules/api';
 import { fetchCurrencyToInr, fetchEsopValuations, fetchStockQuote } from '../modules/api/esop';
 import { totalNetWorth, sipStatus, fiProgress, floatIndicator, portfolioComposition, attributeNetWorthChange, esopConcentration } from '../modules/dashboard/kpis';
@@ -16,6 +18,7 @@ import { checkWatchdogRules } from '../modules/watchdog/fund-manager-alerts';
 import { createModal, closeModal } from '../modules/ui/Modal';
 import { showToast } from '../modules/ui/Toast';
 import { getFundSchemeCode } from '../lib/fundMatcher';
+import { marketRefreshStatusStore } from './stores';
 import type { FireOSState } from '../types/state';
 
 export {
@@ -65,6 +68,8 @@ export interface FeatureMarketDataPort {
   fetchEsopValuations: typeof fetchEsopValuations;
   fetchCurrencyRate: typeof fetchCurrencyRate;
   convertCurrency: typeof convertCurrency;
+  fetchNiftyHistory: typeof fetchNiftyHistory;
+  fetchNAVHistory: typeof fetchNAVHistory;
   refreshPortfolioNAVs: (state: FireOSState) => Promise<void>;
 }
 
@@ -81,7 +86,16 @@ export function refreshPortfolioNAVs(state: FireOSState): Promise<void> {
   const activeRefresh = navRefreshes.get(state);
   if (activeRefresh) return activeRefresh;
 
-  const refresh = refreshPortfolioNAVsNow(state).finally(() => navRefreshes.delete(state));
+  marketRefreshStatusStore.set('refreshing');
+  const refresh = refreshPortfolioNAVsNow(state)
+    .then(() => {
+      marketRefreshStatusStore.set('success');
+    })
+    .catch((error: unknown) => {
+      marketRefreshStatusStore.set('error');
+      throw error;
+    })
+    .finally(() => navRefreshes.delete(state));
   navRefreshes.set(state, refresh);
   return refresh;
 }
@@ -134,6 +148,8 @@ export function createFeaturePorts(): FeaturePorts {
       fetchEsopValuations,
       fetchCurrencyRate,
       convertCurrency,
+      fetchNiftyHistory,
+      fetchNAVHistory,
       refreshPortfolioNAVs,
     },
   };

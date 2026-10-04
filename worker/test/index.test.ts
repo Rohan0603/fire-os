@@ -65,6 +65,22 @@ describe('Assistant Worker', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('rejects invalid message roles with the existing 400 response', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await worker.fetch(
+      queryRequest({ messages: [{ role: 'system', content: 'How is my plan progressing?' }] }),
+      env,
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'messages must alternate user/assistant with text content only',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('rejects destructive requests before calling the provider', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
@@ -165,6 +181,20 @@ describe('Assistant Worker', () => {
     const response = await worker.fetch(request, env);
 
     expect(response.status).toBe(413);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects serialized bodies over 100KB with the existing 413 response', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const response = await worker.fetch(
+      queryRequest({ contextSummary: { blob: 'x'.repeat(100_001) } }),
+      env,
+    );
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: 'contextSummary too large (max 100KB)' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

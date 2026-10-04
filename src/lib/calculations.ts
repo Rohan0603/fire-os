@@ -3,6 +3,8 @@
  * Includes XIRR, SIP corpus, FI metrics, and market crash simulations
  */
 
+import xirr from 'xirr';
+
 /**
  * SIP Corpus: Future Value of Regular Monthly Investments
  * Calculates compound growth of systematic monthly contributions
@@ -51,7 +53,7 @@ export interface CashFlow {
   amount: number;
 }
 
-/** Calculate annualized return for dated cash flows using Newton-Raphson. */
+/** Calculate annualized return for dated cash flows using the `xirr` package. */
 export function calculateXirr(cashFlows: CashFlow[]): number | null {
   if (cashFlows.length < 2) return null;
 
@@ -60,33 +62,16 @@ export function calculateXirr(cashFlows: CashFlow[]): number | null {
   );
   if (validFlows.length < 2) return null;
 
-  const start = validFlows[0].date.getTime();
-  const years = validFlows.map(flow => (flow.date.getTime() - start) / 86_400_000 / 365);
   const hasPositive = validFlows.some(flow => flow.amount > 0);
   const hasNegative = validFlows.some(flow => flow.amount < 0);
   if (!hasPositive || !hasNegative) return null;
 
-  let rate = 0.1;
-  for (let iteration = 0; iteration < 100; iteration++) {
-    if (rate <= -0.999999) rate = -0.999999;
-    const base = 1 + rate;
-    let value = 0;
-    let derivative = 0;
-
-    validFlows.forEach((flow, index) => {
-      const discount = Math.pow(base, years[index]);
-      value += flow.amount / discount;
-      derivative -= years[index] * flow.amount / (discount * base);
-    });
-
-    if (!Number.isFinite(value) || !Number.isFinite(derivative) || derivative === 0) return null;
-    const nextRate = rate - value / derivative;
-    if (!Number.isFinite(nextRate) || nextRate <= -1 || nextRate > 1e6) return null;
-    if (Math.abs(nextRate - rate) < 1e-8) return nextRate;
-    rate = nextRate;
+  try {
+    const rate = xirr(validFlows.map(flow => ({ when: flow.date, amount: flow.amount })));
+    return Number.isFinite(rate) ? rate : null;
+  } catch {
+    return null;
   }
-
-  return null;
 }
 
 /**

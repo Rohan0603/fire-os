@@ -121,3 +121,73 @@ export function calculateFIAge(params: ScenarioParams): ScenarioResult {
   };
 }
 
+/** Assumptions for one FI planning scenario (percent-based, UI-facing). */
+export interface FIScenarioInput {
+  label: string;
+  currentCorpus: number;
+  monthlySip: number;
+  annualStepUpPercent: number;
+  annualReturnPercent: number;
+  fiGoal: number;
+  currentAge: number;
+}
+
+/** Projected outcome for one scenario. Values are estimates, not guarantees. */
+export interface FIScenarioResult {
+  label: string;
+  monthsToGoal: number;
+  ageAtGoal: number;
+  projectedCorpus: number;
+  assumptions: FIScenarioInput;
+}
+
+function isValidScenario(scenario: FIScenarioInput): boolean {
+  return (
+    Number.isFinite(scenario.currentCorpus) &&
+    scenario.currentCorpus >= 0 &&
+    Number.isFinite(scenario.monthlySip) &&
+    scenario.monthlySip >= 0 &&
+    Number.isFinite(scenario.annualStepUpPercent) &&
+    scenario.annualStepUpPercent >= 0 &&
+    Number.isFinite(scenario.annualReturnPercent) &&
+    scenario.annualReturnPercent >= 0 &&
+    Number.isFinite(scenario.fiGoal) &&
+    scenario.fiGoal > 0 &&
+    Number.isFinite(scenario.currentAge) &&
+    scenario.currentAge >= 0
+  );
+}
+
+/**
+ * Compare FI planning scenarios side by side.
+ * Reuses calculateFIAge (same month-by-month compounding math) per scenario.
+ * Invalid scenarios (non-finite or negative/zero-where-meaningless assumptions)
+ * are filtered out; no exceptions escape and input order is preserved.
+ */
+export function compareFIScenarios(scenarios: FIScenarioInput[]): FIScenarioResult[] {
+  if (!Array.isArray(scenarios)) return [];
+
+  const results: FIScenarioResult[] = [];
+  for (const scenario of scenarios) {
+    if (!scenario || typeof scenario !== 'object' || !isValidScenario(scenario)) continue;
+
+    const projected = calculateFIAge({
+      currentCorpus: scenario.currentCorpus,
+      monthlyAmount: scenario.monthlySip,
+      targetCorpus: scenario.fiGoal,
+      cagr: scenario.annualReturnPercent / 100,
+      currentAge: scenario.currentAge,
+      annualStepUp: scenario.annualStepUpPercent / 100,
+    });
+
+    results.push({
+      label: scenario.label,
+      monthsToGoal: projected.monthsToFI,
+      ageAtGoal: projected.fiAge,
+      projectedCorpus: projected.finalCorpus,
+      assumptions: { ...scenario },
+    });
+  }
+  return results;
+}
+

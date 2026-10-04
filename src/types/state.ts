@@ -4,11 +4,36 @@
  */
 
 import type { PortfolioProfile, Holdings, DematHoldings, AlphaTrackerDataCollection, SIPFunds, OtherHoldings, Liabilities } from './portfolio';
-import type { CurrencyRateCacheMap, CurrencyRateData, NiftyData, NAVCacheMap } from './api';
+import type { CurrencyRateCacheMap, CurrencyRateData, HistoricalSeries, NiftyData, NAVCacheMap } from './api';
 import type { SyncMetadata, FirebaseUser } from './firebase';
+import * as v from 'valibot';
 
 // Firebase User type - Firebase authenticated user or null
 export type FirebaseUserType = FirebaseUser | null;
+
+/** Cached market history series keyed by `nifty`, `nav:<schemeCode>`, or `<key>|<start>|<end>` for ranged requests. */
+export type MarketHistoryCacheMap = Record<string, HistoricalSeries>;
+
+/**
+ * Maximum age of a cached history series before it is served as `stale`.
+ * Market history (Nifty levels, fund NAVs) updates at most daily, so the
+ * history TTL matches the 24-hour currency-rate spot cache.
+ */
+export const HISTORY_CACHE_TTL = 24 * 60 * 60 * 1000;
+
+/**
+ * Maximum number of cached history series persisted per scope. Bounds key
+ * growth from per-range requests; older series are evicted first.
+ */
+export const HISTORY_CACHE_MAX_ENTRIES = 8;
+
+/**
+ * Serialized byte budget for the `marketHistory` persistence section.
+ * 256 KiB keeps the local state payload well below the documented 750 KB
+ * ceiling in docs/README.md even in the worst case; the cloud envelope
+ * excludes market history entirely.
+ */
+export const HISTORY_CACHE_MAX_BYTES = 256 * 1024;
 
 export interface EsopVestingItem {
   date: string;
@@ -62,6 +87,11 @@ export interface FireOSState {
   niftyHigh: number; // Nifty 52-week high (or current level as fallback)
   niftyData?: NiftyData; // Complete Nifty data with timestamp
   currencyRates: CurrencyRateCacheMap;
+  /**
+   * Bounded market history cache (Nifty/NAV series). Persisted locally only;
+   * excluded from the Firestore envelope and capped by HISTORY_CACHE_MAX_*.
+   */
+  marketHistory?: MarketHistoryCacheMap;
   /** @deprecated Read legacy data only; new writes use currencyRates. */
   eurInr?: number;
   /** @deprecated Read legacy data only; new writes use currencyRates. */
@@ -134,11 +164,118 @@ export interface FireOSState {
 /** Top-level keys accepted in persisted portfolio data (allowlist). */
 export const PERSISTED_STATE_KEYS = [
   'profile', 'mf', 'fd', 'epf', 'sip', 'esop', 'bonds', 'otherHoldings', 'liabilities', 'demat', 'nav',
-  'niftyHigh', 'niftyData', 'currencyRates', 'eurInr', 'eurInrData', 'alphaTrackerData',
+  'niftyHigh', 'niftyData', 'currencyRates', 'marketHistory', 'eurInr', 'eurInrData', 'alphaTrackerData',
   'coorgCorpus', 'coorgStartDate', 'coorgTarget', 'coorgMonthlyAmount',
   'watchdogRules', 'swpSchedule', 'taxCalendar', 'expenses', 'netWorthHistory',
   'completedActions', 'achievedMilestones', 'insurance', 'esopDetails',
 ] as const;
+
+const finiteNumberSchema = v.pipe(v.number(), v.finite());
+const timestampSchema = v.pipe(v.string(), v.check((value) => Number.isFinite(Date.parse(value))));
+const statusSchema = v.picklist(['live', 'cache-fresh', 'stale', 'manual']);
+const legacyNiftyStatusSchema = v.picklist(['live', 'cache-fresh', 'manual']);
+const profileSchema = v.strictObject({
+  name: v.string(), dateOfBirth: v.optional(v.string()), age: finiteNumberSchema,
+  taxSlabRate: v.optional(finiteNumberSchema), annualExpenses: finiteNumberSchema,
+  fiTarget: finiteNumberSchema, monthlyIncome: finiteNumberSchema,
+});
+const holdingMapSchema = v.record(v.string(), v.strictObject({ amount: finiteNumberSchema, currency: v.string() }));
+const otherHoldingMapSchema = v.record(v.string(), v.strictObject({
+  name: v.pipe(v.string(), v.check((name) => name.trim().length > 0 && name.length <= 200)),
+  amount: v.pipe(finiteNumberSchema, v.minValue(0)),
+  annualReturn: v.pipe(finiteNumberSchema, v.minValue(0), v.maxValue(100)),
+}));
+const sipMapSchema = v.record(v.string(), v.strictObject({
+  name: v.string(), schemeCode: v.optional(v.string()), units: finiteNumberSchema,
+  startDate: v.string(), monthlyAmount: finiteNumberSchema, costBasis: v.optional(finiteNumberSchema),
+}));
+const dematMapSchema = v.record(v.string(), v.strictObject({
+  isin: v.string(), quantity: finiteNumberSchema, currentValue: finiteNumberSchema, name: v.string(),
+}));
+const navMapSchema = v.record(v.string(), v.strictObject({
+  schemeCode: v.string(), nav: finiteNumberSchema, timestamp: timestampSchema, ttl: finiteNumberSchema,
+  source: v.exactOptional(v.string()), status: v.exactOptional(statusSchema),
+}));
+const currencyRateSchema = v.strictObject({
+  rate: finiteNumberSchema, timestamp: timestampSchema, sourceCurrency: v.exactOptional(v.string()),
+  targetCurrency: v.exactOptional(v.string()), source: v.exactOptional(v.string()), status: v.exactOptional(statusSchema),
+});
+const historicalPointSchema = v.strictObject({
+  date: v.pipe(v.string(), v.check((value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)))),
+  value: v.pipe(finiteNumberSchema, v.check((value) => value > 0)),
+});
+const historicalSeriesSchema = v.strictObject({
+  points: v.array(historicalPointSchema),
+  source: v.string(),
+  fetchedAt: timestampSchema,
+  status: statusSchema,
+});
+const marketHistorySchema = v.pipe(
+  v.record(v.string(), historicalSeriesSchema),
+  v.maxEntries(HISTORY_CACHE_MAX_ENTRIES),
+);
+const persistedPortfolioShape = {
+  profile: v.exactOptional(profileSchema), mf: v.exactOptional(sipMapSchema), fd: v.exactOptional(holdingMapSchema),
+  epf: v.exactOptional(holdingMapSchema), sip: v.exactOptional(sipMapSchema), esop: v.exactOptional(holdingMapSchema),
+  bonds: v.exactOptional(holdingMapSchema), otherHoldings: v.exactOptional(otherHoldingMapSchema),
+  liabilities: v.exactOptional(v.pipe(v.record(v.string(), v.strictObject({
+    name: v.pipe(v.string(), v.maxLength(100)), amount: v.pipe(finiteNumberSchema, v.minValue(0)),
+  })), v.maxEntries(50))),
+  demat: v.exactOptional(dematMapSchema), nav: v.exactOptional(navMapSchema), niftyHigh: v.exactOptional(finiteNumberSchema),
+  niftyData: v.exactOptional(v.strictObject({
+    level: finiteNumberSchema, high52w: finiteNumberSchema, timestamp: timestampSchema, source: v.string(),
+    status: v.exactOptional(legacyNiftyStatusSchema),
+  })),
+  currencyRates: v.exactOptional(v.record(v.string(), currencyRateSchema)),
+  marketHistory: v.exactOptional(marketHistorySchema),
+  eurInr: v.exactOptional(finiteNumberSchema),
+  eurInrData: v.exactOptional(currencyRateSchema),
+  alphaTrackerData: v.exactOptional(v.record(v.string(), v.strictObject({
+    fund: v.string(), benchmark: v.string(), year: finiteNumberSchema, return: finiteNumberSchema, benchmarkReturn: finiteNumberSchema,
+  }))),
+  coorgCorpus: v.exactOptional(finiteNumberSchema), coorgStartDate: v.exactOptional(v.string()),
+  coorgTarget: v.exactOptional(finiteNumberSchema), coorgMonthlyAmount: v.exactOptional(finiteNumberSchema),
+  watchdogRules: v.exactOptional(v.strictObject({
+    ppfcfAumLimit: finiteNumberSchema, nipponGrowthBlockThreshold: finiteNumberSchema,
+    nipponSmallCapBlockThreshold: finiteNumberSchema,
+    currentAum: v.strictObject({ PPFCF: finiteNumberSchema }),
+    blockedDays: v.strictObject({ NipponGrowth: finiteNumberSchema, NipponSmallCap: finiteNumberSchema }),
+    managerExits: v.strictObject({ PPFCF: v.boolean(), NipponSmallCap: v.boolean() }),
+  })),
+  swpSchedule: v.exactOptional(v.strictObject({ enabled: v.boolean(), startDate: v.string(), monthlyAmount: finiteNumberSchema, rate: finiteNumberSchema })),
+  taxCalendar: v.exactOptional(v.strictObject({ lastLTCGHarvestDate: v.string(), lastHarvestedAmount: finiteNumberSchema, harvestTarget: finiteNumberSchema })),
+  expenses: v.exactOptional(v.array(v.strictObject({ date: v.string(), category: v.string(), amount: finiteNumberSchema, linkedToSWP: v.boolean() }))),
+  netWorthHistory: v.exactOptional(v.array(v.strictObject({ date: v.string(), value: finiteNumberSchema }))),
+  completedActions: v.exactOptional(v.record(v.string(), v.strictObject({ completedAt: timestampSchema }))),
+  achievedMilestones: v.exactOptional(v.array(v.string())),
+  insurance: v.exactOptional(v.strictObject({
+    termLife: v.strictObject({ currentCover: finiteNumberSchema, annualPremium: finiteNumberSchema, expiryDate: v.string(), provider: v.string() }),
+    health: v.strictObject({ currentCover: finiteNumberSchema, annualPremium: finiteNumberSchema, familySize: finiteNumberSchema, provider: v.string() }),
+    vehicle: v.strictObject({ covered: v.boolean(), annualPremium: finiteNumberSchema }),
+  })),
+  esopDetails: v.exactOptional(v.strictObject({
+    shares: finiteNumberSchema,
+    holdings: v.optional(v.pipe(v.array(v.strictObject({ name: v.string(), symbol: v.string(), quantity: finiteNumberSchema, currency: v.string() })), v.maxLength(20))),
+    grantPrice: finiteNumberSchema, liquidationShares: v.optional(finiteNumberSchema), vestingFmv: v.optional(finiteNumberSchema),
+    currentPrice: v.optional(finiteNumberSchema), slabRate: v.optional(finiteNumberSchema),
+    vestingSchedule: v.array(v.strictObject({ date: v.string(), shares: finiteNumberSchema })),
+    triggers: v.strictObject({ marriage: v.boolean(), childBirth: v.boolean(), jobChange: v.boolean(), coorgConstruction: v.boolean() }),
+  })),
+};
+
+/** Exact allowlisted persisted shape; omitted sections remain valid for legacy data. */
+export const persistedPortfolioSchema = v.strictObject(persistedPortfolioShape);
+export type PersistedPortfolioData = v.InferOutput<typeof persistedPortfolioSchema>;
+
+/** Validate the shared persisted payload used by localStorage and Firestore. */
+export function isPersistedPortfolioData(value: unknown): value is Partial<FireOSState> {
+  return v.is(persistedPortfolioSchema, value);
+}
+
+/** Validate a single cached history series before it enters memory or persistence. */
+export function isValidHistoricalSeries(value: unknown): value is HistoricalSeries {
+  return v.is(historicalSeriesSchema, value);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -148,289 +285,51 @@ function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[])
   return Object.keys(value).every((key) => allowed.includes(key));
 }
 
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === 'number' && Number.isFinite(value);
-}
-
 function isTimestamp(value: unknown): value is string {
   return typeof value === 'string' && Number.isFinite(Date.parse(value));
 }
 
-function isProfile(value: unknown): boolean {
-  if (!isRecord(value) || !hasOnlyKeys(value, ['name', 'dateOfBirth', 'age', 'taxSlabRate', 'annualExpenses', 'fiTarget', 'monthlyIncome'])) return false;
-  return typeof value.name === 'string'
-    && (value.dateOfBirth === undefined || typeof value.dateOfBirth === 'string')
-    && isFiniteNumber(value.age)
-    && (value.taxSlabRate === undefined || isFiniteNumber(value.taxSlabRate))
-    && isFiniteNumber(value.annualExpenses)
-    && isFiniteNumber(value.fiTarget)
-    && isFiniteNumber(value.monthlyIncome);
+/**
+ * Remove an invalid market history section before full validation so a
+ * corrupted cache can never discard the rest of the portfolio payload.
+ */
+function dropMalformedMarketHistory(value: unknown): unknown {
+  if (!isRecord(value) || !('marketHistory' in value)) return value;
+  if (v.is(marketHistorySchema, value.marketHistory)) return value;
+  const cleaned = { ...value };
+  delete cleaned.marketHistory;
+  return cleaned;
 }
 
-function isHoldingMap(value: unknown): boolean {
-  if (!isRecord(value)) return false;
-  return Object.values(value).every((holding) =>
-    isRecord(holding)
-    && hasOnlyKeys(holding, ['amount', 'currency'])
-    && isFiniteNumber(holding.amount)
-    && typeof holding.currency === 'string',
-  );
+/**
+ * Attach market history as a non-enumerable state field.
+ *
+ * Market history is a local-only cache: Firestore rules reject unknown data
+ * fields on the portfolio document, so every JSON representation of state
+ * (envelope clones, sessionStorage snapshots, backups, assistant context)
+ * must exclude it. Property access (`state.marketHistory`) works normally.
+ */
+function defineMarketHistory(state: FireOSState, value: MarketHistoryCacheMap): FireOSState {
+  Object.defineProperty(state, 'marketHistory', {
+    value,
+    writable: true,
+    enumerable: false,
+    configurable: true,
+  });
+  return state;
 }
 
-function isOtherHoldingMap(value: unknown): value is OtherHoldings {
-  if (!isRecord(value)) return false;
-  return Object.values(value).every((holding) =>
-    isRecord(holding)
-    && hasOnlyKeys(holding, ['name', 'amount', 'annualReturn'])
-    && typeof holding.name === 'string'
-    && holding.name.trim().length > 0
-    && holding.name.length <= 200
-    && isFiniteNumber(holding.amount)
-    && holding.amount >= 0
-    && isFiniteNumber(holding.annualReturn)
-    && holding.annualReturn >= 0
-    && holding.annualReturn <= 100,
-  );
-}
-
-function isSipMap(value: unknown): boolean {
-  if (!isRecord(value)) return false;
-  return Object.values(value).every((fund) =>
-    isRecord(fund)
-    && hasOnlyKeys(fund, ['name', 'schemeCode', 'units', 'startDate', 'monthlyAmount', 'costBasis'])
-    && typeof fund.name === 'string'
-    && (fund.schemeCode === undefined || typeof fund.schemeCode === 'string')
-    && isFiniteNumber(fund.units)
-    && typeof fund.startDate === 'string'
-    && isFiniteNumber(fund.monthlyAmount)
-    && (fund.costBasis === undefined || isFiniteNumber(fund.costBasis)),
-  );
-}
-
-function isDematMap(value: unknown): boolean {
-  if (!isRecord(value)) return false;
-  return Object.values(value).every((holding) =>
-    isRecord(holding)
-    && hasOnlyKeys(holding, ['isin', 'quantity', 'currentValue', 'name'])
-    && typeof holding.isin === 'string'
-    && isFiniteNumber(holding.quantity)
-    && isFiniteNumber(holding.currentValue)
-    && typeof holding.name === 'string',
-  );
-}
-
-function isNavMap(value: unknown): boolean {
-  if (!isRecord(value)) return false;
-  return Object.values(value).every((cache) =>
-    isRecord(cache)
-    && hasOnlyKeys(cache, ['schemeCode', 'nav', 'timestamp', 'ttl', 'source', 'status'])
-    && typeof cache.schemeCode === 'string'
-    && isFiniteNumber(cache.nav)
-    && isTimestamp(cache.timestamp)
-    && isFiniteNumber(cache.ttl)
-    && (!('source' in cache) || typeof cache.source === 'string')
-    && (!('status' in cache) || cache.status === 'live' || cache.status === 'cache-fresh' || cache.status === 'stale' || cache.status === 'manual'),
-  );
-}
-
-function isNiftyData(value: unknown): boolean {
-  return isRecord(value)
-    && hasOnlyKeys(value, ['level', 'high52w', 'timestamp', 'source', 'status'])
-    && isFiniteNumber(value.level)
-    && isFiniteNumber(value.high52w)
-    && isTimestamp(value.timestamp)
-    && typeof value.source === 'string'
-    && (!('status' in value) || value.status === 'live' || value.status === 'cache-fresh' || value.status === 'manual');
-}
-
-function isCurrencyRateData(value: unknown): boolean {
-  return isRecord(value)
-    && hasOnlyKeys(value, ['rate', 'timestamp', 'sourceCurrency', 'targetCurrency', 'source', 'status'])
-    && isFiniteNumber(value.rate)
-    && isTimestamp(value.timestamp)
-    && (!('sourceCurrency' in value) || typeof value.sourceCurrency === 'string')
-    && (!('targetCurrency' in value) || typeof value.targetCurrency === 'string')
-    && (!('source' in value) || typeof value.source === 'string')
-    && (!('status' in value) || value.status === 'live' || value.status === 'cache-fresh' || value.status === 'stale' || value.status === 'manual');
-}
-
-function isCurrencyRateMap(value: unknown): boolean {
-  return isRecord(value) && Object.values(value).every(isCurrencyRateData);
-}
-
-function isLiabilities(value: unknown): boolean {
-  return isRecord(value)
-    && Object.keys(value).length <= 50
-    && Object.values(value).every((entry) => isRecord(entry)
-      && hasOnlyKeys(entry, ['name', 'amount'])
-      && typeof entry.name === 'string'
-      && entry.name.length <= 100
-      && isFiniteNumber(entry.amount)
-      && entry.amount >= 0);
-}
-
-function isAlphaTrackerMap(value: unknown): boolean {
-  if (!isRecord(value)) return false;
-  return Object.values(value).every((entry) =>
-    isRecord(entry)
-    && hasOnlyKeys(entry, ['fund', 'benchmark', 'year', 'return', 'benchmarkReturn'])
-    && typeof entry.fund === 'string'
-    && typeof entry.benchmark === 'string'
-    && isFiniteNumber(entry.year)
-    && isFiniteNumber(entry.return)
-    && isFiniteNumber(entry.benchmarkReturn),
-  );
-}
-
-function isWatchdogRules(value: unknown): boolean {
-  if (!isRecord(value) || !hasOnlyKeys(value, ['ppfcfAumLimit', 'nipponGrowthBlockThreshold', 'nipponSmallCapBlockThreshold', 'currentAum', 'blockedDays', 'managerExits'])) return false;
-  return isFiniteNumber(value.ppfcfAumLimit)
-    && isFiniteNumber(value.nipponGrowthBlockThreshold)
-    && isFiniteNumber(value.nipponSmallCapBlockThreshold)
-    && isRecord(value.currentAum)
-    && hasOnlyKeys(value.currentAum, ['PPFCF'])
-    && isFiniteNumber(value.currentAum.PPFCF)
-    && isRecord(value.blockedDays)
-    && hasOnlyKeys(value.blockedDays, ['NipponGrowth', 'NipponSmallCap'])
-    && isFiniteNumber(value.blockedDays.NipponGrowth)
-    && isFiniteNumber(value.blockedDays.NipponSmallCap)
-    && isRecord(value.managerExits)
-    && hasOnlyKeys(value.managerExits, ['PPFCF', 'NipponSmallCap'])
-    && typeof value.managerExits.PPFCF === 'boolean'
-    && typeof value.managerExits.NipponSmallCap === 'boolean';
-}
-
-function isSwpSchedule(value: unknown): boolean {
-  return isRecord(value)
-    && hasOnlyKeys(value, ['enabled', 'startDate', 'monthlyAmount', 'rate'])
-    && typeof value.enabled === 'boolean'
-    && typeof value.startDate === 'string'
-    && isFiniteNumber(value.monthlyAmount)
-    && isFiniteNumber(value.rate);
-}
-
-function isTaxCalendar(value: unknown): boolean {
-  return isRecord(value)
-    && hasOnlyKeys(value, ['lastLTCGHarvestDate', 'lastHarvestedAmount', 'harvestTarget'])
-    && typeof value.lastLTCGHarvestDate === 'string'
-    && isFiniteNumber(value.lastHarvestedAmount)
-    && isFiniteNumber(value.harvestTarget);
-}
-
-function isExpenses(value: unknown): boolean {
-  return Array.isArray(value) && value.every((expense) =>
-    isRecord(expense)
-    && hasOnlyKeys(expense, ['date', 'category', 'amount', 'linkedToSWP'])
-    && typeof expense.date === 'string'
-    && typeof expense.category === 'string'
-    && isFiniteNumber(expense.amount)
-    && typeof expense.linkedToSWP === 'boolean',
-  );
-}
-
-function isNetWorthHistory(value: unknown): boolean {
-  return Array.isArray(value) && value.every((snapshot) =>
-    isRecord(snapshot)
-    && hasOnlyKeys(snapshot, ['date', 'value'])
-    && typeof snapshot.date === 'string'
-    && isFiniteNumber(snapshot.value),
-  );
-}
-
-function isCompletedActions(value: unknown): boolean {
-  if (!isRecord(value)) return false;
-  return Object.values(value).every((action) =>
-    isRecord(action)
-    && hasOnlyKeys(action, ['completedAt'])
-    && isTimestamp(action.completedAt),
-  );
-}
-
-function isInsurance(value: unknown): boolean {
-  if (!isRecord(value) || !hasOnlyKeys(value, ['termLife', 'health', 'vehicle'])) return false;
-  return isRecord(value.termLife)
-    && hasOnlyKeys(value.termLife, ['currentCover', 'annualPremium', 'expiryDate', 'provider'])
-    && isFiniteNumber(value.termLife.currentCover)
-    && isFiniteNumber(value.termLife.annualPremium)
-    && typeof value.termLife.expiryDate === 'string'
-    && typeof value.termLife.provider === 'string'
-    && isRecord(value.health)
-    && hasOnlyKeys(value.health, ['currentCover', 'annualPremium', 'familySize', 'provider'])
-    && isFiniteNumber(value.health.currentCover)
-    && isFiniteNumber(value.health.annualPremium)
-    && isFiniteNumber(value.health.familySize)
-    && typeof value.health.provider === 'string'
-    && isRecord(value.vehicle)
-    && hasOnlyKeys(value.vehicle, ['covered', 'annualPremium'])
-    && typeof value.vehicle.covered === 'boolean'
-    && isFiniteNumber(value.vehicle.annualPremium);
-}
-
-function isEsopDetails(value: unknown): boolean {
-  if (!isRecord(value) || !hasOnlyKeys(value, ['shares', 'holdings', 'grantPrice', 'liquidationShares', 'vestingFmv', 'currentPrice', 'slabRate', 'vestingSchedule', 'triggers'])) return false;
-  return isFiniteNumber(value.shares)
-    && (value.holdings === undefined || (Array.isArray(value.holdings) && value.holdings.length <= 20 && value.holdings.every((holding) =>
-      isRecord(holding)
-      && hasOnlyKeys(holding, ['name', 'symbol', 'quantity', 'currency'])
-      && typeof holding.name === 'string'
-      && typeof holding.symbol === 'string'
-      && isFiniteNumber(holding.quantity)
-      && typeof holding.currency === 'string',
-    )))
-    && isFiniteNumber(value.grantPrice)
-    && (value.liquidationShares === undefined || isFiniteNumber(value.liquidationShares))
-    && (value.vestingFmv === undefined || isFiniteNumber(value.vestingFmv))
-    && (value.currentPrice === undefined || isFiniteNumber(value.currentPrice))
-    && (value.slabRate === undefined || isFiniteNumber(value.slabRate))
-    && Array.isArray(value.vestingSchedule)
-    && value.vestingSchedule.every((item) =>
-      isRecord(item)
-      && hasOnlyKeys(item, ['date', 'shares'])
-      && typeof item.date === 'string'
-      && isFiniteNumber(item.shares),
-    )
-    && isRecord(value.triggers)
-    && hasOnlyKeys(value.triggers, ['marriage', 'childBirth', 'jobChange', 'coorgConstruction'])
-    && typeof value.triggers.marriage === 'boolean'
-    && typeof value.triggers.childBirth === 'boolean'
-    && typeof value.triggers.jobChange === 'boolean'
-    && typeof value.triggers.coorgConstruction === 'boolean';
-}
-
-/** Validate the shared persisted payload used by localStorage and Firestore. */
-export function isPersistedPortfolioData(value: unknown): value is Partial<FireOSState> {
-  if (!isRecord(value) || !hasOnlyKeys(value, PERSISTED_STATE_KEYS)) return false;
-  const data = value;
-  if ('profile' in data && !isProfile(data.profile)) return false;
-  if ('mf' in data && !isSipMap(data.mf)) return false;
-  if ('sip' in data && !isSipMap(data.sip)) return false;
-  for (const key of ['fd', 'epf', 'esop', 'bonds'] as const) {
-    if (key in data && !isHoldingMap(data[key])) return false;
-  }
-  if ('otherHoldings' in data && !isOtherHoldingMap(data.otherHoldings)) return false;
-  if ('liabilities' in data && !isLiabilities(data.liabilities)) return false;
-  if ('demat' in data && !isDematMap(data.demat)) return false;
-  if ('nav' in data && !isNavMap(data.nav)) return false;
-  if ('niftyHigh' in data && !isFiniteNumber(data.niftyHigh)) return false;
-  if ('niftyData' in data && !isNiftyData(data.niftyData)) return false;
-  if ('currencyRates' in data && !isCurrencyRateMap(data.currencyRates)) return false;
-  if ('eurInr' in data && !isFiniteNumber(data.eurInr)) return false;
-  if ('eurInrData' in data && !isCurrencyRateData(data.eurInrData)) return false;
-  if ('alphaTrackerData' in data && !isAlphaTrackerMap(data.alphaTrackerData)) return false;
-  for (const key of ['coorgCorpus', 'coorgTarget', 'coorgMonthlyAmount'] as const) {
-    if (key in data && !isFiniteNumber(data[key])) return false;
-  }
-  if ('coorgStartDate' in data && typeof data.coorgStartDate !== 'string') return false;
-  if ('watchdogRules' in data && !isWatchdogRules(data.watchdogRules)) return false;
-  if ('swpSchedule' in data && !isSwpSchedule(data.swpSchedule)) return false;
-  if ('taxCalendar' in data && !isTaxCalendar(data.taxCalendar)) return false;
-  if ('expenses' in data && !isExpenses(data.expenses)) return false;
-  if ('netWorthHistory' in data && !isNetWorthHistory(data.netWorthHistory)) return false;
-  if ('completedActions' in data && !isCompletedActions(data.completedActions)) return false;
-  if ('achievedMilestones' in data && (!Array.isArray(data.achievedMilestones) || !data.achievedMilestones.every((id) => typeof id === 'string'))) return false;
-  if ('insurance' in data && !isInsurance(data.insurance)) return false;
-  if ('esopDetails' in data && !isEsopDetails(data.esopDetails)) return false;
-  return true;
+/**
+ * Copy persisted state onto a live state object.
+ *
+ * Object.assign copies only own enumerable properties, and marketHistory is
+ * non-enumerable, so the history handoff must be explicit — otherwise the
+ * target keeps its empty default, `initAPIModule()` hydrates an empty cache,
+ * and the next save erases the persisted history.
+ */
+export function applyPersistedState(target: FireOSState, source: FireOSState): FireOSState {
+  Object.assign(target, source);
+  return defineMarketHistory(target, source.marketHistory ?? {});
 }
 
 /**
@@ -438,7 +337,7 @@ export function isPersistedPortfolioData(value: unknown): value is Partial<FireO
  * @returns A fresh FireOSState with empty collections and default values
  */
 export function initializeState(): FireOSState {
-  return {
+  const state: FireOSState = {
     // Profile with zero defaults
     profile: {
       name: '',
@@ -541,15 +440,17 @@ export function initializeState(): FireOSState {
       },
     },
   };
+  return defineMarketHistory(state, {});
 }
 
 /** Fill omitted top-level persisted sections with current application defaults. */
 export function normalizePersistedState(value: unknown): FireOSState | null {
-  if (!isPersistedPortfolioData(value)) return null;
+  const payload = dropMalformedMarketHistory(value);
+  if (!isPersistedPortfolioData(payload)) return null;
 
   const defaults = initializeState();
-  const data = value as Partial<FireOSState>;
-  return {
+  const data = payload as Partial<FireOSState>;
+  const normalized: FireOSState = {
     ...defaults,
     ...data,
     profile: { ...defaults.profile, ...data.profile },
@@ -575,6 +476,7 @@ export function normalizePersistedState(value: unknown): FireOSState | null {
       triggers: { ...defaults.esopDetails.triggers, ...data.esopDetails?.triggers },
     },
   };
+  return defineMarketHistory(normalized, data.marketHistory ?? {});
 }
 
 /** Type guard for a complete in-memory state, including runtime-only fields. */
@@ -584,7 +486,7 @@ export function isFireOSState(value: unknown): value is FireOSState {
   const persistedData = Object.fromEntries(
     PERSISTED_STATE_KEYS.filter((key) => key in value).map((key) => [key, value[key]]),
   );
-  const requiredPersistedKeys = PERSISTED_STATE_KEYS.filter((key) => !['niftyData', 'eurInr', 'eurInrData'].includes(key));
+  const requiredPersistedKeys = PERSISTED_STATE_KEYS.filter((key) => !['niftyData', 'eurInr', 'eurInrData', 'marketHistory'].includes(key));
   if (!requiredPersistedKeys.every((key) => key in value) || !isPersistedPortfolioData(persistedData)) return false;
   if (value.currentUser !== null && !isRecord(value.currentUser)) return false;
   if (!isTimestamp(value._lastSavedAt)) return false;

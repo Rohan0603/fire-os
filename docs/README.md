@@ -144,7 +144,9 @@ The portfolio envelope remains one Firestore state document; mutual-fund
 entries are written as individual `holdings` documents. Development builds log
 payload byte counts and holding counts without logging portfolio contents. A
 state document above 750 KB raises a warning, leaving headroom below Firestore's
-1 MiB document limit. Further section splitting should be considered only when
+1 MiB document limit. Local saves use the same 750 KB ceiling and drop the
+expendable `marketHistory` cache first to stay under it. Further section
+splitting should be considered only when
 observed document size or write contention justifies its added merge and
 migration complexity.
 

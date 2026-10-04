@@ -40,6 +40,7 @@
     "@firebase/rules-unit-testing": "^4.0.0",
     "@playwright/test": "^1.63.0",
     "@types/node": "^26.5.1",
+    "@types/papaparse": "^5.5.2",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
     "firebase-tools": "^15.32.1",
@@ -51,7 +52,13 @@
     "vitest": "^5.0.0"
   },
   "dependencies": {
+    "chart.js": "^4.5.1",
+    "date-fns": "^4.4.0",
     "deep-chat": "^2.5.1",
-    "firebase": "^11.0.0"
+    "firebase": "^11.0.0",
+    "nanostores": "^1.5.4",
+    "papaparse": "^5.7.0",
+    "valibot": "^1.5.0",
+    "xirr": "^1.1.0"
   }
 }

@@ -4,16 +4,59 @@
  * Displays KPI cards, portfolio composition pie chart, and FI progress
  */
 
+import {
+  ArcElement,
+  CategoryScale,
+  Chart,
+  Legend,
+  LineController,
+  LineElement,
+  LinearScale,
+  PieController,
+  PointElement,
+  Tooltip,
+} from 'chart.js';
 import { formatCurrency, formatNumber } from '../../lib/formatters';
 import { createFeatureContext, type FeatureContext } from '../../core/feature-context';
 import { getFundSchemeCode } from '../../lib/fundMatcher';
 import { renderCoorgWidget } from './coorg-tracker';
+import {
+  CHART_RANGES,
+  buildBenchmarkSeries,
+  buildDrawdownSeries,
+  buildSnapshotSeries,
+  supportedRanges,
+  windowFromRange,
+  type ChartSeries,
+  type DateWindow,
+} from './chart-data';
 
 import type { CrashAlert } from '../api/nifty-monitor';
 import type { FireOSState } from '../../types/state';
-import { totalNetWorth } from './kpis';
+import type { HistoricalSeries } from '../../types/api';
+import type { SyncStatus } from '../../types/firebase';
+import {
+  activeScopeStore,
+  marketRefreshStatusStore,
+  syncStatusStore,
+  type ActiveScopeStatus,
+  type MarketRefreshStatus,
+} from '../../core/stores';
+import { totalNetWorth, type PortfolioCompositionKPI } from './kpis';
 import { profileCompletenessPercent } from '../../lib/completeness';
 import './styles.css';
+
+Chart.register(
+  PieController,
+  ArcElement,
+  Tooltip,
+  Legend,
+  LineController,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+);
 
 // Module state
 let containerId = 'dashboard';
@@ -21,6 +64,65 @@ let currentCrashAlert: CrashAlert | null = null;
 let activeContext = createFeatureContext();
 let D = activeContext.state;
 let themeListenerAttached = false;
+let statusUnsubscribes: Array<() => void> = [];
+let renderEpoch = 0;
+let compositionChart: Chart | null = null;
+let netWorthChart: Chart | null = null;
+let benchmarkChart: Chart | null = null;
+// Fetched market history for the benchmark card, refreshed on each render
+// through the bounded history cache (see modules/api).
+let benchmarkHistory: HistoricalSeries | null = null;
+// Range/view selection for the analytics cards (reset on module init).
+let netWorthRangeKey = 'all';
+let benchmarkRangeKey = '1y';
+let benchmarkView: 'performance' | 'drawdown' = 'performance';
+
+const SYNC_STATUS_LABELS: Record<SyncStatus, string> = {
+  idle: 'Synced',
+  pending: 'Pending changes',
+  syncing: 'Syncing',
+  offline: 'Offline',
+  error: 'Sync error',
+  conflict: 'Sync conflict',
+};
+
+const MARKET_REFRESH_LABELS: Record<MarketRefreshStatus, string> = {
+  idle: 'Not refreshed yet',
+  refreshing: 'Refreshing',
+  success: 'Up to date',
+  error: 'Refresh failed',
+};
+
+const SCOPE_LABELS: Record<ActiveScopeStatus, string> = {
+  local: 'Local-only mode',
+  cloud: 'Cloud sync enabled',
+};
+
+function setStatusLabel(id: string, text: string): void {
+  const element = document.getElementById(id);
+  if (element) element.textContent = text;
+}
+
+/**
+ * Subscribe the trust-panel status labels to the reactive stores. Deduped:
+ * every call first drops the previous subscriptions, so repeated dashboard
+ * mounts never stack callbacks.
+ */
+function attachStatusSubscriptions(): void {
+  detachStatusSubscriptions();
+  statusUnsubscribes = [
+    syncStatusStore.subscribe((status) => setStatusLabel('sync-status-value', SYNC_STATUS_LABELS[status])),
+    marketRefreshStatusStore.subscribe((status) =>
+      setStatusLabel('market-refresh-value', MARKET_REFRESH_LABELS[status]),
+    ),
+    activeScopeStore.subscribe((scope) => setStatusLabel('scope-mode-label', SCOPE_LABELS[scope])),
+  ];
+}
+
+function detachStatusSubscriptions(): void {
+  for (const unsubscribe of statusUnsubscribes) unsubscribe();
+  statusUnsubscribes = [];
+}
 
 function handleThemeChanged(): void {
   const container = document.getElementById(containerId);
@@ -66,6 +168,10 @@ export function initDashboardModule(container: string = 'dashboard', context: Fe
   containerId = container;
   activeContext = context;
   D = context.state;
+  netWorthRangeKey = 'all';
+  benchmarkRangeKey = '1y';
+  benchmarkView = 'performance';
+  benchmarkHistory = null;
   attachThemeListener();
 }
 
@@ -74,6 +180,7 @@ export function initDashboardModule(container: string = 'dashboard', context: Fe
  * Called whenever data changes or user switches to Dashboard tab
  */
 export async function renderDashboard(context: FeatureContext = activeContext): Promise<void> {
+  const epoch = ++renderEpoch;
   attachThemeListener();
   activeContext = context;
   D = context.state;
@@ -91,6 +198,9 @@ export async function renderDashboard(context: FeatureContext = activeContext): 
   });
 
   if (hasStaleCache) {
+    destroyCompositionChart();
+    destroyNetWorthChart();
+    destroyBenchmarkChart();
     container.innerHTML = `
       <div class="flex-col flex-align-center flex-justify-center gap-1 text-center" style="padding: 6rem 2rem;">
         <div class="loading-spinner"></div>
@@ -99,8 +209,23 @@ export async function renderDashboard(context: FeatureContext = activeContext): 
     `;
   }
 
-  // Fetch fresh NAVs for active SIPs
+  // Fetch fresh NAVs for active SIPs; start the benchmark history fetch in
+  // parallel so the analytics card does not add render latency. A rejected
+  // history fetch degrades only the benchmark card to its unavailable state.
+  const benchmarkPromise = context.ports.marketData.fetchNiftyHistory().catch(() => null);
   await fetchSIPNAVs();
+
+  // A newer render or a module teardown superseded this one while the fetch
+  // was in flight (tab navigation unmounts without awaiting): drop it so a
+  // retired render cannot repaint the container or re-attach subscriptions.
+  if (epoch !== renderEpoch) return;
+
+  // Resolve the parallel fetch locally and write the module value only after
+  // the second guard: a superseded render must not clobber benchmark history
+  // that a newer render or a teardown already established.
+  const benchmarkResult = await benchmarkPromise;
+  if (epoch !== renderEpoch) return;
+  benchmarkHistory = benchmarkResult;
 
   // Calculate all KPIs from current state
   const netWorth = context.ports.calculations.totalNetWorth(D);
@@ -109,9 +234,15 @@ export async function renderDashboard(context: FeatureContext = activeContext): 
   const nifty = context.ports.calculations.floatIndicator(D);
   const composition = context.ports.calculations.portfolioComposition(D);
 
+  // Analytics series are shaped from real source series only: persisted
+  // snapshots for the trend card, fetched market history for the benchmark.
+  const snapshotSeries = buildSnapshotSeries(D.netWorthHistory, currentSnapshotWindow());
+  const { displayed: benchmarkSeries } = currentBenchmarkSeries();
 
-
-  // Build the dashboard HTML
+  // Build the dashboard HTML (the previous canvas dies with the old markup)
+  destroyCompositionChart();
+  destroyNetWorthChart();
+  destroyBenchmarkChart();
   container.innerHTML = `
     <div class="dashboard-container">
       <!-- Crash Alert (if present) -->
@@ -152,12 +283,18 @@ export async function renderDashboard(context: FeatureContext = activeContext): 
       <div class="charts-section">
         ${renderCompositionChart(composition)}
         ${renderFIProgressChart(fi)}
+        ${renderNetWorthTrendCard(snapshotSeries)}
+        ${renderBenchmarkCard(benchmarkSeries)}
       </div>
     </div>
   `;
 
   // Attach event listeners
   attachDashboardEventListeners();
+  attachStatusSubscriptions();
+  mountCompositionChart('composition-chart', composition.categories);
+  mountNetWorthChart('networth-chart', snapshotSeries);
+  mountBenchmarkChart('benchmark-chart', benchmarkSeries);
 }
 
 function renderDataTrustPanel(state: FireOSState): string {
@@ -165,13 +302,15 @@ function renderDataTrustPanel(state: FireOSState): string {
   const staleNavs = navEntries.filter((entry) => entry.status === 'stale').length;
   const currencyEntries = Object.values(state.currencyRates || {});
   const staleCurrencies = currencyEntries.filter((entry) => entry.status === 'stale').length;
-  const syncLabel = state.currentUser ? 'Cloud sync enabled' : 'Local-only mode';
+  const scopeLabel = SCOPE_LABELS[activeScopeStore.get()];
   const completeness = profileCompletenessPercent(state);
   const { liabilities } = totalNetWorth(state);
   const savedLabel = state._lastSavedAt ? `Last saved ${new Date(state._lastSavedAt).toLocaleString()}` : 'Not saved yet';
   return `<section class="data-trust-panel" aria-label="Data quality and sync status">
     <div><strong>Data quality</strong><span>${staleNavs + staleCurrencies === 0 ? 'Current' : `${staleNavs + staleCurrencies} stale source${staleNavs + staleCurrencies === 1 ? '' : 's'}`}</span></div>
-    <div><strong>${syncLabel}</strong><span>${savedLabel}</span></div>
+    <div><strong id="scope-mode-label">${scopeLabel}</strong><span>${savedLabel}</span></div>
+    <div><strong>Sync status</strong><span id="sync-status-value">${SYNC_STATUS_LABELS[syncStatusStore.get()]}</span></div>
+    <div><strong>Market data</strong><span id="market-refresh-value">${MARKET_REFRESH_LABELS[marketRefreshStatusStore.get()]}</span></div>
     <div><strong>Completeness</strong><span>${completeness}% • Liabilities ${formatCurrency(liabilities, 0)}</span></div>
   </section>`;
 }
@@ -328,11 +467,15 @@ function renderCompositionChart(composition: any): string {
     )
     .join('');
 
+  const ariaLabel = `Portfolio composition: ${composition.categories
+    .map((cat: any) => `${cat.name} ${cat.percentage.toFixed(0)}%`)
+    .join(', ')}`;
+
   return `
     <div class="chart-container">
       <div class="chart-title">📊 Portfolio Breakdown</div>
       <div class="pie-chart">
-        <canvas id="composition-chart"></canvas>
+        <canvas id="composition-chart" role="img" aria-label="${ariaLabel}"></canvas>
       </div>
       <div class="pie-chart-legend">
         ${legendHtml}
@@ -366,81 +509,418 @@ function renderFIProgressChart(fi: any): string {
 }
 
 /**
- * Simple pie chart renderer using canvas
+ * Resolve a CSS theme variable with a fallback (same convention as the
+ * composition chart so theme switches pick up current colors).
  */
-function drawPieChart(canvasId: string, data: any[]): void {
-  const canvas = document.getElementById(canvasId) as HTMLCanvasElement;
-  if (!canvas) return;
+function resolveCss(variable: string, fallback: string): string {
+  if (typeof getComputedStyle !== 'function') return fallback;
+  return getComputedStyle(document.documentElement).getPropertyValue(variable).trim() || fallback;
+}
 
-  const ctx = canvas.getContext('2d');
+function rangeMonths(key: string): number {
+  return CHART_RANGES.find((range) => range.key === key)?.months ?? 0;
+}
+
+function currentSnapshotWindow(): DateWindow | null {
+  return windowFromRange(
+    D.netWorthHistory.map((snapshot) => snapshot.date),
+    rangeMonths(netWorthRangeKey),
+  );
+}
+
+function currentBenchmarkWindow(): DateWindow | null {
+  return windowFromRange(
+    (benchmarkHistory?.points ?? []).map((point) => point.date),
+    rangeMonths(benchmarkRangeKey),
+  );
+}
+
+/** Raw benchmark series plus the active view (performance or drawdown). */
+function currentBenchmarkSeries(): { raw: ChartSeries; displayed: ChartSeries } {
+  const raw = buildBenchmarkSeries(benchmarkHistory, currentBenchmarkWindow());
+  const displayed = benchmarkView === 'drawdown' ? buildDrawdownSeries(raw) : raw;
+  return { raw, displayed };
+}
+
+/** Plain-text provenance line: source, freshness, coverage, span, point count. */
+function seriesMetaText(series: ChartSeries): string {
+  const { meta, points } = series;
+  const parts: string[] = [meta.source || 'unknown source'];
+  parts.push(meta.status === 'stale' ? 'stale (cached)' : meta.status);
+  if (meta.fetchedAt) parts.push(`fetched ${meta.fetchedAt.slice(0, 10)}`);
+  if (points.length > 0) {
+    parts.push(`${points.length} points`, `${points[0].date} to ${points[points.length - 1].date}`);
+  }
+  if (meta.coverage === 'partial') parts.push('partial coverage');
+  if (meta.coverage === 'gaps-expected') parts.push('gaps are days without a snapshot');
+  return parts.join(' • ');
+}
+
+function seriesAriaText(series: ChartSeries): string {
+  const { meta, points } = series;
+  if (points.length === 0) return `${meta.label}: no data points`;
+  return `${meta.label}: ${points.length} points from ${points[0].date} to ${
+    points[points.length - 1].date
+  }, source ${meta.source}, status ${meta.status}`;
+}
+
+/**
+ * Render the net-worth trend card. Shows the recorded snapshots only; an
+ * empty history renders an empty state with no range controls or canvas.
+ */
+function renderNetWorthTrendCard(series: ChartSeries): string {
+  const title = '<div class="chart-title">📉 Net Worth Trend</div>';
+  if (series.points.length === 0) {
+    return `
+      <div class="chart-container">
+        ${title}
+        <div class="dashboard-empty" style="padding: 2rem 1rem;">
+          <div class="dashboard-empty-message">No history recorded yet. Snapshots are taken automatically.</div>
+        </div>
+      </div>
+    `;
+  }
+
+  const support = supportedRanges(D.netWorthHistory.map((snapshot) => snapshot.date));
+  const buttons = support
+    .map(
+      (range) => `
+      <button type="button" class="chart-range-btn" id="nw-range-${range.key}" aria-pressed="${
+        range.key === netWorthRangeKey
+      }" ${range.enabled ? '' : 'disabled'}>${range.label}</button>`,
+    )
+    .join('');
+
+  return `
+    <div class="chart-container">
+      ${title}
+      <div class="chart-meta" id="networth-chart-meta">${seriesMetaText(series)}</div>
+      <div class="chart-range-controls" role="group" aria-label="Net worth trend range">${buttons}</div>
+      <div class="line-chart">
+        <canvas id="networth-chart" role="img" aria-label="${seriesAriaText(series)}"></canvas>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Render the Nifty benchmark card. The meta line always identifies provider,
+ * freshness and span, and the series is market benchmark data only — never
+ * the user's portfolio return. Missing history renders an unavailable state
+ * without controls or a canvas; current-value KPIs are unaffected.
+ */
+function renderBenchmarkCard(displayed: ChartSeries): string {
+  const title = '<div class="chart-title">📈 Nifty 50 Benchmark</div>';
+  if (displayed.points.length === 0) {
+    return `
+      <div class="chart-container">
+        ${title}
+        <div class="dashboard-empty" style="padding: 2rem 1rem;">
+          <div class="dashboard-empty-message">Market history unavailable — current dashboard values are unaffected.</div>
+        </div>
+      </div>
+    `;
+  }
+
+  const rangeButtons = CHART_RANGES.map(
+    (range) => `
+      <button type="button" class="chart-range-btn" id="bm-range-${range.key}" aria-pressed="${
+      range.key === benchmarkRangeKey
+    }">${range.label}</button>`,
+  ).join('');
+  const viewButtons = ([
+    ['performance', 'Performance'],
+    ['drawdown', 'Drawdown'],
+  ] as const)
+    .map(
+      ([view, label]) => `
+      <button type="button" class="chart-range-btn" id="bm-view-${view}" aria-pressed="${
+        view === benchmarkView
+      }">${label}</button>`,
+    )
+    .join('');
+
+  return `
+    <div class="chart-container">
+      ${title}
+      <div class="chart-meta" id="benchmark-chart-meta">${seriesMetaText(displayed)}</div>
+      <div class="chart-controls-row">
+        <div class="chart-range-controls" role="group" aria-label="Benchmark range">${rangeButtons}</div>
+        <div class="chart-range-controls" role="group" aria-label="Benchmark view">${viewButtons}</div>
+      </div>
+      <div class="line-chart">
+        <canvas id="benchmark-chart" role="img" aria-label="${seriesAriaText(displayed)}"></canvas>
+      </div>
+    </div>
+  `;
+}
+
+function setPressedState(id: string, pressed: boolean): void {
+  const element = document.getElementById(id) as { setAttribute?: (name: string, value: string) => void } | null;
+  if (!element || typeof element.setAttribute !== 'function') return;
+  element.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+}
+
+function setAriaLabel(id: string, label: string): void {
+  const element = document.getElementById(id) as { setAttribute?: (name: string, value: string) => void } | null;
+  if (!element || typeof element.setAttribute !== 'function') return;
+  element.setAttribute('aria-label', label);
+}
+
+/**
+ * Rebuild the net-worth trend chart and its provenance line in place after a
+ * range change (no full dashboard repaint, so no NAV refetch).
+ */
+function refreshNetWorthTrendChart(): void {
+  const series = buildSnapshotSeries(D.netWorthHistory, currentSnapshotWindow());
+  setStatusLabel('networth-chart-meta', seriesMetaText(series));
+  for (const option of CHART_RANGES) {
+    setPressedState(`nw-range-${option.key}`, option.key === netWorthRangeKey);
+  }
+  setAriaLabel('networth-chart', seriesAriaText(series));
+  mountNetWorthChart('networth-chart', series);
+}
+
+/** Rebuild the benchmark chart after a range or view change. */
+function refreshBenchmarkChart(): void {
+  const { raw, displayed } = currentBenchmarkSeries();
+  if (raw.points.length === 0) return;
+  setStatusLabel('benchmark-chart-meta', seriesMetaText(displayed));
+  for (const option of CHART_RANGES) {
+    setPressedState(`bm-range-${option.key}`, option.key === benchmarkRangeKey);
+  }
+  setPressedState('bm-view-performance', benchmarkView === 'performance');
+  setPressedState('bm-view-drawdown', benchmarkView === 'drawdown');
+  setAriaLabel('benchmark-chart', seriesAriaText(displayed));
+  mountBenchmarkChart('benchmark-chart', displayed);
+}
+
+function attachChartButtonListener(id: string, onClick: () => void): void {
+  const element = document.getElementById(id) as { addEventListener?: (type: string, listener: () => void) => void } | null;
+  if (!element || typeof element.addEventListener !== 'function') return;
+  element.addEventListener('click', onClick);
+}
+
+/**
+ * Destroy the live composition chart instance, if any.
+ * Called before the dashboard markup (and its canvas) is replaced and on
+ * module teardown so no canvas or Chart.js listeners survive a rerender.
+ */
+export function destroyCompositionChart(): void {
+  if (!compositionChart) return;
+  compositionChart.destroy();
+  compositionChart = null;
+}
+
+/**
+ * Create the composition pie chart, replacing any previous instance.
+ * No-ops without a canvas or usable 2D context (headless tests, odd
+ * browsers): the HTML legend and labels still render.
+ */
+export function mountCompositionChart(
+  canvasId: string,
+  categories: PortfolioCompositionKPI['categories'],
+): void {
+  destroyCompositionChart();
+
+  const total = categories.reduce((sum, cat) => sum + cat.value, 0);
+  if (total <= 0) return;
+
+  const ctx = getChartContext(canvasId);
   if (!ctx) return;
 
-  const rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width;
-  canvas.height = rect.height;
-
-  const computedStyle = getComputedStyle(document.documentElement);
   const colors = [
-    computedStyle.getPropertyValue('--accent').trim() || '#007bff',
-    computedStyle.getPropertyValue('--status-good-text').trim() || '#28a745',
-    computedStyle.getPropertyValue('--status-warn-text').trim() || '#ffc107',
-    computedStyle.getPropertyValue('--status-bad-text').trim() || '#dc3545',
-    '#6f42c1', '#20c997', '#fd7e14'
+    resolveCss('--accent', '#007bff'),
+    resolveCss('--status-good-text', '#28a745'),
+    resolveCss('--status-warn-text', '#ffc107'),
+    resolveCss('--status-bad-text', '#dc3545'),
+    '#6f42c1',
+    '#20c997',
+    '#fd7e14',
   ];
-  const total = data.reduce((sum, item) => sum + item.value, 0);
 
-  if (total === 0) return;
-
-  const centerX = canvas.width / 2;
-  const centerY = canvas.height / 2;
-  const radius = Math.min(centerX, centerY) - 20;
-
-  if (radius <= 0) return;
-
-  let currentAngle = -Math.PI / 2;
-
-  data.forEach((item, idx) => {
-    const sliceAngle = (item.value / total) * 2 * Math.PI;
-
-    // Draw slice
-    ctx.fillStyle = colors[idx % colors.length];
-    ctx.beginPath();
-    ctx.moveTo(centerX, centerY);
-    ctx.arc(centerX, centerY, radius, currentAngle, currentAngle + sliceAngle);
-    ctx.closePath();
-    ctx.fill();
-
-    // Draw label
-    const labelAngle = currentAngle + sliceAngle / 2;
-    const labelX = centerX + Math.cos(labelAngle) * (radius * 0.65);
-    const labelY = centerY + Math.sin(labelAngle) * (radius * 0.65);
-
-    ctx.fillStyle = computedStyle.getPropertyValue('--text-inverse').trim() || '#ffffff';
-    ctx.font = 'bold 12px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    const percentage = ((item.value / total) * 100).toFixed(0);
-    if (parseFloat(percentage) > 5) {
-      ctx.fillText(`${percentage}%`, labelX, labelY);
-    }
-
-    currentAngle += sliceAngle;
+  compositionChart = new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels: categories.map((cat) => cat.name),
+      datasets: [
+        {
+          data: categories.map((cat) => cat.value),
+          backgroundColor: categories.map((_, idx) => colors[idx % colors.length]),
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        // The HTML legend below the canvas is the accessible, always-visible legend.
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (item) => {
+              const cat = categories[item.dataIndex];
+              return `${cat.name}: ${formatCurrency(cat.value, 0)} (${cat.percentage.toFixed(0)}%)`;
+            },
+          },
+        },
+      },
+    },
   });
+}
+
+/**
+ * Resolve a canvas and its 2D context, or null when unavailable (headless
+ * tests, odd browsers): charts then no-op and HTML labels still render.
+ */
+function getChartContext(canvasId: string): CanvasRenderingContext2D | null {
+  const canvas = document.getElementById(canvasId) as HTMLCanvasElement | null;
+  if (!canvas || typeof canvas.getContext !== 'function') return null;
+  try {
+    return canvas.getContext('2d');
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Create a line chart for an already shaped series. Chart.js config only:
+ * the data comes untouched from chart-data, the HTML meta line carries
+ * source/freshness, and the built-in legend stays off in favor of that line.
+ */
+function createLineChart(
+  canvasId: string,
+  series: ChartSeries,
+  color: string,
+  formatValue: (value: number) => string,
+): Chart | null {
+  if (series.points.length === 0) return null;
+  const ctx = getChartContext(canvasId);
+  if (!ctx) return null;
+
+  const axisColor = resolveCss('--text-tertiary', '#888888');
+  const gridColor = resolveCss('--card-border', 'rgba(148, 163, 184, 0.25)');
+
+  return new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: series.points.map((point) => point.date),
+      datasets: [
+        {
+          label: series.meta.label,
+          data: series.points.map((point) => point.value),
+          borderColor: color,
+          backgroundColor: color,
+          borderWidth: 2,
+          pointRadius: series.points.length > 60 ? 0 : 2,
+          pointHoverRadius: 4,
+          // Straight segments between recorded points: bezier curves would
+          // imply values that were never recorded.
+          tension: 0,
+          fill: false,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        // The chart-meta HTML line above the canvas is the accessible legend.
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (item) => `${series.meta.label}: ${formatValue(Number(item.parsed.y))}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: { color: axisColor, maxTicksLimit: 8, maxRotation: 0 },
+          grid: { color: gridColor },
+        },
+        y: {
+          ticks: { color: axisColor, callback: (value) => formatValue(Number(value)) },
+          grid: { color: gridColor },
+        },
+      },
+    },
+  });
+}
+
+/**
+ * Destroy the live net-worth trend chart, if any (rerender + teardown paths).
+ */
+export function destroyNetWorthChart(): void {
+  if (!netWorthChart) return;
+  netWorthChart.destroy();
+  netWorthChart = null;
+}
+
+/**
+ * Destroy the live benchmark chart, if any (rerender + teardown paths).
+ */
+export function destroyBenchmarkChart(): void {
+  if (!benchmarkChart) return;
+  benchmarkChart.destroy();
+  benchmarkChart = null;
+}
+
+/**
+ * Create the net-worth trend line chart, replacing any previous instance.
+ * No-ops on empty series or without a 2D context (headless tests).
+ */
+export function mountNetWorthChart(canvasId: string, series: ChartSeries): void {
+  destroyNetWorthChart();
+  netWorthChart = createLineChart(
+    canvasId,
+    series,
+    resolveCss('--accent', '#F59E0B'),
+    (value) => formatCurrency(value, 0),
+  );
+}
+
+/**
+ * Create the benchmark chart for the active view (performance = provider
+ * index level, drawdown = percent below the window running maximum). No-ops
+ * on empty series or without a 2D context (headless tests).
+ */
+export function mountBenchmarkChart(canvasId: string, series: ChartSeries): void {
+  destroyBenchmarkChart();
+  const color =
+    benchmarkView === 'drawdown'
+      ? resolveCss('--status-bad-text', '#dc3545')
+      : '#6f42c1';
+  const formatValue =
+    benchmarkView === 'drawdown'
+      ? (value: number) => `${value.toFixed(1)}%`
+      : (value: number) => formatNumber(value, 0);
+  benchmarkChart = createLineChart(canvasId, series, color, formatValue);
 }
 
 /**
  * Attach event listeners to dashboard elements
  */
 function attachDashboardEventListeners(): void {
-  // Draw pie chart if data exists
-  const canvas = document.getElementById('composition-chart');
-  if (canvas) {
-    const composition = activeContext.ports.calculations.portfolioComposition(D);
-    if (composition.categories.length > 0) {
-      drawPieChart('composition-chart', composition.categories);
-    }
+  // Analytics chart range/view controls: rebuild only the affected chart in
+  // place (guards keep this a no-op where elements are stubs without DOM APIs).
+  for (const option of CHART_RANGES) {
+    attachChartButtonListener(`nw-range-${option.key}`, () => {
+      netWorthRangeKey = option.key;
+      refreshNetWorthTrendChart();
+    });
+    attachChartButtonListener(`bm-range-${option.key}`, () => {
+      benchmarkRangeKey = option.key;
+      refreshBenchmarkChart();
+    });
   }
+  attachChartButtonListener('bm-view-performance', () => {
+    benchmarkView = 'performance';
+    refreshBenchmarkChart();
+  });
+  attachChartButtonListener('bm-view-drawdown', () => {
+    benchmarkView = 'drawdown';
+    refreshBenchmarkChart();
+  });
 
   // Advisor review button event listener
   const advisorBtn = document.getElementById('request-advisor-review-btn');
@@ -575,8 +1055,14 @@ function attachDashboardEventListeners(): void {
  * Called when user navigates away or app shuts down
  */
 export function teardownDashboard(): void {
+  renderEpoch += 1;
+  destroyCompositionChart();
+  destroyNetWorthChart();
+  destroyBenchmarkChart();
+  benchmarkHistory = null;
   window.removeEventListener('themeChanged', handleThemeChanged);
   themeListenerAttached = false;
+  detachStatusSubscriptions();
   const container = document.getElementById(containerId);
   if (container) {
     container.innerHTML = '';

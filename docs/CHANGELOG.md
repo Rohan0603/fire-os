@@ -7,11 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+### Added
+- **CSV Import**: preview a parsed portfolio CSV with row-level issues and confirm before applying
+- **Dashboard Charts**: interactive portfolio composition pie plus net-worth snapshot trend and Nifty benchmark performance and drawdown history views with range controls
+- **XIRR Period Returns**: annualized returns from dated cash flows, surfaced in the SIP status KPI
+- **Scenario Comparison**: side-by-side FI projection of two scenarios in the calculators tab
 
+### Changed
+- **Reactive Status Stores**: sync, market-refresh, and cloud-mode labels update live from shared status stores
 - Consolidated project, architecture, API, Assistant, deployment, and
   troubleshooting guidance into `docs/README.md`.
 - Removed duplicated and historical planning documents.
+
+### Fixed
+- **Backup Restore Hardening**: restored backups are runtime-validated with Valibot before being applied
+- **Date and Duration Fixes**: age from date of birth (anniversary and leap-day handling), strict `YYYY-MM`/`YYYY-MM-DD` parsing, and long-term holding duration thresholds
 
 ## [3.0.0] - 2026-10-03
 

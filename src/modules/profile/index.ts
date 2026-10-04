@@ -13,6 +13,8 @@ import { undoLastSavedPortfolioChange } from '../../lib/storage';
 import { profileCompletenessPercent as calculateProfileCompleteness } from '../../lib/completeness';
 import { buildPortfolioCsv } from '../../lib/portfolioCsv';
 import type { EsopHolding } from '../../types/state';
+import { parsePortfolioBackup, restorePortfolioBackup } from './backup-import';
+import { applyPortfolioCsvImport, parsePortfolioCsv, type CsvImportMode, type CsvImportPreview } from './csv-import';
 import './styles.css';
 
 const DEBOUNCE_MS = 500;
@@ -123,7 +125,9 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
         <div class="data-actions" style="display: flex; gap: 1rem; align-items: center; margin-top: 0.5rem;">
           <button id="import-pdf-btn" class="btn-primary">📄 Import CAS PDF</button>
           <button id="export-backup-btn" class="btn-secondary">Download Backup</button>
+          <button id="import-backup-btn" class="btn-secondary" type="button">Restore Backup</button>
           <button id="export-csv-btn" class="btn-secondary" type="button">Export CSV</button>
+          <button id="import-csv-btn" class="btn-secondary" type="button">Import CSV</button>
           <button id="undo-change-btn" class="btn-secondary" type="button">Undo Last Change</button>
           <button id="delete-cloud-btn" class="btn-danger" type="button">Delete Cloud Data</button>
           <button id="save-cloud-btn" class="btn-primary">☁ Save to Firestore</button>
@@ -133,6 +137,20 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
         <p class="privacy-notice"><strong>Privacy:</strong> portfolio data stays in this browser unless you sign in and choose cloud sync. JSON backups and CSV exports download locally and include financial details; store them securely.</p>
         <p class="completeness-status">Profile completeness: ${calculateProfileCompleteness(D)}%</p>
         <input type="file" id="pdf-input" accept=".pdf" style="display: none;">
+        <input type="file" id="backup-input" accept=".json,application/json" style="display: none;">
+        <input type="file" id="csv-input" accept=".csv,text/csv" style="display: none;">
+      </div>
+
+      <div id="backup-confirmation" style="display: none;" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="backup-dialog-title">
+        <div class="modal-content">
+          <h3 id="backup-dialog-title">Preview Portfolio Restore</h3>
+          <p id="backup-validation-summary" role="status"></p>
+          <pre id="backup-preview" style="max-height: 20rem; overflow: auto;"></pre>
+          <div class="modal-actions">
+            <button id="backup-confirm-btn" class="btn-primary" type="button">Replace Portfolio</button>
+            <button id="backup-cancel-btn" class="btn-secondary" type="button">Cancel</button>
+          </div>
+        </div>
       </div>
 
       <div id="pdf-confirmation" style="display: none;" class="modal-overlay">
@@ -142,6 +160,27 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
           <div class="modal-actions">
             <button id="pdf-confirm-btn" class="btn-primary">Confirm Import</button>
             <button id="pdf-cancel-btn" class="btn-secondary">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="csv-confirmation" style="display: none;" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="csv-dialog-title">
+        <div class="modal-content">
+          <h3 id="csv-dialog-title">Preview CSV Import</h3>
+          <p id="csv-validation-summary" role="status"></p>
+          <pre id="csv-issues" style="max-height: 12rem; overflow: auto; white-space: pre-wrap; font-size: 0.8rem;"></pre>
+          <fieldset style="border: 1px solid var(--border-primary); border-radius: 8px; padding: 0.75rem; margin-top: 0.75rem;">
+            <legend style="padding: 0 0.35rem; color: var(--text-secondary);">How to apply</legend>
+            <label style="display: block; margin: 0.35rem 0; cursor: pointer;">
+              <input type="radio" name="csv-import-mode" value="merge"> Merge — replace only the sections present in the file; keep everything else
+            </label>
+            <label style="display: block; margin: 0.35rem 0; cursor: pointer;">
+              <input type="radio" name="csv-import-mode" value="replace"> Replace — full replacement; sections missing from the file reset to defaults
+            </label>
+          </fieldset>
+          <div class="modal-actions">
+            <button id="csv-confirm-btn" class="btn-primary" type="button" disabled>Apply Import</button>
+            <button id="csv-cancel-btn" class="btn-secondary" type="button">Cancel</button>
           </div>
         </div>
       </div>
@@ -624,6 +663,46 @@ function attachProfileHandlers(context: FeatureContext) {
     localStorage.setItem('fire-os:last-exported-at', exportedAt);
     if (backupReminder) backupReminder.textContent = `Last backup: ${new Date(exportedAt).toLocaleString()}`;
   });
+  let pendingBackup: ReturnType<typeof parsePortfolioBackup>['data'] = null;
+  const backupDialog = document.getElementById('backup-confirmation') as HTMLElement;
+  const backupSummary = document.getElementById('backup-validation-summary');
+  const backupPreview = document.getElementById('backup-preview');
+  document.getElementById('import-backup-btn')?.addEventListener('click', () => {
+    (document.getElementById('backup-input') as HTMLInputElement).click();
+  });
+  document.getElementById('backup-input')?.addEventListener('change', async (event) => {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file || !backupSummary || !backupPreview) return;
+    const result = parsePortfolioBackup(await file.text());
+    pendingBackup = result.data;
+    backupSummary.textContent = result.data
+      ? `Valid backup. ${Object.keys(result.data).length} persisted sections will replace the current portfolio after confirmation.`
+      : `Backup rejected: ${result.issues.join('; ')}`;
+    backupPreview.textContent = result.data ? JSON.stringify(result.data, null, 2) : '';
+    (document.getElementById('backup-confirm-btn') as HTMLButtonElement).disabled = !result.data;
+    backupDialog.style.display = 'flex';
+  });
+  document.getElementById('backup-confirm-btn')?.addEventListener('click', async () => {
+    if (!pendingBackup) return;
+    try {
+      await restorePortfolioBackup(pendingBackup, activeContext, true);
+      pendingBackup = null;
+      backupDialog.style.display = 'none';
+      context.ports.ui.showToast('Portfolio backup restored locally');
+      const profileContainer = document.getElementById('profile');
+      if (profileContainer) renderProfile(profileContainer, context);
+    } catch {
+      const message = 'Restore failed. The current portfolio was not changed.';
+      if (backupSummary) backupSummary.textContent = message;
+      context.ports.ui.showToast(message, 3000, 'warning');
+    }
+  });
+  document.getElementById('backup-cancel-btn')?.addEventListener('click', () => {
+    pendingBackup = null;
+    backupDialog.style.display = 'none';
+  });
   document.getElementById('export-csv-btn')?.addEventListener('click', () => {
     const blob = new Blob([buildPortfolioCsv(D)], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -632,6 +711,69 @@ function attachProfileHandlers(context: FeatureContext) {
     link.download = `fire-os-portfolio-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+  });
+  let pendingCsvImport: CsvImportPreview | null = null;
+  const csvDialog = document.getElementById('csv-confirmation') as HTMLElement;
+  const csvSummary = document.getElementById('csv-validation-summary');
+  const csvIssues = document.getElementById('csv-issues');
+  const csvConfirmBtn = document.getElementById('csv-confirm-btn') as HTMLButtonElement;
+  const csvModeInputs = () => Array.from(document.querySelectorAll<HTMLInputElement>('input[name="csv-import-mode"]'));
+  const selectedCsvMode = (): CsvImportMode | null => {
+    const value = csvModeInputs().find((input) => input.checked)?.value;
+    return value === 'merge' || value === 'replace' ? value : null;
+  };
+  const updateCsvConfirmState = () => {
+    csvConfirmBtn.disabled = !pendingCsvImport || pendingCsvImport.validRows === 0 || !selectedCsvMode();
+  };
+  csvModeInputs().forEach((input) => input.addEventListener('change', updateCsvConfirmState));
+  document.getElementById('import-csv-btn')?.addEventListener('click', () => {
+    (document.getElementById('csv-input') as HTMLInputElement).click();
+  });
+  document.getElementById('csv-input')?.addEventListener('change', async (event) => {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file || !csvSummary || !csvIssues) return;
+    const preview = parsePortfolioCsv(await file.text());
+    pendingCsvImport = preview;
+    const summary: string[] = [preview.validRows > 0
+      ? `${preview.validRows} row${preview.validRows === 1 ? '' : 's'} ready to import.`
+      : 'Nothing to import: this file has no valid rows.'];
+    if (preview.issues.length > 0) {
+      summary.push(`${preview.issues.length} issue${preview.issues.length === 1 ? '' : 's'} found (row 1 is the header row):`);
+      const lines = preview.issues.slice(0, 20).map((issue) => `Row ${issue.row} — ${issue.field}: ${issue.message}`);
+      if (preview.issues.length > 20) lines.push(`…and ${preview.issues.length - 20} more.`);
+      csvIssues.textContent = lines.join('\n');
+    } else {
+      csvIssues.textContent = '';
+    }
+    summary.push('Choose merge (keep sections not in the file) or replace (reset everything else to defaults), then apply.');
+    csvSummary.textContent = summary.join(' ');
+    csvModeInputs().forEach((input) => { input.checked = false; });
+    updateCsvConfirmState();
+    csvDialog.style.display = 'flex';
+  });
+  csvConfirmBtn.addEventListener('click', async () => {
+    const preview = pendingCsvImport;
+    const mode = selectedCsvMode();
+    if (!preview || !mode) return;
+    try {
+      await applyPortfolioCsvImport(preview.candidate, activeContext, mode, true);
+      const rows = preview.validRows;
+      pendingCsvImport = null;
+      csvDialog.style.display = 'none';
+      context.ports.ui.showToast(`Imported ${rows} CSV row${rows === 1 ? '' : 's'} (${mode})`);
+      const profileContainer = document.getElementById('profile');
+      if (profileContainer) renderProfile(profileContainer, context);
+    } catch {
+      const message = 'Import failed. The current portfolio was not changed.';
+      if (csvSummary) csvSummary.textContent = message;
+      context.ports.ui.showToast(message, 3000, 'warning');
+    }
+  });
+  document.getElementById('csv-cancel-btn')?.addEventListener('click', () => {
+    pendingCsvImport = null;
+    csvDialog.style.display = 'none';
   });
   document.getElementById('undo-change-btn')?.addEventListener('click', async () => {
     if (!undoLastSavedPortfolioChange(D)) return;

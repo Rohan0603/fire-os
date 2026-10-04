@@ -82,6 +82,24 @@ describe('validateRequestBody', () => {
     ).toMatchObject({ status: 400 });
   });
 
+  it('rejects invalid message roles and runtime proposal keys', () => {
+    expect(
+      validateRequestBody({
+        question: 'q',
+        contextSummary: {},
+        messages: [{ role: 'system', content: 'q' }],
+      }),
+    ).toMatchObject({
+      status: 400,
+      error: 'messages must alternate user/assistant with text content only',
+    });
+    expect(
+      extractProposedChanges(
+        '{"profile":{"age":40},"currentUser":{"uid":"x"},"_syncMetadata":{},"_lastSavedAt":"now"}',
+      ),
+    ).toEqual({ profile: { age: 40 } });
+  });
+
   it('rejects unsafe or oversized conversation history', () => {
     expect(
       validateRequestBody({
