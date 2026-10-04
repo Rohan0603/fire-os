@@ -56,8 +56,9 @@ Analytics charts plot two distinct real series. The **net-worth trend** card
 charts persisted daily snapshots only: points are the recorded
 `state.netWorthHistory` entries filtered by an inclusive date window from
 `src/lib/dates.ts` (both endpoints included) — sparse days stay sparse, with
-no backfill, interpolation, or invented values; a `.chart-meta` provenance
-line names the source, point count and span. Its range buttons (3M/6M/1Y/
+  no backfill, interpolation, or invented values; a `.chart-meta` provenance
+  line names the source, point count and span, and notes that gaps are days
+  without a snapshot. Its range buttons (3M/6M/1Y/
 3Y/5Y/All) are native, keyboard-focusable `<button>`s, disabled unless the
 snapshot span reaches within 15 days of that window start, so only supported
 ranges are selectable; an empty history renders an empty state without
@@ -118,7 +119,8 @@ remaining only when already achieved. Drawdown is max(0, `(high-level)/high`).
   names/scheme codes; category units aggregate SIP and MF; value determines
   needed units rounded up for the initial redemption plan, then actual units
   are deducted SIP-first and MF-second. Records an SWP expense for today's
-  date. This is simulated state mutation, not a broker redemption.
+  **UTC** date (note: the LTCG record below uses the local calendar date). This is
+  simulated state mutation, not a broker redemption.
 
 Other exported calculation primitives in `src/lib/calculations.ts`: SIP future
 value with monthly rate and zero-rate handling; simple SIP cost basis; XIRR via
@@ -369,7 +371,10 @@ INR amount. This refresh is separate from detailed grant/vesting fields in
   leading `'` is stripped only when the rest of the cell matches the export
   pattern (`\s*[=+@-]`), which restores round-trip names (internal apostrophes
   such as `O'Brien` are untouched) and is surfaced as a row issue; unescaped
-  formula-like text is rejected with a row issue instead of imported. The
+  formula-like text is rejected with a row issue instead of imported. Per-row
+  limits are also enforced: a `__proto__` name is rejected, Other names cap at 200
+  characters and Liability names at 100, each of Other/Liability caps at 50
+  entries, and negative `Value`/`Amount` cells are rejected. The
   preview dialog lists valid rows and issues and requires an explicit mode
   choice before applying: **merge** overwrites only the top-level sections
   present in the file and preserves the rest; **replace** is a full normalized
@@ -417,6 +422,17 @@ nonconvergence, and any other package error — as well as non-finite results �
 return null instead of throwing. Input order is irrelevant: flows are not
 sorted and results are order-independent.
 
+Two further KPI helpers are exported but not rendered. `calculatePeriodReturn()`
+filters `CashFlow[]` to `[start, end]` inclusive and delegates to
+`calculateXirr`, returning null when an endpoint is invalid or the in-period flows
+cannot be solved; it never synthesizes historical holding values. It is not the
+value behind the SIP status XIRR above.
+`attributeNetWorthChange(start, end, contributions)` returns
+`{ startingValue, contributions, investmentReturn, endingValue }` with
+`investmentReturn = end − start − contributions`, clamping start and
+contributions to ≥0 and coercing non-finite inputs to 0; it is exposed through
+`FeaturePorts` but has no UI consumer.
+
 The 5-minute Nifty monitor fetches `fetchNifty()` immediately and then on a
 recursive timer. Crash percent is rounded to an integer in
 `detectCrashAlert()`: <10 low/no alert; 10–14 medium with fixed suggested
@@ -441,18 +457,19 @@ worth as denominator, so calculations can differ from Plan action suggestions.
 
 ### Scenario modeler
 
-`calculateFIAge()` validates corpus/SIP nonnegative, goal >0, CAGR/current age
-nonnegative. Monthly return = `(1+CAGR)^(1/12)-1`; every iteration grows current
-corpus then adds current SIP; after each 12th contribution monthly SIP steps up
-by default 10%. It stops when goal reached or at 1,000 months (~83 years), then
-returns age to one decimal, month count, rounded final corpus and a rounded
-percent label. If unreachable, it still returns capped-horizon values; no
+`calculateFIAge()` throws on invalid parameters — corpus/SIP must be nonnegative,
+goal >0, CAGR/current age nonnegative. Monthly return = `(1+CAGR)^(1/12)-1`; every
+iteration grows current corpus then adds current SIP; after each 12th contribution
+monthly SIP steps up by default 10%. It stops when goal reached or at 1,000 months
+(~83 years), then returns age to one decimal, month count, rounded final corpus and
+a rounded percent label. If unreachable, it still returns capped-horizon values; no
 separate failure status. The Plan tab uses fixed 17% CAGR, profile FI target or
 ₹55,000,000 fallback, profile age or 25 fallback, and total SIP monthlyAmount.
 Coast FIRE helper is exported through ports but not displayed in current Plan
 render; required corpus is target/(1+return)^years available; if already above
 threshold coasting begins now; otherwise logs solve years from target/current
-and returns null if no positive return or beyond retirement age.
+and returns null if no positive return or beyond retirement age. Like
+`calculateFIAge()`, it throws on invalid parameters rather than returning null.
 `compareFIScenarios()` projects each entered scenario through that same
 `calculateFIAge()` math and returns results in input order with an `assumptions`
 echo of the full input (label, corpus, SIP, step-up, return, goal, age);
@@ -494,9 +511,10 @@ milestones; and for enabled SWP where current YYYY-MM ≥ configured start month
 checks whether an SWP-category expense already exists for that month. If not,
 it calls `executeMonthlyWithdrawal()` asynchronously, persists after success,
 toasts, and refreshes active dashboard. This is per app load/session check, not
-a guaranteed background scheduler. Generated SWP dates start at UTC midnight,
-advance in local calendar months and serialize as UTC `YYYY-MM-DD`; the list is
-simulated and not persisted. SWP order planning rounds required partial
+a guaranteed background scheduler. `getSWPWithdrawalDates()` throws `RangeError`
+when the configured start month is not a plain `YYYY-MM`; otherwise generated dates
+start at UTC midnight, advance in local calendar months and serialize as UTC
+`YYYY-MM-DD`; the list is simulated and not persisted. SWP order planning rounds required partial
 units with `ceil(remaining/NAV)` but execution deducts actual units from SIP
 entries then MF entries and does not write an external order or cap expense to
 available holdings. It appends configured full amount even if holdings did not

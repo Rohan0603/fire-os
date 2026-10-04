@@ -93,16 +93,18 @@ from the CSV reset to defaults), and empty, cancelled, or invalid previews
 never write.
 
 Reactive UI signals are vanilla Nanostores atoms in `src/core/stores.ts`:
-`portfolioSavedStore` (monotonic save invalidation) and `syncStatusStore`
+`portfolioSavedStore` (monotonic save invalidation), `syncStatusStore`
 (`SyncCoordinator` status: `idle`, `pending`, `syncing`, `offline`, `error`,
-`conflict`). They are ephemeral signals only — there is no
-`@nanostores/persistent` and no second copy of the portfolio: durable
-portfolio persistence remains in `PortfolioRepository`/`storage.ts`
-(identity-scoped localStorage) plus Firestore. `main.ts` subscribes the
-dashboard refresh to the save store and keeps its requestAnimationFrame
-coalescing; session teardown disposes the coordinator (resetting status to
-`idle`) and runs registered unsubscribes so a previous identity cannot push
-stale updates to the next one.
+`conflict`), `activeScopeStore` (active identity/UID) and
+`marketRefreshStatusStore` (`idle`, `refreshing`, `refreshed`, `stale`). They are
+ephemeral signals only — there is no `@nanostores/persistent` and no second copy
+of the portfolio: durable portfolio persistence remains in
+`PortfolioRepository`/`storage.ts` (identity-scoped localStorage) plus
+Firestore. `main.ts` subscribes the dashboard refresh to the save store and keeps
+its requestAnimationFrame coalescing; session teardown publishes the cleared
+scope, disposes the coordinator (resetting status to `idle`), cancels the Nifty
+monitor and runs `resetScopeStatuses()` plus registered unsubscribes so a
+previous identity cannot push stale updates to the next one.
 
 Authenticated synchronization uses an envelope (`schemaVersion`, `lastSavedAt`,
 client metadata, section clocks, persisted `data`) and merge helpers in
@@ -136,7 +138,9 @@ Core formulas and their code locations:
 | Behavior | Formula/semantics | Source |
 | --- | --- | --- |
 | Net worth | Assets across categories minus nonnegative liabilities; SIP/MF = units × cached NAV | `src/modules/dashboard/kpis.ts` |
+| Net-worth change attribution | `investmentReturn = end − start − contributions`, with start/contributions clamped ≥0 and non-finite inputs coerced to 0. Exported through `FeaturePorts` but not currently rendered | `src/modules/dashboard/kpis.ts` |
 | Portfolio composition | Each asset category / total assets; zero categories omitted | `src/modules/dashboard/kpis.ts` |
+| Period return | Annualized XIRR over flows dated within `[start, end]` inclusive; does not synthesize missing historical values. Returns null when an endpoint is invalid or the in-period flows cannot be solved. Exported helper, not the value behind the SIP status KPI | `src/modules/dashboard/kpis.ts`, `src/lib/calculations.ts` |
 | SIP P&L | Current value minus explicit cost basis or monthly contribution × elapsed months; XIRR approximates monthly cash outflows and current value | `src/modules/dashboard/kpis.ts`, `src/lib/calculations.ts` |
 | FI progress | Net worth / user-entered FI target; achieved => 0 years remaining, otherwise unknown | `src/modules/dashboard/kpis.ts` |
 | SIP future value | `P × (((1+r)^n − 1)/r)` with monthly rate; zero-rate fallback `P × n` | `src/lib/calculations.ts` |
@@ -173,7 +177,8 @@ engine. Read [UI](ui.md) for tab-level logic and additional calculations.
   canvas context exists; cashflow/data trust panels, goals,
   and conditional SWP/expense/advisor widgets.
 - **Planning Tools** (`src/modules/calculators/`): crash protocol, emergency
-  runway, SIP pause, LTCG tax planner, SWP scheduler.
+  runway, SIP pause, LTCG tax planner, SWP scheduler, allocation rebalancing and
+  side-by-side scenario comparison.
 - **Insurance** (`src/modules/insurance/`): term and health cover data. Term
   expiry/provider, health provider and vehicle cover exist in state only and have
   no UI input.
@@ -220,7 +225,7 @@ boundaries are in [AI reference](ai.md).
 | Path | Purpose |
 | --- | --- |
 | `src/main.ts`, `src/app/` | Bootstrap, feature routing, auth/session lifecycle |
-| `src/core/` | Feature context/ports and portfolio repository seam |
+| `src/core/` | Feature context/ports, reactive status stores (`stores.ts`) and portfolio repository seam |
 | `src/lib/` | State persistence, auth coordination, data transforms, calculations and Assistant policy client |
 | `src/modules/` | Product UI, domain calculations and external API adapters |
 | `src/types/` | State, portfolio, API and Firebase contracts/validators |
@@ -230,6 +235,7 @@ boundaries are in [AI reference](ai.md).
 | `firestore.rules`, `firestore.indexes.json` | Cloud data boundary |
 | `scripts/`, `.github/workflows/` | Build/prerender, route checks, local development, CI/deploy |
 | `e2e/` | Playwright user journeys |
+| `docs/` | Curated references (`master.md`, `ui.md`, `backend.md`, `ai.md`, `README.md`, `CHANGELOG.md`) plus `docs/superpowers/` design plans and specs |
 
 Update this reference when behavior or data contracts change; detailed
 implementation facts should be linked to source, not duplicated from memory.

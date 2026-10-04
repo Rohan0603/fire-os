@@ -78,9 +78,12 @@ base URL it is same-origin. Browser timeout defaults to 30s. JSON body:
 Shared Valibot schemas in `shared/assistant-policy.js` validate request and
 proposal-envelope shapes. Message history has 1–12 strict message objects,
 strictly alternating user/assistant starting with user; text must be non-empty and ≤6,000 chars. The last message must be the
-user question exactly. Question is required and ≤4,000 chars. Body is capped at
-100 KB (Worker validates JSON string size and Content-Length). `sendExact` must
-be boolean if present. Extra message keys are rejected.
+user question exactly. `contextSummary` is required and must be non-null (400 if
+missing). Question is required and ≤4,000 chars. Body is capped at
+100 KB by serialized size (and by Content-Length in the Worker); the local proxy
+is additionally bounded by its own 200 KB JSON body limit. `sendExact` must
+be boolean if present. Extra keys are rejected inside message objects only —
+arbitrary extra top-level body keys are accepted and ignored.
 
 `checkPromptPolicy()` rejects blank/overlong questions (400), destructive
 requests such as deleting/wiping/resetting everything (403), and requests for

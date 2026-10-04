@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **CSV Import**: preview a parsed portfolio CSV with row-level issues and confirm before applying
 - **Dashboard Charts**: interactive portfolio composition pie plus net-worth snapshot trend and Nifty benchmark performance and drawdown history views with range controls
-- **XIRR Period Returns**: annualized returns from dated cash flows, surfaced in the SIP status KPI
+- **XIRR Period Returns**: `calculatePeriodReturn()` derives annualized returns from dated cash flows within an inclusive window; exported helper, not yet surfaced in the SIP status KPI
 - **Scenario Comparison**: side-by-side FI projection of two scenarios in the calculators tab
 
 ### Changed

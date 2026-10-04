@@ -199,12 +199,16 @@ under `server/` is for local development and tests only.
 | --- | --- |
 | `src/main.ts` | Bootstrap and session lifecycle |
 | `src/lib/` | State, persistence, auth, calculations, Assistant primitives |
+| `src/core/` | Feature context/ports, reactive status stores, repository seam |
 | `src/modules/` | UI and domain features |
 | `src/types/` | Shared TypeScript contracts |
 | `server/` | Local-only Express Assistant proxy |
 | `worker/` | Production Cloudflare Assistant Worker |
 | `shared/` | Assistant request and policy contract shared across runtimes |
+| `scripts/`, `.github/workflows/` | Build/prerender, route checks, local dev, CI/deploy |
 | `e2e/` | Playwright browser workflows |
+| `firestore.rules`, `firestore.indexes.json` | Cloud data boundary |
 | `firebase.json` | Hosting, rewrites, and security headers |
+| `docs/` | These references plus `docs/superpowers/` design plans and specs |
 
 For release history, see [CHANGELOG.md](CHANGELOG.md).

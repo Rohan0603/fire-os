@@ -109,6 +109,8 @@ remain separate documents to control state document size.
 | Nifty 50 | Yahoo chart `^NSEI` one-year daily data via `https://corsproxy.io/?key=...&url=...` | 1h; parses `regularMarketPrice` and 52w high (history highs/current fallback); manual entry when unavailable | `src/modules/api/nifty.ts` |
 | FX | Yahoo chart `{FROM}{TO}=X` via corsproxy | 24h; stale cached rate fallback; manual rate helper | `src/modules/api/currency.ts` |
 | ESOP quote | Yahoo chart `{symbol}` daily via corsproxy | 15m memory + localStorage; in-flight request dedupe | `src/modules/api/esop.ts` |
+| Nifty history | Yahoo chart `^NSEI` `interval=1d&range=5y` via corsproxy, 8s timeout | 24h bounded history cache; provider clamp 5y, client-side window cuts | `src/modules/api/nifty.ts` |
+| NAV history | MFAPI `GET https://api.mfapi.in/mf/{schemeCode}` full-life series, 30s timeout | 24h bounded history cache | `src/modules/api/mfapi.ts` |
 | Assistant | `POST {VITE_ASSISTANT_API_URL}/api/assistant/query` | no response cache | Worker / local proxy; see [AI](ai.md) |
 
 Nifty/FX/ESOP browser calls require `VITE_CORSPROXY_API_KEY`. These are
@@ -125,6 +127,16 @@ data where implemented. `src/modules/api/index.ts` hydrates these caches from
 persisted state at bootstrap. NAV background refresh runs only online and when
 the page is visible, one fund at a time with 100ms spacing; it abandons results
 when active UID changes.
+
+Market history uses one shared bounded cache in `src/modules/api/index.ts`
+(`initializeHistoryCache`, `sanitizeHistoryCache`, `HISTORY_CACHE_TTL` 24h,
+at most 8 series, per-series caps of 1260 Nifty and 2520 NAV daily points, and a
+256 KB budget). It hydrates from persisted `marketHistory`, serves a series as
+`cache-fresh` inside the TTL, returns provider results as `live`, and falls back
+to expired cache as `stale` only when the provider fails — provider failures never
+erase a valid cache. Both history endpoints require `VITE_CORSPROXY_API_KEY` for
+the Nifty series. `marketHistory` is non-enumerable on state, is never written to
+the cloud envelope, and is mirrored into identity-scoped localStorage on save.
 
 ## Assistant endpoint
 
@@ -217,7 +229,10 @@ returns success for `auth/user-not-found` to avoid exposing account existence.
 pauses coordinator, calls flush with 5,000ms timeout, warns if flush fails,
 disposes coordinator/listeners (disposal resets `syncStatusStore` to `idle`),
 cancels Nifty monitor, clears envelope and
-sync config, disables active storage scope and resets singleton state.
+sync config, disables active storage scope and resets singleton state. It also
+publishes the cleared scope through `activeScopeStore` and finishes with
+`resetScopeStatuses()`, which clears `syncStatusStore`, `marketRefreshStatusStore`
+and `activeScopeStore` together.
 Observers registered through the session's unsubscribe slot are removed before
 the flush, so status writes from the old identity cannot reach them. Auth
 generation is incremented on sign-out and callback validity checked after
@@ -276,7 +291,8 @@ write succeeded.
 
 On save, code removes dynamic `entryUpdatedAt` from state document envelope,
 removes `data.mf`, writes schemaVersion `fireOS_v4` and remaining data in one
-batch. Metrics measure state doc plus MF entries, warn above 750KB. It then
+batch. Metrics measure state doc plus MF entries, but the warning fires on
+`stateDocumentBytes` alone above 750KB. It then
 fetches existing MF documents, deletes IDs missing from current map, sets each
 current document `{kind:'mf', value, updatedAt:lastSavedAt}`, and commits the
 holdings batch when non-empty. State and child writes are separate commits, so
