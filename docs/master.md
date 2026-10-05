@@ -1,6 +1,6 @@
 # FIRE OS — Master Technical Reference
 
-This is the system map for the implementation currently in `src/`, `server/`,
+This is the system map for the implementation currently in `src/`,
 `worker/`, and `firestore.rules`. It describes behavior found in source, not
 financial advice or a product roadmap. Detailed area references:
 [AI](ai.md), [backend and data](backend.md), [UI and calculations](ui.md).
@@ -24,8 +24,8 @@ src/index.html -> src/main.ts
 ```
 
 Production is Firebase Hosting (`dist/`); rewrites send app routes to the SPA.
-Firebase Functions are not part of current deployment. `server/` is a local
-Express Assistant proxy used by `npm run dev`/tests; `worker/` is production.
+Firebase Functions are not part of current deployment; `worker/` is the only
+Assistant backend.
 
 ## Bootstrap, navigation, and ownership
 
@@ -197,9 +197,9 @@ backend resource. See [UI reference](ui.md) for per-module behavior.
 
 The browser builds the summary in `src/lib/assistant/sanitize.ts`, explicitly
 transmits exact totals only with the request's `sendExact` choice, and POSTs to
-`/api/assistant/query`. The Worker and local Express validate request and
-extracted-proposal envelopes with Valibot in `shared/assistant-policy.js`, apply
-the separate prompt regex policy, rate limit, forward a system prompt and conversation to
+`/api/assistant/query`. The Worker validates the request and
+extracted-proposal envelopes with Valibot in `shared/assistant-policy.js`, applies
+the separate prompt regex policy, rate limits, forwards a system prompt and conversation to
 OpenRouter, extract a JSON proposal from model output, and return the reply.
 OpenRouter credentials remain server-side. `PERSISTED_ALLOWLIST` remains the
 server's top-level output projection; the browser merges proposals into a
@@ -212,10 +212,11 @@ boundaries are in [AI reference](ai.md).
 - Browser public config: `VITE_FIREBASE_*`, optional
   `VITE_ASSISTANT_API_URL`, `VITE_CORSPROXY_API_KEY`; see `.env.example`.
 - Worker secret: `OPENROUTER_API_KEY`; routing/limits in `worker/wrangler.toml`.
-- Local proxy: root `.env` and `server/`; local default port 3001.
+- Local Worker dev: `npx wrangler dev --config worker/wrangler.toml` with
+  `OPENROUTER_API_KEY` in `.dev.vars`.
 - Hosting headers/CSP, app rewrites, auth domains and Firestore paths are in
   `firebase.json` and `firestore.rules`.
-- Tests: `npm test`, `npm run test:server`, `npm run test:worker`,
+- Tests: `npm test`, `npm run test:worker`,
   `npm run test:rules`, `npm run test:rules:emulator`, `npm run test:e2e`.
 - Gates: `npm run check` (fast local gate: build, lint, format, unit, worker,
   route metadata), `npm run lint`, `npm run build`; deployment:
@@ -232,7 +233,6 @@ boundaries are in [AI reference](ai.md).
 | `src/modules/` | Product UI, domain calculations and external API adapters |
 | `src/types/` | State, portfolio, API and Firebase contracts/validators |
 | `shared/` | Policy and OpenRouter model/error helpers shared with proxy runtimes |
-| `server/` | Local Express Assistant proxy and tests |
 | `worker/` | Production Cloudflare Assistant Worker |
 | `firestore.rules`, `firestore.indexes.json` | Cloud data boundary |
 | `scripts/`, `.github/workflows/` | Build/prerender, route checks, local development, CI/deploy |

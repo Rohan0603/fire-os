@@ -4,9 +4,8 @@
 
 FIRE OS has no general application API server. Static UI is hosted by Firebase
 Hosting, user portfolio storage/auth use Firebase Auth + Cloud Firestore, and
-the Assistant runs through a Cloudflare Worker proxy to OpenRouter. The Express
-server in `server/` is a local development/test proxy only. Public market APIs
-are called from the browser through their clients.
+the Assistant runs through a Cloudflare Worker proxy to OpenRouter. Public
+market APIs are called from the browser through their clients.
 
 ## Identity and storage lifecycle
 
@@ -111,7 +110,7 @@ remain separate documents to control state document size.
 | ESOP quote | Yahoo chart `{symbol}` daily via corsproxy | 15m memory + localStorage; in-flight request dedupe | `src/modules/api/esop.ts` |
 | Nifty history | Yahoo chart `^NSEI` `interval=1d&range=5y` via corsproxy, 8s timeout | 24h bounded history cache; provider clamp 5y, client-side window cuts | `src/modules/api/nifty.ts` |
 | NAV history | MFAPI `GET https://api.mfapi.in/mf/{schemeCode}` full-life series, 30s timeout | 24h bounded history cache | `src/modules/api/mfapi.ts` |
-| Assistant | `POST {VITE_ASSISTANT_API_URL}/api/assistant/query` | no response cache | Worker / local proxy; see [AI](ai.md) |
+| Assistant | `POST {VITE_ASSISTANT_API_URL}/api/assistant/query` | no response cache | Worker; see [AI](ai.md) |
 
 Nifty/FX/ESOP browser calls require `VITE_CORSPROXY_API_KEY`. These are
 client-exposed configuration values, not secrets; do not put provider
@@ -151,11 +150,10 @@ context and messages to OpenRouter, max 180 output tokens and 25s upstream
 timeout. CORS `ALLOWED_ORIGIN` can narrow origin. See [AI](ai.md) for exact
 validation, response shape, prompt and proposal handling.
 
-Local `server/server.js` uses Express, Helmet, CORS, 200KB JSON limit and
-20-request/15-minute rate limit by default (`ASSISTANT_RATE_LIMIT`). It reads
-root `.env`, uses shared shape/prompt policy and upstream parsing/model helper,
-and exposes `/health` for local checks. `server/lib/policy.js` adapts the shared
-policy. Production deploy uses Worker, not Express.
+There is no local Assistant proxy: the Worker is the only implementation. For
+local Worker work run `npx wrangler dev --config worker/wrangler.toml` with
+`OPENROUTER_API_KEY` in `.dev.vars`, and point `VITE_ASSISTANT_API_URL` at the
+local Wrangler URL (otherwise the browser calls the deployed Worker).
 
 ## Configuration and deployment
 
@@ -176,8 +174,8 @@ npm run deploy:worker
 npx firebase-tools deploy --only hosting,firestore:rules,firestore:indexes
 ```
 
-Backend verification includes `npm run test:server`, `npm run test:worker`,
-`npm run test:rules`, `npm run test:rules:emulator`, plus HTTP/route checks.
+Backend verification includes `npm run test:worker`, `npm run test:rules`,
+`npm run test:rules:emulator`, plus HTTP/route checks.
 The Firestore emulator is configured on port 8082.
 
 ## Detailed auth and portfolio startup sequence
@@ -370,15 +368,13 @@ geolocation. Google popup behavior depends on the COOP setting.
 
 Quality workflow on PR and main runs Node 22 / Java 21, npm ci, build, lint,
 Prettier check, unit tests, Worker tests, Firestore emulator tests and Chromium
-Playwright tests. Deployment workflow on main/manual installs root and server
-dependencies, Worker tests, builds with env, verifies route metadata, lint,
-format, unit/server/rules tests; deploys Firebase Hosting/rules/indexes, checks
-Cloudflare tokens, deploys Worker, then smoke-tests production routes. Details
-and scripts are in `.github/workflows/{quality,deploy}.yml` and `scripts/`.
+Playwright tests. Deployment workflow on main/manual installs root dependencies,
+Worker tests, builds with env, verifies route metadata, lint, format, unit/Worker/
+rules tests; deploys Firebase Hosting/rules/indexes, checks Cloudflare tokens,
+deploys Worker, then smoke-tests production routes. Details and scripts are in
+`.github/workflows/{quality,deploy}.yml` and `scripts/`.
 
-`npm run dev` starts Vite and Express proxy as sibling processes; failure of
-either shuts down the other. `npm run dev:ui` and `npm run dev:server` can be
-started separately. Route definitions in `scripts/routes.mjs` feed prerender
-and route verification. The production Hosting CSP must allow the configured
-Worker origin; changing Worker URL requires updating build variable and
-connect-src.
+`npm run dev` (same as `npm run dev:ui`) starts the Vite dev server. Route
+definitions in `scripts/routes.mjs` feed prerender and route verification. The
+production Hosting CSP must allow the configured Worker origin; changing Worker
+URL requires updating build variable and connect-src.

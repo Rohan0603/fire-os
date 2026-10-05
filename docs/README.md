@@ -73,7 +73,7 @@ Important boundaries:
 - `src/modules/api/firestore.ts` owns the portfolio document contract.
 - `src/modules/assistant/` owns chat UI and guarded write proposals.
 - `shared/assistant-policy.js` is the request validation and proposal-filtering
-  contract used by both local Express and production Worker proxies.
+  contract used by the Assistant Worker.
 
 Firestore stores the canonical portfolio at:
 
@@ -120,8 +120,7 @@ npx firebase-tools deploy --only hosting
 
 The production Worker validates message shape, rejects destructive and
 PII-disclosure requests, strips unapproved proposal keys, and applies a
-Cloudflare rate limit of 20 requests per minute per client IP. The local
-Express proxy also rate-limits development requests. Writes follow
+Cloudflare rate limit of 20 requests per minute per client IP. Writes follow
 propose -> review -> confirm -> audit -> undo. OpenRouter failures commonly
 appear as `401` (key), `402/403` (quota/provider), `404` (model), or `429`
 (rate limit).
@@ -185,8 +184,7 @@ npx firebase-tools deploy --only hosting,firestore:rules,firestore:indexes
 ```
 
 Firebase Functions are not used. The Spark plan does not include Functions,
-and the production Assistant runs on the Cloudflare Worker. The Express proxy
-under `server/` is for local development and tests only.
+and the production Assistant runs on the Cloudflare Worker.
 
 ## Troubleshooting
 
@@ -210,7 +208,6 @@ under `server/` is for local development and tests only.
 | `src/core/` | Feature context/ports, reactive status stores, repository seam |
 | `src/modules/` | UI and domain features |
 | `src/types/` | Shared TypeScript contracts |
-| `server/` | Local-only Express Assistant proxy |
 | `worker/` | Production Cloudflare Assistant Worker |
 | `shared/` | Assistant request and policy contract shared across runtimes |
 | `scripts/`, `.github/workflows/` | Build/prerender, route checks, local dev, CI/deploy |

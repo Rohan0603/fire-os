@@ -25,18 +25,4 @@ export default tseslint.config(
       'preserve-caught-error': 'off',
     },
   },
-  {
-    files: ['server/**/*.js'],
-    languageOptions: {
-      globals: {
-        process: 'readonly',
-        console: 'readonly',
-        fetch: 'readonly',
-        Buffer: 'readonly',
-        URL: 'readonly',
-        setTimeout: 'readonly',
-        clearTimeout: 'readonly',
-      },
-    },
-  },
 );

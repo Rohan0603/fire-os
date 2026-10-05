@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { checkPromptPolicy, validateRequestBody, extractProposedChanges } from '../lib/policy.js';
+import {
+  checkPromptPolicy,
+  validateAssistantRequest as validateRequestBody,
+  extractProposedChanges,
+} from '../../shared/assistant-policy.js';
 
 describe('checkPromptPolicy', () => {
   it('allows normal portfolio questions', () => {

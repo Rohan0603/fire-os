@@ -27,9 +27,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install assistant server dependencies
-        run: npm ci --prefix server
-
       - name: Test production Assistant Worker
         run: npm run test:worker
 
@@ -57,9 +54,6 @@ jobs:
 
       - name: Unit tests
         run: npm test
-
-      - name: Local Assistant proxy tests
-        run: npm run test:server
 
       - name: Validate Firestore rules
         run: npm run test:rules:emulator

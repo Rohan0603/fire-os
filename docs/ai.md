@@ -8,7 +8,7 @@ Deep Chat UI
  -> optional fresh Nifty fetch
  -> buildContextSummary(state, sendExact=true)
  -> POST { question, contextSummary, messages, sendExact }
- -> Cloudflare Worker (production) OR local Express proxy
+ -> Cloudflare Worker (via VITE_ASSISTANT_API_URL, dev and production)
  -> shared shape/prompt policy -> OpenRouter Chat Completions
  <- { reply, proposedChanges? }
  -> display reply; validate proposal -> diff -> user confirmation
@@ -17,8 +17,7 @@ Deep Chat UI
 ```
 
 Primary sources are `src/modules/assistant/index.ts`, `src/lib/assistant/`,
-`shared/assistant-policy.js`, `shared/assistant-upstream.js`, `worker/src/index.ts`,
-and `server/`.
+`shared/assistant-policy.js`, `shared/assistant-upstream.js`, `worker/src/index.ts`.
 
 ## Consent and user scope
 
@@ -80,10 +79,9 @@ proposal-envelope shapes. Message history has 1–12 strict message objects,
 strictly alternating user/assistant starting with user; text must be non-empty and ≤6,000 chars. The last message must be the
 user question exactly. `contextSummary` is required and must be non-null (400 if
 missing). Question is required and ≤4,000 chars. Body is capped at
-100 KB by serialized size (and by Content-Length in the Worker); the local proxy
-is additionally bounded by its own 200 KB JSON body limit. `sendExact` must
-be boolean if present. Extra keys are rejected inside message objects only —
-arbitrary extra top-level body keys are accepted and ignored.
+100 KB by serialized size (and by Content-Length in the Worker). `sendExact` must
+be boolean if present. Extra keys are rejected inside message objects; arbitrary
+extra top-level body keys are accepted and ignored.
 
 `checkPromptPolicy()` rejects blank/overlong questions (400), destructive
 requests such as deleting/wiping/resetting everything (403), and requests for
@@ -101,14 +99,10 @@ or `*`. OpenRouter request uses `Authorization: Bearer ...`, `HTTP-Referer`,
 non-streaming response. Provider failure maps to 502; timeout 504; malformed
 input 400/413; bad route 404.
 
-Local Express middleware uses Helmet, CORS, JSON limit 200 KB and
-`express-rate-limit` (default 20 requests per 15-minute window, configurable
-`ASSISTANT_RATE_LIMIT`). `/health` reports status/time. The local and production
-implementations share `shared/assistant-policy.js` and
-`shared/assistant-upstream.js`; their prompt construction and rate limits differ.
-The local proxy logs metadata and bounded provider error detail, not raw
-portfolio context/replies. Treat provider error detail and user questions as
-potentially sensitive operational data.
+Request shape/prompt policy and upstream helpers live in
+`shared/assistant-policy.js` and `shared/assistant-upstream.js`, covered by
+`worker/test/`. Treat provider error detail and user questions as potentially
+sensitive operational data.
 
 ## Model output and proposal extraction
 
@@ -162,7 +156,7 @@ rejections, rate limiting, or origin/CSP mismatch. Browser bundle must contain
 the intended `VITE_ASSISTANT_API_URL`; the API key must never be a `VITE_*`
 variable. Worker secret is set with Wrangler; see `docs/README.md`.
 
-Relevant checks: `npm run test:server`, `npm run test:worker`, unit tests under
+Relevant checks: `npm run test:worker`, unit tests under
 `src/lib/assistant/`, and `e2e/assistant.spec.ts`. If changing a request,
 proposal or privacy contract, update both proxy boundary tests and the UI flow.
 
@@ -186,13 +180,9 @@ proposal or privacy contract, update both proxy boundary tests and the UI flow.
    JSON text preceded by system instructions; messages are appended as chat
    transcript.
 5. Worker applies IP limiter then calls OpenRouter with configured model list,
-   referer/title metadata, `max_tokens:180`, `stream:false`, 25s timeout. Local
-   Express uses its own 15-minute IP/window limiter and no explicit fetch
-   timeout in `server.js`.
+   referer/title metadata, `max_tokens:180`, `stream:false`, 25s timeout.
 6. Proxy extracts first response choice content, extracts proposal candidate
-   separately, and returns `{reply, proposedChanges?}`. Worker response parser
-   accepts OpenRouter `choices[0].message.content` or root `content`; Express
-   uses optional chaining for same alternatives.
+   separately, and returns `{reply, proposedChanges?}`.
 7. UI sends reply to chat. It defers proposal card until Deep Chat's new `ai`
    response callback; `pendingProposal` is single-slot module memory. Request
    failures send Deep Chat error, append an escaped text attachment and toast.
@@ -206,19 +196,13 @@ Both prompts tell model not to invent user facts, keep responses concise,
 explain plain language, use INR, not reveal/request PII, propose only minimal
 top-level JSON, and leave all mutations for explicit client approval. Production
 Worker prompt is inline in `worker/src/index.ts` and defaults to <=80 words.
-Local prompt is `server/prompts/assistant.md`, loaded at module startup; it also
-contains role/tone requirements, exactly 1–3 numbered actions for “what next”,
-freshness guidance, changing Indian tax/regulatory uncertainty, and distinction
-between missing context and absent user data. Thus local and production prompt
-behavior is not byte-identical; modify/test both when policy intent changes.
 
 Shared upstream config defaults to `openrouter/free`, `qwen/qwen3.8-27b:free`,
 and `google/gemma-4-31b-it:free`. `OPENROUTER_FALLBACK_MODELS` comma-separated
 replaces defaults; whitespace/empty entries removed, deduplicated with default
 model first, and list capped at three. Upstream error parser extracts common
 JSON `error`, nested message, or top-level message fields; Worker bounds detail
-to 200 characters in HTTP response, local logs structured event and returns
-bounded error.
+to 200 characters in the HTTP response.
 
 ## Consent/storage implications
 
@@ -291,8 +275,6 @@ assistant-scoped.
 - Proposal validation/diff/classification: `proposal.test.ts`.
 - Local action audit: `audit.test.ts`.
 - Browser client/request errors: `client.test.ts`.
-- Express request/prompt/upstream behavior: `server/test/` and
-  `npm run test:server`.
 - Worker routing, limits and upstream behavior: `worker/test/` and
   `npm run test:worker`.
 - User flow: `e2e/assistant.spec.ts`.

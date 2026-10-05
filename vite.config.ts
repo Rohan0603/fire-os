@@ -30,11 +30,5 @@ export default defineConfig({
     port: 5173,
     open: false,
     cors: true,
-    proxy: {
-      '/api/assistant': {
-        target: 'http://127.0.0.1:3001',
-        changeOrigin: true,
-      },
-    },
   },
 });

@@ -9,9 +9,14 @@ with actual use before promoting it to planned work.
 
 Conditional work: start only when the stated trigger occurs.
 
-- [ ] **Decide whether to keep the local Express Assistant proxy.** Remove
-  `server/` and its local-only dependencies if local proxy development/testing
-  no longer provides value; production already uses the Cloudflare Worker.
+- [x] **Decide whether to keep the local Express Assistant proxy.** Removed
+  `server/` (plus `dev:server`/`test:server` and the Vite proxy to
+  `127.0.0.1:3001`). The browser already targets the deployed Worker through
+  `VITE_ASSISTANT_API_URL`, so the Express proxy was a second, drifting
+  implementation (different prompt, 200 KB vs 100 KB body cap, 10/15-min vs
+  20/min rate limit). Local Worker testing uses
+  `npx wrangler dev --config worker/wrangler.toml`; its shared-policy tests
+  moved to `worker/test/`.
 - [ ] **Revisit Firestore portfolio splitting** if state approaches the 750 KB
   warning or write contention becomes measurable. Use the existing size metrics
   before adding more document boundaries.
