@@ -217,8 +217,10 @@ boundaries are in [AI reference](ai.md).
   `firebase.json` and `firestore.rules`.
 - Tests: `npm test`, `npm run test:server`, `npm run test:worker`,
   `npm run test:rules`, `npm run test:rules:emulator`, `npm run test:e2e`.
-- Gates: `npm run lint`, `npm run build`; deployment: `npm run deploy:worker`
-  and Firebase Hosting/rules deploy (see `docs/README.md`).
+- Gates: `npm run check` (fast local gate: build, lint, format, unit, worker,
+  route metadata), `npm run lint`, `npm run build`; deployment:
+  `npm run deploy:worker` and Firebase Hosting/rules deploy (see
+  `docs/README.md`).
 
 ## Repository map
 

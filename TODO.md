@@ -18,10 +18,22 @@ Conditional work: start only when the stated trigger occurs.
 - [ ] **Extract from `src/main.ts` only when a section changes independently**
   or would gain a useful test boundary. Avoid splitting it just to reduce file
   length.
-- [ ] **Add an aggregate validation command only if contributors repeatedly run
-  inconsistent subsets** of the existing checks.
-- [ ] **Add a diagnostic CLI or new test utility only if a recurring manual task
-  is not covered by the current scripts.**
+- [x] **Add an aggregate validation command only if contributors repeatedly run
+  inconsistent subsets** of the existing checks. Trigger observed: docs and
+  plans listed ad-hoc subsets (`lint` + `test` + `build`, sometimes
+  `format:check`, sometimes `test:worker`) with no single command, so
+  `npm run check` now runs the fast gate in CI order (no emulator, browser, or
+  server required).
+- [x] **Add a diagnostic CLI or new test utility only if a recurring manual task
+  is not covered by the current scripts.** Decision: no new script. Every
+  recurring check already has one — route metadata (`scripts/verify-routes.mjs`,
+  `test:metadata`), response headers/metadata against a running server
+  (`scripts/verify-http.mjs`, `test:http`), post-deploy smoke
+  (`scripts/smoke-routes.mjs`), Firestore rules
+  (`scripts/test-firestore-rules-emulator.mjs`), bundle cost (Vite build output;
+  the one-off `deep-chat` measurement is recorded above). The only uncovered
+  recurring task was running the gate subset itself, which `npm run check` now
+  covers. Reopen this only if a genuinely manual step appears.
 - [x] **Reassess `deep-chat` bundle cost.** Measured: 471 kB chunk (121 kB
   gzip). Kept it and lazy-load it on first Assistant tab open instead of the
   initial page load.
@@ -30,7 +42,19 @@ Conditional work: start only when the stated trigger occurs.
   not justify one by themselves.
 - [ ] **Consider new Assistant capabilities (tool-calling, retrieval, or model
   routing analytics) only when a concrete use case cannot be handled by the
-  current sanitized context and user-confirmed proposal flow.**
+  current sanitized context and user-confirmed proposal flow.** Decision
+  2026-10-05 (DUNA-20): parked, nothing built. Every use case examined fits
+  the existing flow — history and NAV-staleness answers are small derived
+  fields for `buildContextSummary`, proposal effect previews are computed
+  client-side from the already-validated candidate, and "refresh my data" is a
+  button (Nifty refresh already runs before each question). Triggers: a real
+  unanswerable question → add the bounded context field; what-ifs still asked
+  after the proposal card shows resulting values → spec a read-only calculate
+  tool; an answer that needs data too large for a bounded context field →
+  spec retrieval; a 502/504 cluster or a reported bad answer → add the worker
+  log line (model id, latency, status; never content). Fund-level detail stays
+  out until fund-level questions are actually observed — it widens what leaves
+  the browser and needs Jim/Dwight sign-off.
 
 ## Product candidates — personal FIRE workflow
 

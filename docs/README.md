@@ -153,6 +153,14 @@ migration complexity.
 ## Validation
 
 ```bash
+npm run check
+```
+
+`check` runs the fast local gate in CI order: `build`, `lint`, `format:check`,
+unit tests, Worker tests, then route metadata. It omits the checks that need a
+server, emulator, or browser — run those separately:
+
+```bash
 npm run lint
 npm test
 npm run build
