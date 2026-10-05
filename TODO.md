@@ -42,9 +42,17 @@ Conditional work: start only when the stated trigger occurs.
 - [x] **Reassess `deep-chat` bundle cost.** Measured: 471 kB chunk (121 kB
   gzip). Kept it and lazy-load it on first Assistant tab open instead of the
   initial page load.
-- [ ] **Consider a rendering library only if stateful UI makes manual DOM
-  updates a measured maintenance cost.** Static templates using `innerHTML` do
-  not justify one by themselves.
+- [x] **Consider a rendering library only if stateful UI makes manual DOM
+  updates a measured maintenance cost.** Decision: no rendering library. Measured
+  on `ffaac60`: 71 render/update functions and 32 `innerHTML` template sites across
+  7,556 lines of non-test UI, but 0 bound inputs and 0 shared render helpers. The
+  cost is real yet it is not library-shaped — the two largest triggers (an ESOP
+  keystroke rebuilding the whole tab, and a Plan action toggle mutating state with
+  no `portfolio.save`) were fixed in 3 lines, and the nanostore wiring in
+  `src/core/stores.ts` is already the correct reactive layer. Fixed the ESOP one
+  here. Reopen only if the ~190 imperative `.value` reads in `profile/index.ts` or
+  the 3 copies of `escapeHtml` start producing user-visible bugs, and only for
+  that one surface.
 - [ ] **Consider new Assistant capabilities (tool-calling, retrieval, or model
   routing analytics) only when a concrete use case cannot be handled by the
   current sanitized context and user-confirmed proposal flow.** Decision

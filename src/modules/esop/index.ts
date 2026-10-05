@@ -339,7 +339,9 @@ function attachEsopHandlers() {
     D.esopDetails.triggers.jobChange = jobToggle ? jobToggle.checked : false;
     D.esopDetails.triggers.coorgConstruction = coorgToggle ? coorgToggle.checked : false;
 
-    debounceSave();
+    // Trigger toggles change the trigger-status list rendered by the template,
+    // so this path still needs the full re-render.
+    debounceSave(true);
   };
 
   marriageToggle?.addEventListener('change', handleTriggerChange);
@@ -437,11 +439,14 @@ function clearInputError(input: HTMLInputElement) {
   }
 }
 
-function debounceSave() {
+function debounceSave(reRender = false) {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     activeContext.portfolio.save(D);
-    renderEsop();
+    // Only re-render when the caller needs template-level output (trigger list).
+    // The tax-calculator inputs call updateCalculationUI() directly, so a
+    // re-render here would replace the very input being typed into and drop focus.
+    if (reRender) renderEsop();
   }, DEBOUNCE_MS);
 }
 
