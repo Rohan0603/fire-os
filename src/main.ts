@@ -6,12 +6,15 @@ import { CONFIG } from './lib/config';
 import { getOptionalAuth } from './lib/firebase';
 import { AuthCoordinator } from './lib/authCoordinator';
 import { AuthSessionController } from './app/auth-session-controller';
+import { setupTabNavigation } from './app/tab-navigation';
+import { setupOfflineNotification } from './app/offline-notification';
+import { setupTheme } from './app/theme';
+import { createDailyTaskRunner } from './app/daily-tasks';
 import { configurePortfolioStorageScope } from './lib/storage';
 import { initFirestore, loadPortfolio, onPortfolioChange, savePortfolio } from './modules/api/firestore';
 
 // Import types
 import { applyPersistedState, initializeState } from './types/state';
-import type { FireOSState } from './types/state';
 import { appState } from './lib/appState';
 import { createFeatureContext } from './core/feature-context';
 import { portfolioSavedStore } from './core/stores';
@@ -40,8 +43,6 @@ import { initInsuranceModule, renderInsurance } from './modules/insurance';
 import { initPlanModule, renderPlan } from './modules/plan';
 import { initEsopModule, renderEsop } from './modules/esop';
 import { initAssistantModule, renderAssistant } from './modules/assistant';
-import { totalNetWorth } from './modules/dashboard/kpis';
-import { checkNewMilestones } from './modules/plan/milestones';
 import { executeMonthlyWithdrawal } from './modules/calculators/swp-scheduler';
 import { getFundSchemeCode } from './lib/fundMatcher';
 import { fetchNAV } from './modules/api';
@@ -71,6 +72,15 @@ const authCoordinator = new AuthCoordinator(auth);
 const featureContext = createFeatureContext(appState);
 const featureRegistry = new FeatureRegistry(featureContext);
 const portfolioSession = new PortfolioSession({ resetState: resetLiveAppState });
+const checkDailyTasks = createDailyTaskRunner({
+  persist: persistPortfolioState,
+  notify: showToast,
+  executeMonthlyWithdrawal,
+  renderDashboardIfVisible: () => {
+    const dashboardTab = document.querySelector('[data-tab="dashboard"]');
+    if (dashboardTab && dashboardTab.classList.contains('active')) renderDashboard();
+  },
+});
 const sessionController = new AuthSessionController({
   authCoordinator,
   portfolioSession,
@@ -214,7 +224,7 @@ function initApp() {
     }
 
     sessionController.start();
-    setupTabNavigation();
+    setupTabNavigation(featureRegistry, sessionController);
     setupDashboardAutoRefresh();
     setupBackgroundNAVRefresh();
     setupOfflineNotification();
@@ -274,84 +284,6 @@ function renderApp() {
   renderAuthScreen();
 }
 
-// Tab navigation
-function setupTabNavigation() {
-  const hamburgerBtn = document.getElementById('hamburger-btn');
-  const navTabs = document.querySelector('.nav-tabs');
-
-  if (hamburgerBtn && navTabs) {
-    hamburgerBtn.addEventListener('click', () => {
-      hamburgerBtn.classList.toggle('open');
-      navTabs.classList.toggle('open');
-    });
-  }
-
-  const activateTab = (target: string): void => {
-    const tabEl = document.getElementById(target);
-    if (!tabEl || !featureRegistry.get(target)) return;
-
-    const currentTab = document.querySelector<HTMLElement>('.tab.active');
-    if (currentTab && currentTab.id !== target) {
-      void featureRegistry.unmount(currentTab.id, currentTab).catch((error) => {
-        console.warn(`Failed to unmount feature ${currentTab.id}:`, error);
-      });
-    }
-
-    document.querySelectorAll('.nav-tab').forEach((tab) => {
-      tab.classList.toggle('active', tab.getAttribute('data-tab') === target);
-    });
-    document.querySelectorAll('.tab').forEach((tab) => tab.classList.remove('active'));
-    tabEl.classList.add('active');
-
-    void featureRegistry.mount(target, tabEl).catch((error) => {
-      console.error(`Failed to load module for tab ${target}:`, error);
-      tabEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading module. Please check your connection.</p>';
-    });
-  };
-
-  const activateLocationTab = (): void => {
-    const path = window.location.pathname.replace(/\/+$/, '') || '/';
-    const pathTarget = path.startsWith('/') ? path.slice(1) : path;
-    const hashTarget = window.location.hash.slice(1);
-    const target = featureRegistry.get(pathTarget)?.id ?? featureRegistry.get(hashTarget)?.id ?? 'profile';
-    activateTab(target);
-  };
-
-  document.querySelectorAll('.nav-tab').forEach((tab) => {
-    tab.addEventListener('click', (event) => {
-      event.preventDefault();
-      if (hamburgerBtn && navTabs) {
-        hamburgerBtn.classList.remove('open');
-        navTabs.classList.remove('open');
-      }
-      const target = tab.getAttribute('data-tab');
-      if (target) {
-        window.history.pushState({}, '', `/${target}`);
-        activateTab(target);
-      }
-    });
-  });
-  window.addEventListener('popstate', activateLocationTab);
-  window.addEventListener('hashchange', activateLocationTab);
-  activateLocationTab();
-
-  // Logout button
-  const logoutBtn = document.getElementById('logout-btn');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', async () => {
-      try {
-        if (sessionController.isGuestSessionActive) {
-          await sessionController.requestSignIn();
-          return;
-        }
-        await sessionController.signOut();
-      } catch (e) {
-        console.error('Logout failed:', e);
-      }
-    });
-  }
-}
-
 // Auto-refresh dashboard when state changes
 function setupDashboardAutoRefresh() {
   let renderQueued = false;
@@ -371,135 +303,8 @@ function setupDashboardAutoRefresh() {
   window.addEventListener('pagehide', unsubscribe, { once: true });
 }
 
-/**
- * Setup offline notification banner
- */
-function setupOfflineNotification() {
-  const updateBannerStatus = () => {
-    const app = document.getElementById('app');
-    if (!app) return;
-
-    if (!navigator.onLine) {
-      let banner = document.getElementById('offline-banner');
-      if (!banner) {
-        banner = document.createElement('div');
-        banner.id = 'offline-banner';
-        banner.style.cssText = `
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          background: #ff9800;
-          color: white;
-          padding: 10px;
-          text-align: center;
-          font-weight: 500;
-          z-index: 2000;
-        `;
-        banner.textContent = '📡 You are offline - changes will sync when you reconnect';
-        document.body.insertBefore(banner, document.body.firstChild);
-      }
-    } else {
-      const banner = document.getElementById('offline-banner');
-      if (banner) banner.remove();
-    }
-  };
-
-  updateBannerStatus();
-  window.addEventListener('online', updateBannerStatus);
-  window.addEventListener('offline', updateBannerStatus);
-}
-
-// Theme toggle logic
-function setupTheme() {
-  const toggleInput = document.getElementById('theme-toggle') as HTMLInputElement;
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-  const savedTheme = localStorage.getItem('fire-os-theme');
-
-  const setDarkTheme = (isDark: boolean) => {
-    document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
-    localStorage.setItem('fire-os-theme', isDark ? 'dark' : 'light');
-    if (toggleInput) toggleInput.checked = isDark;
-    window.dispatchEvent(new Event('themeChanged'));
-  };
-
-  // Initial setup
-  if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
-    setDarkTheme(true);
-  } else {
-    setDarkTheme(false);
-  }
-
-  if (toggleInput) {
-    toggleInput.addEventListener('change', (e) => {
-      setDarkTheme((e.target as HTMLInputElement).checked);
-    });
-  }
-}
-
 // Start app
 document.addEventListener('DOMContentLoaded', initApp);
-
-// Daily background tasks (snapshots, milestones)
-function checkDailyTasks(state: FireOSState) {
-  try {
-    const nw = totalNetWorth(state);
-    const today = new Date().toISOString().substring(0, 10);
-    let stateChanged = false;
-    
-    // Net worth history snapshot (only if we actually have data to record)
-    if (nw.netWorth > 0) {
-      const hasToday = state.netWorthHistory.some(s => s.date === today);
-      if (!hasToday) {
-        state.netWorthHistory.push({ date: today, value: nw.netWorth });
-        state.netWorthHistory.sort((a, b) => a.date.localeCompare(b.date));
-        stateChanged = true;
-      }
-    }
-    
-    // Milestones check
-    const newMilestones = checkNewMilestones(state);
-    const newIds = Object.keys(newMilestones);
-    if (newIds.length > 0) {
-      newIds.forEach(id => {
-        if (!state.achievedMilestones.includes(id)) {
-          state.achievedMilestones.push(id);
-          stateChanged = true;
-        }
-      });
-      showToast('🏆 Milestone Reached!', 5000, 'success');
-    }
-
-    // SWP monthly execution check
-    if (state.swpSchedule && state.swpSchedule.enabled) {
-      const currentYearMonth = today.substring(0, 7);
-      const startYearMonth = state.swpSchedule.startDate ? state.swpSchedule.startDate.substring(0, 7) : '';
-      
-      if (startYearMonth && currentYearMonth >= startYearMonth) {
-        const hasSwpThisMonth = state.expenses?.some(e => e.category === 'SWP' && e.date.substring(0, 7) === currentYearMonth);
-        if (!hasSwpThisMonth) {
-          stateChanged = true;
-          executeMonthlyWithdrawal(state).then(() => {
-            persistPortfolioState(state);
-            showToast('✓ Automatic monthly SWP executed', 4000, 'success');
-            const dashboardTab = document.querySelector('[data-tab="dashboard"]');
-            if (dashboardTab && dashboardTab.classList.contains('active')) {
-              renderDashboard();
-            }
-          }).catch(e => {
-            console.error('[SWP Auto] Failed to execute withdrawal:', e);
-          });
-        }
-      }
-    }
-
-    if (stateChanged) {
-      persistPortfolioState(state);
-    }
-  } catch (e) {
-    console.warn('[main] Failed to run daily tasks:', e);
-  }
-}
 
 // Background NAV Auto-Refresh (Runs periodically)
 function setupBackgroundNAVRefresh() {
