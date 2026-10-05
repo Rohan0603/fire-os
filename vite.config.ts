@@ -14,6 +14,9 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
+          // Loaded only when the Assistant tab opens; keep it out of the
+          // initial vendor chunk.
+          if (id.includes('deep-chat')) return undefined;
           if (id.includes('firebase/auth')) return 'firebase-auth';
           if (id.includes('firebase/firestore')) return 'firebase-firestore';
           if (id.includes('firebase/app')) return 'firebase-core';

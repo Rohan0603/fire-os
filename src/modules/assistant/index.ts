@@ -32,7 +32,6 @@ import {
 } from '../../lib/storage';
 import { recordPortfolioSnapshot } from '../../lib/snapshot-history';
 import { showToast, createModal, closeModal } from '../ui';
-import 'deep-chat';
 import './styles.css';
 
 type DeepChatMessage = { role?: string; text?: string };
@@ -62,11 +61,17 @@ function getScope(): string {
 
 /**
  * Initialize the assistant module: build DOM, restore consent, attach listeners.
+ * The deep-chat element is imported on demand so its bundle is not part of the
+ * initial page load; the DOM is built only after the element is defined.
  */
-export function initAssistantModule(container: HTMLElement, context: FeatureContext): void {
+export async function initAssistantModule(
+  container: HTMLElement,
+  context: FeatureContext
+): Promise<void> {
   activeContext = context;
   consent = readConsent(getScope());
   conversationScope = getScope();
+  await import('deep-chat');
   container.innerHTML = buildAssistantHTML();
   wireListeners(container);
   refreshAuditSection();

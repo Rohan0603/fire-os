@@ -172,9 +172,9 @@ featureRegistry.register({
   label: 'Assistant',
   mount(container, context) {
     if (!initializedFeatures.has('assistant')) {
-      initAssistantModule(container, context);
-      initializedFeatures.add('assistant');
-      return;
+      return initAssistantModule(container, context).then(() => {
+        initializedFeatures.add('assistant');
+      });
     }
     renderAssistant(context);
   },

@@ -22,9 +22,9 @@ Conditional work: start only when the stated trigger occurs.
   inconsistent subsets** of the existing checks.
 - [ ] **Add a diagnostic CLI or new test utility only if a recurring manual task
   is not covered by the current scripts.**
-- [ ] **Reassess `deep-chat` only if bundle cost is measured or it blocks a
-  concrete UI requirement.** Keep it while it provides chat transcript and
-  interaction behavior.
+- [x] **Reassess `deep-chat` bundle cost.** Measured: 471 kB chunk (121 kB
+  gzip). Kept it and lazy-load it on first Assistant tab open instead of the
+  initial page load.
 - [ ] **Consider a rendering library only if stateful UI makes manual DOM
   updates a measured maintenance cost.** Static templates using `innerHTML` do
   not justify one by themselves.
@@ -39,9 +39,10 @@ Ideas to evaluate against day-to-day use of the app:
 - [ ] **Make portfolio updates easier to verify after import.** Explore a clear
   before/after summary for CAS imports and CSV/JSON restore, especially for
   holdings that are replaced rather than appended.
-- [ ] **Make data freshness actionable.** Show which portfolio values are stale
-  and what the user can do (refresh, enter a manual value, or leave it as-is),
-  building on existing cache status and freshness indicators.
+- [x] **Make data freshness actionable.** The dashboard trust panel now names
+  the stale NAV/FX sources and offers a "Refresh now" retry; the count also
+  catches persisted entries that carry no status yet. Manual value entry was
+  not built — no observed need yet.
 - [ ] **Improve scenario comparison.** Let users compare a small number of
   saved FIRE assumptions/results side by side; first validate that repeated
   comparisons are a real workflow.
@@ -68,6 +69,10 @@ Ideas to validate with people beyond the primary developer/user:
 - Switched the shared modal to native `<dialog>`.
 - Added browser-native CSV export and displayed existing market-data freshness
   in the Assistant; neither needs another dependency or service.
+- Measured `deep-chat` bundle cost (471 kB chunk) and kept it by lazy-loading
+  it on first Assistant tab open instead of the initial page load.
+- Dashboard trust panel names the stale NAV/FX sources and adds a "Refresh
+  now" retry instead of showing only a count.
 
 Avoid speculative framework, state-management, database, or AI-tooling
 migrations without a concrete need.
