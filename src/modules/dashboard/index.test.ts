@@ -156,3 +156,84 @@ describe('dashboard reactive status consumers', () => {
     expect(labelOf(doc, 'sync-status-value')?.writes ?? 0).toBe(before);
   });
 });
+
+describe('dashboard stale data trust panel', () => {
+  let doc: FakeDocument;
+  let context: FeatureContext;
+
+  beforeEach(() => {
+    doc = createFakeDocument();
+    vi.stubGlobal('document', { getElementById: (id: string) => doc.getElementById(id) });
+    vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    syncStatusStore.set('idle');
+    marketRefreshStatusStore.set('idle');
+    activeScopeStore.set('local');
+    context = createFeatureContext(initializeState());
+    initDashboardModule('dashboard', context);
+  });
+
+  afterEach(() => {
+    teardownDashboard();
+    vi.unstubAllGlobals();
+  });
+
+  it('names the stale sources and offers a refresh action', async () => {
+    context.state.sip.ppfcf = {
+      name: 'Parag Parikh Flexi Cap',
+      schemeCode: '122639',
+      units: 0,
+      startDate: '2024-01',
+      monthlyAmount: 5000,
+    };
+    context.state.nav['122639'] = {
+      schemeCode: '122639',
+      nav: 100,
+      timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+      ttl: 4 * 60 * 60 * 1000,
+      status: 'stale',
+    };
+    context.state.currencyRates.EURINR = {
+      rate: 90,
+      timestamp: new Date().toISOString(),
+      status: 'stale',
+    };
+
+    await renderDashboard();
+
+    const html = doc.container.innerHTML;
+    expect(html).toContain('<strong>Data quality</strong><span>2 stale sources</span>');
+    expect(html).toContain('Parag Parikh Flexi Cap');
+    expect(html).toContain('EURINR rate');
+    expect(html).toContain('id="data-trust-refresh-btn"');
+  });
+
+  it('treats a persisted NAV entry without a status as stale once its TTL passes', async () => {
+    context.state.sip.smallcap = {
+      name: 'Nippon Small Cap',
+      schemeCode: '118778',
+      units: 0,
+      startDate: '2024-01',
+      monthlyAmount: 1000,
+    };
+    context.state.nav['118778'] = {
+      schemeCode: '118778',
+      nav: 50,
+      timestamp: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+      ttl: 4 * 60 * 60 * 1000,
+    };
+
+    await renderDashboard();
+
+    const html = doc.container.innerHTML;
+    expect(html).toContain('<strong>Data quality</strong><span>1 stale source</span>');
+    expect(html).toContain('Nippon Small Cap');
+  });
+
+  it('shows a clean row with no refresh action when every source is current', async () => {
+    await renderDashboard();
+
+    const html = doc.container.innerHTML;
+    expect(html).toContain('<strong>Data quality</strong><span>Current</span>');
+    expect(html).not.toContain('data-trust-refresh-btn');
+  });
+});

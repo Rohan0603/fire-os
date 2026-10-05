@@ -297,17 +297,47 @@ export async function renderDashboard(context: FeatureContext = activeContext): 
   mountBenchmarkChart('benchmark-chart', benchmarkSeries);
 }
 
+/**
+ * Human labels for cached NAVs of held funds and FX rates that are past their
+ * TTL, so the trust panel can say which values are stale instead of only how
+ * many. `status` is absent on entries restored from persistence before the
+ * first refresh, so freshness falls back to the entry timestamp.
+ */
+function staleSourceLabels(state: FireOSState): string[] {
+  const namesByCode = new Map<string, string>();
+  const holdings = [...Object.values(state.sip || {}), ...Object.values(state.mf || {})];
+  for (const fund of holdings) {
+    const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
+    if (schemeCode && !namesByCode.has(schemeCode)) namesByCode.set(schemeCode, fund.name);
+  }
+  const isStale = (timestamp: string, ttl: number | undefined, status?: string): boolean =>
+    status ? status === 'stale' : Date.now() - new Date(timestamp).getTime() > (ttl ?? 4 * 60 * 60 * 1000);
+  const navLabels = Object.values(state.nav || {})
+    .filter((entry) => isStale(entry.timestamp, entry.ttl, entry.status))
+    .map((entry) => namesByCode.get(entry.schemeCode))
+    .filter((name): name is string => Boolean(name));
+  const currencyLabels = Object.entries(state.currencyRates || {})
+    .filter(([, entry]) => entry.status === 'stale')
+    .map(([key, entry]) =>
+      entry.sourceCurrency && entry.targetCurrency
+        ? `${entry.sourceCurrency}→${entry.targetCurrency} rate`
+        : `${key} rate`,
+    );
+  return [...navLabels, ...currencyLabels];
+}
+
 function renderDataTrustPanel(state: FireOSState): string {
-  const navEntries = Object.values(state.nav || {});
-  const staleNavs = navEntries.filter((entry) => entry.status === 'stale').length;
-  const currencyEntries = Object.values(state.currencyRates || {});
-  const staleCurrencies = currencyEntries.filter((entry) => entry.status === 'stale').length;
+  const staleLabels = staleSourceLabels(state);
+  const staleCount = staleLabels.length;
   const scopeLabel = SCOPE_LABELS[activeScopeStore.get()];
   const completeness = profileCompletenessPercent(state);
   const { liabilities } = totalNetWorth(state);
   const savedLabel = state._lastSavedAt ? `Last saved ${new Date(state._lastSavedAt).toLocaleString()}` : 'Not saved yet';
+  const shownLabels = staleLabels.slice(0, 5).join(', ');
+  const overflow = staleLabels.length > 5 ? ` +${staleLabels.length - 5} more` : '';
   return `<section class="data-trust-panel" aria-label="Data quality and sync status">
-    <div><strong>Data quality</strong><span>${staleNavs + staleCurrencies === 0 ? 'Current' : `${staleNavs + staleCurrencies} stale source${staleNavs + staleCurrencies === 1 ? '' : 's'}`}</span></div>
+    <div><strong>Data quality</strong><span>${staleCount === 0 ? 'Current' : `${staleCount} stale source${staleCount === 1 ? '' : 's'}`}</span></div>
+    ${staleCount > 0 ? `<div class="data-trust-stale"><span title="Refresh to update these values">Stale: ${shownLabels}${overflow}</span><button type="button" id="data-trust-refresh-btn">Refresh now</button></div>` : ''}
     <div><strong id="scope-mode-label">${scopeLabel}</strong><span>${savedLabel}</span></div>
     <div><strong>Sync status</strong><span id="sync-status-value">${SYNC_STATUS_LABELS[syncStatusStore.get()]}</span></div>
     <div><strong>Market data</strong><span id="market-refresh-value">${MARKET_REFRESH_LABELS[marketRefreshStatusStore.get()]}</span></div>
@@ -920,6 +950,17 @@ function attachDashboardEventListeners(): void {
   attachChartButtonListener('bm-view-drawdown', () => {
     benchmarkView = 'drawdown';
     refreshBenchmarkChart();
+  });
+
+  // Manual retry for stale NAV/FX entries: re-fetch, then repaint so the
+  // stale list and count reflect what the refresh actually recovered. The
+  // refresh port coalesces concurrent calls, so repeats are harmless.
+  attachChartButtonListener('data-trust-refresh-btn', () => {
+    fetchSIPNAVs()
+      .catch(() => undefined)
+      .finally(() => {
+        void renderDashboard();
+      });
   });
 
   // Advisor review button event listener

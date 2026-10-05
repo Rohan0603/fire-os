@@ -567,6 +567,29 @@
   text-align: right;
 }
 
+.data-trust-stale {
+  grid-column: 1 / -1;
+  align-items: center;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--border-primary);
+}
+
+.data-trust-stale span {
+  flex: 1;
+}
+
+.data-trust-stale button {
+  border: 1px solid var(--border-primary);
+  border-radius: 0.375rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.3rem 0.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
 .privacy-notice,
 .completeness-status {
   color: var(--text-secondary);
