@@ -32,8 +32,10 @@ import {
 } from './chart-data';
 
 import type { CrashAlert } from '../api/nifty-monitor';
+import { getCurrencyRateCache, isSupportedCurrencyCode } from '../api/currency';
+import { CONFIG } from '../../lib/config';
 import type { FireOSState } from '../../types/state';
-import type { HistoricalSeries } from '../../types/api';
+import type { CurrencyRateData, HistoricalSeries } from '../../types/api';
 import type { SyncStatus } from '../../types/firebase';
 import {
   activeScopeStore,
@@ -142,6 +144,53 @@ function attachThemeListener(): void {
  */
 export function fetchSIPNAVs(context: FeatureContext = activeContext): Promise<void> {
   return context.ports.marketData.refreshPortfolioNAVs(context.state);
+}
+
+/** Freshness predicate shared by the trust panel and its refresh action: an
+ * explicit status wins, otherwise fall back to the entry's TTL (4h NAV /
+ * 24h FX default). */
+function isStaleEntry(timestamp: string, ttl: number | undefined, status?: string): boolean {
+  return status
+    ? status === 'stale'
+    : Date.now() - new Date(timestamp).getTime() > (ttl ?? 4 * 60 * 60 * 1000);
+}
+
+/** Resolve the tradeable pair for a cached FX entry (key fallback for legacy rows). */
+function currencyPairFor(key: string, entry: CurrencyRateData): [string, string] | null {
+  if (entry.sourceCurrency && entry.targetCurrency) return [entry.sourceCurrency, entry.targetCurrency];
+  const source = key.slice(0, 3);
+  const target = key.slice(3);
+  return key.length === 6 && isSupportedCurrencyCode(source) && isSupportedCurrencyCode(target)
+    ? [source, target]
+    : null;
+}
+
+async function refreshCurrencyEntry(context: FeatureContext, key: string, entry: CurrencyRateData): Promise<void> {
+  const pair = currencyPairFor(key, entry);
+  if (!pair) return;
+  try {
+    await context.ports.marketData.fetchCurrencyRate(pair[0], pair[1]);
+  } catch {
+    return;
+  }
+  const synced = getCurrencyRateCache()[`${pair[0]}${pair[1]}`];
+  if (synced && synced.status !== 'stale') {
+    context.state.currencyRates[key] = { ...entry, ...synced };
+  }
+}
+
+/**
+ * Refresh everything the trust panel flags as stale: held-fund NAVs plus each
+ * cached FX row past its TTL. An FX row is only rewritten when the live rate
+ * cache actually recovered a fresh rate, so a failed refresh keeps the row
+ * visibly stale instead of hiding it.
+ */
+export async function refreshStaleData(context: FeatureContext = activeContext): Promise<void> {
+  const state = context.state;
+  const staleFx = Object.entries(state.currencyRates || {})
+    .filter(([, entry]) => isStaleEntry(entry.timestamp, CONFIG.cacheTtl.currencyRate, entry.status))
+    .map(([key, entry]) => refreshCurrencyEntry(context, key, entry));
+  await Promise.allSettled([fetchSIPNAVs(context), ...staleFx]);
 }
 
 /**
@@ -310,14 +359,12 @@ function staleSourceLabels(state: FireOSState): string[] {
     const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
     if (schemeCode && !namesByCode.has(schemeCode)) namesByCode.set(schemeCode, fund.name);
   }
-  const isStale = (timestamp: string, ttl: number | undefined, status?: string): boolean =>
-    status ? status === 'stale' : Date.now() - new Date(timestamp).getTime() > (ttl ?? 4 * 60 * 60 * 1000);
   const navLabels = Object.values(state.nav || {})
-    .filter((entry) => isStale(entry.timestamp, entry.ttl, entry.status))
+    .filter((entry) => isStaleEntry(entry.timestamp, entry.ttl, entry.status))
     .map((entry) => namesByCode.get(entry.schemeCode))
     .filter((name): name is string => Boolean(name));
   const currencyLabels = Object.entries(state.currencyRates || {})
-    .filter(([, entry]) => entry.status === 'stale')
+    .filter(([, entry]) => isStaleEntry(entry.timestamp, CONFIG.cacheTtl.currencyRate, entry.status))
     .map(([key, entry]) =>
       entry.sourceCurrency && entry.targetCurrency
         ? `${entry.sourceCurrency}→${entry.targetCurrency} rate`
@@ -956,8 +1003,7 @@ function attachDashboardEventListeners(): void {
   // stale list and count reflect what the refresh actually recovered. The
   // refresh port coalesces concurrent calls, so repeats are harmless.
   attachChartButtonListener('data-trust-refresh-btn', () => {
-    fetchSIPNAVs()
-      .catch(() => undefined)
+    refreshStaleData()
       .finally(() => {
         void renderDashboard();
       });

@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFeatureContext, type FeatureContext } from '../../core/feature-context';
 import { activeScopeStore, marketRefreshStatusStore, syncStatusStore } from '../../core/stores';
 import { initializeState } from '../../types/state';
-import { initDashboardModule, renderDashboard, teardownDashboard } from './index';
+import { initDashboardModule, refreshStaleData, renderDashboard, teardownDashboard } from './index';
+import { setCachedCurrencyRate } from '../api/currency';
 
 interface FakeLabel {
   readonly writes: number;
@@ -235,5 +236,54 @@ describe('dashboard stale data trust panel', () => {
     const html = doc.container.innerHTML;
     expect(html).toContain('<strong>Data quality</strong><span>Current</span>');
     expect(html).not.toContain('data-trust-refresh-btn');
+  });
+
+  it('treats a persisted FX entry without a status as stale once its TTL passes', async () => {
+    context.state.currencyRates.EURINR = {
+      rate: 90,
+      timestamp: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+      sourceCurrency: 'EUR',
+      targetCurrency: 'INR',
+    };
+
+    await renderDashboard();
+
+    const html = doc.container.innerHTML;
+    expect(html).toContain('<strong>Data quality</strong><span>1 stale source</span>');
+    expect(html).toContain('EUR→INR rate');
+  });
+
+  it('refresh re-fetches a stale FX row and clears it once a fresh rate lands', async () => {
+    context.state.currencyRates.EURINR = {
+      rate: 90,
+      timestamp: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+      status: 'stale',
+      sourceCurrency: 'EUR',
+      targetCurrency: 'INR',
+    };
+    setCachedCurrencyRate('EUR', 'INR', 95, { source: 'Yahoo Finance via corsproxy', status: 'live' });
+    const fetchRate = vi.spyOn(context.ports.marketData, 'fetchCurrencyRate');
+
+    await refreshStaleData(context);
+
+    expect(fetchRate).toHaveBeenCalledWith('EUR', 'INR');
+    expect(context.state.currencyRates.EURINR.rate).toBe(95);
+    expect(context.state.currencyRates.EURINR.status).not.toBe('stale');
+  });
+
+  it('refresh leaves a stale FX row untouched when no fresh rate comes back', async () => {
+    context.state.currencyRates.GBPINR = {
+      rate: 105,
+      timestamp: new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString(),
+      status: 'stale',
+      sourceCurrency: 'GBP',
+      targetCurrency: 'INR',
+    };
+    vi.spyOn(context.ports.marketData, 'fetchCurrencyRate').mockResolvedValue(null);
+
+    await refreshStaleData(context);
+
+    expect(context.state.currencyRates.GBPINR.rate).toBe(105);
+    expect(context.state.currencyRates.GBPINR.status).toBe('stale');
   });
 });
