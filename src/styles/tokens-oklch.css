@@ -1,0 +1,43 @@
+/* Design-token overrides. Loaded AFTER the legacy stylesheets so these values win
+   the cascade while the legacy tab CSS still resolves the same palette.
+   Kept separate from app.css so Tailwind's preflight stays in its base layer and
+   does not outrank the legacy component rules it is meant to sit beside. */
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+  --color-primary: oklch(76.9% 0.188 70.08);
+  --color-primary-dark: oklch(68.7% 0.19 63.2);
+  --color-cta: oklch(55.4% 0.246 305.9);
+  --color-success: oklch(69.6% 0.17 162.5);
+  --color-danger: oklch(63.7% 0.237 25.33);
+  --color-warning: oklch(76.9% 0.188 70.08);
+  --color-gold: oklch(79.1% 0.159 82.7);
+  --color-background: oklch(96.7% 0.003 264.5);
+  --color-surface: oklch(100% 0 0);
+  --color-surface-raised: oklch(98.4% 0.003 264.5);
+  --color-border: oklch(87% 0.01 264.5);
+  --color-foreground: oklch(27.6% 0.03 264.4);
+  --color-muted-foreground: oklch(55.5% 0.03 264.4);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --color-background: oklch(20.5% 0.03 264.4);
+    --color-surface: oklch(27.6% 0.04 262.9);
+    --color-surface-raised: oklch(32.6% 0.04 262.9);
+    --color-border: oklch(37.2% 0.04 262.9);
+    --color-foreground: oklch(96.7% 0.01 264.5);
+    --color-muted-foreground: oklch(71.4% 0.04 261.3);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-background: oklch(20.5% 0.03 264.4);
+  --color-surface: oklch(27.6% 0.04 262.9);
+  --color-surface-raised: oklch(32.6% 0.04 262.9);
+  --color-border: oklch(37.2% 0.04 262.9);
+  --color-foreground: oklch(96.7% 0.01 264.5);
+  --color-muted-foreground: oklch(71.4% 0.04 261.3);
+}

@@ -56,6 +56,8 @@ import { showToast } from './modules/ui';
 import './styles/global.css';
 import './styles/layout.css';
 import './styles/tokens.css';
+// Imported last so the OKLCH theme outranks the legacy tokens.css above.
+import './styles/tokens-oklch.css';
 
 // Global state object - properly typed
 // Firebase configuration

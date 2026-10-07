@@ -1,0 +1,21 @@
+@import 'tailwindcss';
+
+@theme {
+  /* Palette identity from src/styles/tokens.css, converted to OKLCH:
+     amber primary (#F59E0B), violet CTA, emerald/red/amber status.
+     Values live in tokens-oklch.css so they win the cascade over the legacy
+     tokens.css; the names here are what Tailwind generates utilities from. */
+  --color-primary: oklch(76.9% 0.188 70.08);
+  --color-primary-dark: oklch(68.7% 0.19 63.2);
+  --color-cta: oklch(55.4% 0.246 305.9);
+  --color-success: oklch(69.6% 0.17 162.5);
+  --color-danger: oklch(63.7% 0.237 25.33);
+  --color-warning: oklch(76.9% 0.188 70.08);
+  --color-gold: oklch(79.1% 0.159 82.7);
+  --color-background: oklch(96.7% 0.003 264.5);
+  --color-surface: oklch(100% 0 0);
+  --color-surface-raised: oklch(98.4% 0.003 264.5);
+  --color-border: oklch(87% 0.01 264.5);
+  --color-foreground: oklch(27.6% 0.03 264.4);
+  --color-muted-foreground: oklch(55.5% 0.03 264.4);
+}
