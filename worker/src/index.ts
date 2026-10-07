@@ -28,11 +28,21 @@ interface AssistantMessage {
   content: string;
 }
 
+function allowedOrigins(env: Env): string[] {
+  return (env.ALLOWED_ORIGIN || '*')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
 function corsHeaders(request: Request, env: Env): Record<string, string> {
   const origin = request.headers.get('Origin');
-  const allowed = env.ALLOWED_ORIGIN || '*';
+  const allowed = allowedOrigins(env);
+  // Echo the caller's origin only when it is allowed. Echoing `allowed` on a mismatch
+  // tells the browser the response is for a different origin, which it correctly rejects.
+  const isAllowed = allowed.includes('*') || (origin !== null && allowed.includes(origin));
   return {
-    'Access-Control-Allow-Origin': allowed === '*' || origin === allowed ? (origin || allowed) : allowed,
+    'Access-Control-Allow-Origin': isAllowed ? (origin ?? allowed[0] ?? '*') : (allowed[0] ?? 'null'),
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     Vary: 'Origin',

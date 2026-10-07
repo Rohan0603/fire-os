@@ -3,7 +3,10 @@ main = "src/index.ts"
 compatibility_date = "2026-03-01"
 
 [vars]
-ALLOWED_ORIGIN = "https://fire-os-dd6d6.web.app"
+# Comma-separated CORS allowlist. Must cover every host the UI is served from:
+# firebaseapp.com, web.app, the local dev server, and the Cloudflare Workers domain
+# added when hosting moves off Firebase (see docs/CHANGELOG.md).
+ALLOWED_ORIGIN = "https://fire-os-dd6d6.firebaseapp.com,https://fire-os-dd6d6.web.app,http://localhost:5173,http://127.0.0.1:5173"
 OPENROUTER_HTTP_REFERER = "https://fire-os-dd6d6.web.app"
 
 [secrets]

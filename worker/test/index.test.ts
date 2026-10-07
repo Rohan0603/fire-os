@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import worker from '../src/index';
 
+const PRIMARY_ORIGIN = 'https://fire-os-dd6d6.firebaseapp.com';
+
 const env = {
   OPENROUTER_API_KEY: 'test-key',
   ASSISTANT_RATE_LIMITER: { limit: vi.fn().mockResolvedValue({ success: true }) },
-  ALLOWED_ORIGIN: 'https://fire-os-dd6d6.web.app',
+  ALLOWED_ORIGIN: `${PRIMARY_ORIGIN},https://fire-os-dd6d6.web.app,http://localhost:5173`,
   OPENROUTER_FALLBACK_MODELS: 'fallback/model:free',
 };
 
@@ -21,7 +23,7 @@ function queryRequest(overrides: Record<string, unknown> = {}, headers: HeadersI
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Origin: env.ALLOWED_ORIGIN,
+      Origin: PRIMARY_ORIGIN,
       ...headers,
     },
     body: JSON.stringify(body),
@@ -31,17 +33,46 @@ function queryRequest(overrides: Record<string, unknown> = {}, headers: HeadersI
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Assistant Worker', () => {
-  it('answers preflight requests with the configured origin', async () => {
+  it.each([
+    'https://fire-os-dd6d6.firebaseapp.com',
+    'https://fire-os-dd6d6.web.app',
+    'http://localhost:5173',
+  ])('answers preflight requests for the allowed origin %s', async (origin) => {
     const response = await worker.fetch(
       new Request('https://worker.example/api/assistant/query', {
         method: 'OPTIONS',
-        headers: { Origin: env.ALLOWED_ORIGIN },
+        headers: { Origin: origin },
       }),
       env,
     );
 
     expect(response.status).toBe(200);
-    expect(response.headers.get('Access-Control-Allow-Origin')).toBe(env.ALLOWED_ORIGIN);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe(origin);
+  });
+
+  it('echoes a disallowed origin instead of granting it access', async () => {
+    const response = await worker.fetch(
+      new Request('https://worker.example/api/assistant/query', {
+        method: 'OPTIONS',
+        headers: { Origin: 'https://evil.example' },
+      }),
+      env,
+    );
+
+    expect(response.headers.get('Access-Control-Allow-Origin')).not.toBe('https://evil.example');
+  });
+
+  it('tolerates whitespace around the origin allowlist', async () => {
+    const spacedEnv = { ...env, ALLOWED_ORIGIN: ' https://a.example , https://b.example ' };
+    const response = await worker.fetch(
+      new Request('https://worker.example/api/assistant/query', {
+        method: 'OPTIONS',
+        headers: { Origin: 'https://b.example' },
+      }),
+      spacedEnv,
+    );
+
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('https://b.example');
   });
 
   it('rejects unknown routes and methods without calling the provider', async () => {

@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **XIRR Period Returns**: `calculatePeriodReturn()` derives annualized returns from dated cash flows within an inclusive window; exported helper, not yet surfaced in the SIP status KPI
 - **Scenario Comparison**: side-by-side FI projection of two scenarios in the calculators tab
 
+### Fixed
+- **Assistant CORS on `firebaseapp.com`**: the assistant worker's `ALLOWED_ORIGIN` held a
+  single origin (`fire-os-dd6d6.web.app`), so every request from the `firebaseapp.com`
+  host was rejected by the browser. It is now a comma-separated allowlist that also
+  covers `firebaseapp.com` and the local dev server.
+
 ### Changed
 - **Reactive Status Stores**: sync, market-refresh, and cloud-mode labels update live from shared status stores
 - Consolidated project, architecture, API, Assistant, deployment, and

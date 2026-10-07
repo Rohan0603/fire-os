@@ -148,7 +148,9 @@ objects, role alternation, and extracted-proposal envelopes. It limits body to
 100KB, requires 1–12 alternating message objects and matching latest question,
 blocks destructive/PII prompts, limits to 20 req/min/IP, forwards sanitized
 context and messages to OpenRouter, max 180 output tokens and 25s upstream
-timeout. CORS `ALLOWED_ORIGIN` can narrow origin. See [AI](ai.md) for exact
+timeout. CORS `ALLOWED_ORIGIN` is a comma-separated origin allowlist; it must
+include every host that serves the UI, or the Assistant fails CORS in production
+only. See [AI](ai.md) for exact
 validation, response shape, prompt and proposal handling.
 
 Local `server/server.js` uses Express, Helmet, CORS, 200KB JSON limit and

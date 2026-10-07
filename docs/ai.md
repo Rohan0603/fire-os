@@ -95,8 +95,13 @@ handled. In order it rejects a missing `OPENROUTER_API_KEY` (500), enforces the
 100 KB body cap (413), parses JSON (400), validates message shape and prompt
 policy, then applies a Cloudflare rate limit of 20 requests per minute per
 `CF-Connecting-IP` (binding failure => 503) before calling upstream with a 25s
-timeout. CORS allows configured `ALLOWED_ORIGIN`
-or `*`. OpenRouter request uses `Authorization: Bearer ...`, `HTTP-Referer`,
+timeout. CORS allows configured `ALLOWED_ORIGIN`, a comma-separated
+origin allowlist (entries are trimmed; `*` allows any origin). A request whose
+`Origin` is not in the list does not receive its own origin echoed back, so the
+browser blocks it. The allowlist must cover every host the UI is served from:
+both Firebase Hosting hosts (`fire-os-dd6d6.firebaseapp.com`,
+`fire-os-dd6d6.web.app`) and the local dev server. OpenRouter request uses
+`Authorization: Bearer ...`, `HTTP-Referer`,
 `X-OpenRouter-Title: FIRE OS`, selected model fallbacks, `max_tokens: 180`,
 non-streaming response. Provider failure maps to 502; timeout 504; malformed
 input 400/413; bad route 404.
