@@ -42,7 +42,11 @@ describe('Portfolio split schemas', () => {
     expect(shouldSplitPortfolio({ docSizeBytes: 500, writeLatencyMs: 150 })).toBe(false);
   });
 
-  it('should return true when both size and latency exceed thresholds', () => {
+  it('should return true when latency exceeds threshold regardless of size', () => {
     expect(shouldSplitPortfolio({ docSizeBytes: 800, writeLatencyMs: 250 })).toBe(true);
+  });
+
+  it('should return false when both params are undefined', () => {
+    expect(shouldSplitPortfolio({})).toBe(false);
   });
 });

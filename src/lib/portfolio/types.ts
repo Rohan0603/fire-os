@@ -17,6 +17,7 @@ export const TransactionSchema = z.object({
 });
 
 // Schema for portfolio metadata
+// TODO: re-evaluate per brief v2 — current defaults deviate from the brief's written spec
 export const PortfolioMetadataSchema = z.object({
   id: z.string().default(''),
   splitVersion: z.literal(1).default(1),
