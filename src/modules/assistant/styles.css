@@ -371,6 +371,47 @@ deep-chat {
   margin-bottom: 0.6rem;
 }
 
+.assistant-proposal-assumptions {
+  margin: 0 0 0.75rem;
+  padding: 0.55rem 0.65rem;
+  background: var(--bg-tertiary, #f2f4f7);
+  border: 1px solid var(--border-primary, #e5e7eb);
+  border-radius: 6px;
+}
+
+.assistant-proposal-assumptions-title {
+  margin-bottom: 0.4rem;
+  color: var(--text-secondary, #667085);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.assistant-proposal-assumptions-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.2rem 0.75rem;
+  margin: 0;
+  font-size: 0.76rem;
+}
+
+.assistant-proposal-assumptions-list dt {
+  color: var(--text-secondary, #667085);
+}
+
+.assistant-proposal-assumptions-list dd {
+  margin: 0;
+  color: var(--text-primary, #344054);
+  font-weight: 600;
+}
+
+.assistant-proposal-assumptions-note {
+  margin: 0.4rem 0 0;
+  color: var(--text-secondary, #667085);
+  font-size: 0.7rem;
+}
+
 .assistant-proposal-cloud {
   display: flex;
   gap: 0.5rem;

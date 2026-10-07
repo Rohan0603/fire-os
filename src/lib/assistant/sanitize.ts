@@ -17,7 +17,10 @@ export type BalanceRange = '<1L' | '1–5L' | '5–25L' | '25L–1Cr' | '1Cr+';
 export interface ExactContext {
   netWorth: number;
   fiTarget: number;
+  /** Annual ₹ — derived from stored monthly `profile.annualExpenses` × 12. */
   annualExpenses: number;
+  /** Monthly ₹ — raw stored `profile.annualExpenses` (legacy key name). */
+  monthlyExpenses: number;
   monthlySipContribution: number;
   holdings: Record<string, number>;
 }
@@ -50,6 +53,7 @@ export interface SanitizedContext {
   nifty50: NiftyContext | null;
   /** Profile fields that affect advice, masked */
   profileMasked: {
+    /** Annual ₹ bucket — derived from stored monthly × 12 (legacy key name). */
     annualExpenses: BalanceRange;
     fiTarget: BalanceRange;
   };
@@ -138,7 +142,8 @@ export function buildContextSummary(
   }
 
   const fiTarget = profile.fiTarget ?? 0;
-  const annualExpenses = profile.annualExpenses ?? 0;
+  const monthlyExpenses = profile.annualExpenses ?? 0;
+  const annualExpenses = monthlyExpenses * 12;
 
   const context: SanitizedContext = {
     userLabel: 'User',
@@ -160,6 +165,7 @@ export function buildContextSummary(
       netWorth,
       fiTarget,
       annualExpenses,
+      monthlyExpenses,
       monthlySipContribution,
       holdings: exactHoldings,
     };

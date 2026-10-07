@@ -58,7 +58,7 @@ export interface PortfolioProfile {
   dateOfBirth: string;
   age: number;
   taxSlabRate: number;
-  annualExpenses: number;
+  annualExpenses: number; // monthly ₹ — legacy key name says annual; consumers multiply by 12
   fiTarget: number; // FI corpus target
   monthlyIncome: number;
 }

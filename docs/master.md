@@ -152,7 +152,7 @@ Core formulas and their code locations:
 | Emergency runway | Selected liquid assets / monthly expenses; UI floors to whole months | `src/modules/calculators/index.ts`, `src/lib/calculations.ts` |
 | SWP | Monthly amount redeemed by fixed fund order PPFCF, Growth, SmallCap, Gold; records expense and reduces units | `src/modules/calculators/swp-scheduler.ts` |
 | Insurance gap | Term target = max(annual income × 10, ₹1Cr); health target ₹20L for family ≤2 else ₹50L | `src/modules/plan/action-engine.ts`, `health-status.ts` |
-| Savings rate | (annual income − profile annualExpenses × 12) / annual income; red <15%, yellow <30% | `src/modules/plan/health-status.ts` |
+| Savings rate | (annual income − profile annualExpenses × 12) / annual income; `annualExpenses` is stored monthly (legacy key name), red <15%, yellow <30% | `src/modules/plan/health-status.ts` |
 | Profile age | date-fns strict `YYYY-MM-DD` parse; age from the UTC calendar day of today with the anniversary taken in today's year; null on malformed/impossible/future DOB or years 0000–0099 | `src/types/portfolio.ts` |
 
 These are app calculation semantics, including simplifications and defaults;
@@ -333,9 +333,9 @@ unchanged. See [AI reference](ai.md#full-request-trace-from-chat-event-to-model-
 
 - All monetary amounts are plain JavaScript numbers and app UI generally treats
   them as INR; there is no decimal/money type or server-side financial ledger.
-- `profile.annualExpenses` is labeled monthly on Profile, then annualized by
-  several Plan functions; Emergency Runway uses the raw value as monthly. Use
-  source-level semantics and do not silently normalize this field.
+- `profile.annualExpenses` is stored monthly rupees; the key name is legacy.
+  Annual figures are derived at each consumer as stored × 12 (Plan, Dashboard,
+  Calculators); Emergency Runway uses the raw stored value as monthly.
 - `mf` and `sip` are separate `SIPFund` maps and are both valued in KPIs. Avoid
   duplicating the same underlying holding in both or it will count twice.
 - Some cache data is part of portfolio persisted state, so state documents may

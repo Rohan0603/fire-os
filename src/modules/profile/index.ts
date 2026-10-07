@@ -15,6 +15,7 @@ import { buildPortfolioCsv } from '../../lib/portfolioCsv';
 import type { EsopHolding } from '../../types/state';
 import { parsePortfolioBackup, restorePortfolioBackup } from './backup-import';
 import { applyPortfolioCsvImport, parsePortfolioCsv, type CsvImportMode, type CsvImportPreview } from './csv-import';
+import { buildImportSummary, captureStateSnapshot, showImportSummary } from './import-summary';
 import './styles.css';
 
 const DEBOUNCE_MS = 500;
@@ -67,6 +68,7 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
           <div class="form-group">
             <label for="expenses">Monthly Expenses (₹)</label>
             <input type="number" id="expenses" placeholder="Monthly expenses" value="${D.profile.annualExpenses || ''}">
+            <p class="form-hint">Your average monthly household spend. Annual figures in Plan, Dashboard and Calculators are this value × 12.</p>
           </div>
           <div class="form-group">
             <label for="fi-target">FI Target (₹)</label>
@@ -181,6 +183,16 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
           <div class="modal-actions">
             <button id="csv-confirm-btn" class="btn-primary" type="button" disabled>Apply Import</button>
             <button id="csv-cancel-btn" class="btn-secondary" type="button">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="import-summary" style="display: none;" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="import-summary-title">
+        <div class="modal-content">
+          <h3 id="import-summary-title">What changed</h3>
+          <p id="import-summary-body" role="status" style="white-space: pre-line; max-height: 16rem; overflow: auto;"></p>
+          <div class="modal-actions">
+            <button id="import-summary-close-btn" class="btn-primary" type="button">Done</button>
           </div>
         </div>
       </div>
@@ -438,6 +450,11 @@ function renderDematHoldings(): string {
  * Attach event handlers to form elements
  */
 function attachProfileHandlers(context: FeatureContext) {
+  document.getElementById('import-summary-close-btn')?.addEventListener('click', () => {
+    const dialog = document.getElementById('import-summary');
+    if (dialog) dialog.style.display = 'none';
+  });
+
   // Profile form inputs
   const profileForm = document.getElementById('profile-form');
   if (profileForm) {
@@ -687,12 +704,13 @@ function attachProfileHandlers(context: FeatureContext) {
   document.getElementById('backup-confirm-btn')?.addEventListener('click', async () => {
     if (!pendingBackup) return;
     try {
-      await restorePortfolioBackup(pendingBackup, activeContext, true);
+      const summary = await restorePortfolioBackup(pendingBackup, activeContext, true);
       pendingBackup = null;
       backupDialog.style.display = 'none';
       context.ports.ui.showToast('Portfolio backup restored locally');
       const profileContainer = document.getElementById('profile');
       if (profileContainer) renderProfile(profileContainer, context);
+      if (summary) showImportSummary(summary);
     } catch {
       const message = 'Restore failed. The current portfolio was not changed.';
       if (backupSummary) backupSummary.textContent = message;
@@ -758,13 +776,14 @@ function attachProfileHandlers(context: FeatureContext) {
     const mode = selectedCsvMode();
     if (!preview || !mode) return;
     try {
-      await applyPortfolioCsvImport(preview.candidate, activeContext, mode, true);
+      const summary = await applyPortfolioCsvImport(preview.candidate, activeContext, mode, true);
       const rows = preview.validRows;
       pendingCsvImport = null;
       csvDialog.style.display = 'none';
       context.ports.ui.showToast(`Imported ${rows} CSV row${rows === 1 ? '' : 's'} (${mode})`);
       const profileContainer = document.getElementById('profile');
       if (profileContainer) renderProfile(profileContainer, context);
+      if (summary) showImportSummary(summary);
     } catch {
       const message = 'Import failed. The current portfolio was not changed.';
       if (csvSummary) csvSummary.textContent = message;
@@ -1179,6 +1198,37 @@ export async function saveProfile(): Promise<boolean> {
   }
 }
 
+const IMPORT_SECTION_LABELS_PLACEHOLDER: never = null;
+void IMPORT_SECTION_LABELS_PLACEHOLDER;
+
+/**
+ * Show the post-import before/after summary dialog: per-section holdings
+ * counts plus totals, so replaced (rather than appended) entries are visible.
+ */
+function showImportSummary(summary: ImportSummary): void {
+  const dialog = document.getElementById('import-summary');
+  const body = document.getElementById('import-summary-body');
+  if (!dialog || !body) return;
+  const lines = summary.sections.map((entry) => {
+    const parts: string[] = [];
+    if (entry.added) parts.push(`${entry.added} added`);
+    if (entry.removed) parts.push(`${entry.removed} removed`);
+    if (entry.replaced) parts.push(`${entry.replaced} replaced`);
+    return `${IMPORT_SECTION_LABELS[entry.section] ?? entry.section}: ${parts.join(', ')}`;
+  });
+  if (summary.otherChangedSections.length > 0) {
+    lines.push(`Also updated: ${summary.otherChangedSections.join(', ')}`);
+  }
+  const { added, removed, replaced } = summary.totals;
+  lines.push(
+    added + removed + replaced > 0
+      ? `Total: ${added} added, ${removed} removed, ${replaced} replaced`
+      : 'No portfolio changes detected.'
+  );
+  body.textContent = lines.join('\n');
+  dialog.style.display = 'flex';
+}
+
 /**
  * Handle PDF import
  */
@@ -1226,6 +1276,9 @@ function confirmPDFImport() {
   const result: CASParseResult | null = (window as any)._pendingCASImport;
   if (!result) return;
 
+  // Snapshot before the destructive clear so the summary can compare.
+  const before = captureStateSnapshot(D);
+
   // Clear existing SIPs before importing to avoid duplicates
   D.sip = {};
 
@@ -1264,8 +1317,10 @@ function confirmPDFImport() {
   const modal = document.getElementById('pdf-confirmation');
   if (modal) modal.style.display = 'none';
 
+  const summary = buildImportSummary(before, D);
   const container = document.getElementById('profile');
   if (container) renderProfile(container);
+  showImportSummary(summary);
   activeContext.ports.ui.showToast('✓ CAS imported (click Save to sync to cloud)', 4000, 'info');
 }
 

@@ -59,6 +59,9 @@ test('read-only query renders the reply and a proposal diff', async ({ page }) =
     'profile.fiTarget',
   );
   await expect(page.locator('.diff-after').first()).toContainText('5,00,000');
+  await expect(page.locator('.assistant-proposal-assumptions-title')).toHaveText('Assumptions');
+  await expect(page.locator('.assistant-proposal-assumptions-list dt')).toHaveCount(7);
+  await expect(page.locator('.assistant-proposal-assumptions-list')).toContainText('FI target');
   await expect(page.locator('.btn-confirm')).toBeEnabled();
   await expect(page.locator('.btn-reject')).toBeEnabled();
 });

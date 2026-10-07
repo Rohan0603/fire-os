@@ -24,7 +24,11 @@ import {
   type ConsentState,
   type ProposalDiffEntry,
 } from '../../lib/assistant';
-import { buildContextSummary } from '../../lib/assistant/sanitize';
+import {
+  buildContextSummary,
+  type NiftyContext,
+  type SanitizedContext,
+} from '../../lib/assistant/sanitize';
 import {
   getPortfolioStorageKey,
   persistPortfolioState,
@@ -52,7 +56,11 @@ let activeContext: FeatureContext | null = null;
 let consent: ConsentState = { ...defaultConsent };
 let inFlight = false;
 let conversationScope: string | null = null;
-let pendingProposal: { question: string; proposedChanges: Record<string, unknown> } | null = null;
+let pendingProposal: {
+  question: string;
+  proposedChanges: Record<string, unknown>;
+  context: SanitizedContext;
+} | null = null;
 const MAX_CONVERSATION_MESSAGES = 12;
 
 function getScope(): string {
@@ -170,7 +178,7 @@ function wireListeners(root: HTMLElement): void {
       const proposal = pendingProposal;
       pendingProposal = null;
       const attachments = root.querySelector('.assistant-attachments') as HTMLElement | null;
-      if (attachments) renderProposalCard(attachments, proposal.question, proposal.proposedChanges);
+      if (attachments) renderProposalCard(attachments, proposal);
     };
   }
 
@@ -225,7 +233,7 @@ async function handleDeepChatRequest(
 
     const reply = data.reply || 'No reply received.';
     pendingProposal = data.proposedChanges
-      ? { question, proposedChanges: data.proposedChanges }
+      ? { question, proposedChanges: data.proposedChanges, context: contextSummary }
       : null;
     signals.onResponse({ text: reply });
   } catch (err) {
@@ -273,12 +281,81 @@ function formatValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
+const HOLDING_LABELS: Record<string, string> = {
+  mf: 'MF',
+  sip: 'SIP',
+  fd: 'FD',
+  epf: 'EPF',
+  esop: 'ESOP',
+  bonds: 'Bonds',
+  otherHoldings: 'Custom',
+  demat: 'Demat',
+};
+
+function holdingsLabel(summary: SanitizedContext['holdingsSummary']): string {
+  const populated = Object.entries(summary)
+    .filter(([, entry]) => entry.count > 0)
+    .map(([key, entry]) => `${HOLDING_LABELS[key] ?? key} ${entry.count}`);
+  return populated.length > 0 ? populated.join(' · ') : 'None recorded';
+}
+
+function marketLabel(nifty: NiftyContext | null): string {
+  if (!nifty) return 'Nifty 50 unavailable';
+  const when = new Date(nifty.asOf).toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+  return `Nifty 50 · ${when} · ${nifty.freshness}`;
+}
+
+/**
+ * Assumptions block: the sanitized context the model answered from, shown
+ * beside the diff so a reviewer can judge the suggestion before confirming.
+ * Ranges/bands only — never raw identifiers or unbucketed balances.
+ */
+function renderAssumptions(context: SanitizedContext): HTMLElement {
+  const block = document.createElement('div');
+  block.className = 'assistant-proposal-assumptions';
+
+  const title = document.createElement('div');
+  title.className = 'assistant-proposal-assumptions-title';
+  title.textContent = 'Assumptions';
+  block.appendChild(title);
+
+  const list = document.createElement('dl');
+  list.className = 'assistant-proposal-assumptions-list';
+  const rows: Array<[string, string]> = [
+    ['Age band', context.ageBand],
+    ['Net worth', context.netWorthRange],
+    ['FI target', context.fiTargetRange],
+    ['Annual expenses', context.profileMasked.annualExpenses],
+    ['Holdings', holdingsLabel(context.holdingsSummary)],
+    ['Market data', marketLabel(context.nifty50)],
+    ['Precision', context.sendExact ? 'Exact figures sent' : 'Range estimates only'],
+  ];
+  for (const [label, value] of rows) {
+    const term = document.createElement('dt');
+    term.textContent = label;
+    const detail = document.createElement('dd');
+    detail.textContent = value;
+    list.append(term, detail);
+  }
+  block.appendChild(list);
+
+  const note = document.createElement('p');
+  note.className = 'assistant-proposal-assumptions-note';
+  note.textContent = 'Captured with this proposal from your local data.';
+  block.appendChild(note);
+
+  return block;
+}
+
 function renderProposalCard(
   messages: HTMLElement,
-  question: string,
-  proposedChanges: Record<string, unknown>
+  proposal: { question: string; proposedChanges: Record<string, unknown>; context: SanitizedContext }
 ): void {
   if (!activeContext) return;
+  const { question, proposedChanges, context } = proposal;
 
   const validation = applyAssistantProposal(activeContext.state, proposedChanges);
 
@@ -340,6 +417,7 @@ function renderProposalCard(
     list.appendChild(item);
   }
   card.appendChild(list);
+  card.appendChild(renderAssumptions(context));
 
   if (analysis.requiresReauth) {
     const warn = document.createElement('div');

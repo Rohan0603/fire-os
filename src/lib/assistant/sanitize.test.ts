@@ -77,6 +77,17 @@ describe('buildContextSummary', () => {
     expect(ctx.netWorthRange).toBe('5–25L');
   });
 
+  it('derives annual expense figures from the stored monthly value', () => {
+    const state = initializeState();
+    state.profile.annualExpenses = 50000;
+
+    const ctx = buildContextSummary(state, true);
+    expect(ctx.exact?.monthlyExpenses).toBe(50000);
+    expect(ctx.exact?.annualExpenses).toBe(600000);
+    // 600000 annual buckets to 5–25L; the raw monthly figure would be <1L.
+    expect(ctx.profileMasked.annualExpenses).toBe('5–25L');
+  });
+
   it('summarizes demat holdings via currentValue', () => {
     const state = initializeState();
     state.demat = {

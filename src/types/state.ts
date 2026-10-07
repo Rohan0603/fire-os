@@ -176,7 +176,9 @@ const statusSchema = v.picklist(['live', 'cache-fresh', 'stale', 'manual']);
 const legacyNiftyStatusSchema = v.picklist(['live', 'cache-fresh', 'manual']);
 const profileSchema = v.strictObject({
   name: v.string(), dateOfBirth: v.optional(v.string()), age: finiteNumberSchema,
-  taxSlabRate: v.optional(finiteNumberSchema), annualExpenses: finiteNumberSchema,
+  taxSlabRate: v.optional(finiteNumberSchema),
+  // profile.annualExpenses: monthly ₹ — legacy key name says annual; consumers multiply by 12
+  annualExpenses: finiteNumberSchema,
   fiTarget: finiteNumberSchema, monthlyIncome: finiteNumberSchema,
 });
 const holdingMapSchema = v.record(v.string(), v.strictObject({ amount: finiteNumberSchema, currency: v.string() }));

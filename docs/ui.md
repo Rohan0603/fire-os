@@ -100,10 +100,11 @@ remaining only when already achieved. Drawdown is max(0, `(high-level)/high`).
   drawdown plus deployment examples based on 10/15/25% of total net worth.
   Nifty can be entered manually. Background alert deployment values use the
   same percentages of bonds.
-- **Emergency Runway:** UI currently uses `profile.annualExpenses` as the
-  monthly-expense amount; liquid assets are SIP (units × direct scheme-code
-  cached NAV) plus only `fd.fd.amount`. It floors to months and labels ≥12
-  healthy, ≥6 moderate, otherwise low. This is the implemented UI behavior.
+- **Emergency Runway:** `profile.annualExpenses` is stored monthly (the key
+  name is legacy) and is used here as the monthly-expense amount; liquid
+  assets are SIP (units × direct scheme-code cached NAV) plus only
+  `fd.fd.amount`. It floors to months and labels ≥12 healthy, ≥6 moderate,
+  otherwise low. This is the implemented UI behavior.
 - **SIP Pause:** defaults to current total monthly SIP, six months and 12% annual
   return. UI estimate is missed contributions = monthly × months; lost growth
   approximation = missed × (annual % / 12 / 100) × 12; total is their sum.
@@ -250,11 +251,11 @@ after a 500ms debounce, and are saved only if the DOM differs from `appState`.
 ### Personal assumptions
 
 Inputs are name, DOB, monthly expenses, FI target, monthly income and tax slab.
-Although the state field is called `profile.annualExpenses`, the Profile
-screen labels/uses the value as **monthly expenses**. The Plan's cash
-flow and plain-English summary multiply it by 12; the emergency runway screen
-uses it directly as monthly expenses. Keep this mismatch explicit when reading
-or changing calculations. DOB uses native `type=date`;
+`profile.annualExpenses` is stored as **monthly** rupees; the legacy key name
+says annual. Annual figures are derived at the point of use (`stored × 12`):
+the Plan's cash flow and plain-English summary multiply it by 12, dashboard
+tiles show the annual figure, and the emergency runway screen uses the raw
+stored value as monthly expenses. DOB uses native `type=date`;
 `calculateAgeFromDateOfBirth()` (`src/types/portfolio.ts`) strictly parses
 `YYYY-MM-DD` with date-fns and computes age from the UTC calendar day of
 `today`, taking the anniversary inside today's year (Feb 29 falls on Mar 1 in
@@ -523,9 +524,10 @@ cover the withdrawal. A manual simulator awaits cloud persistence.
 ## Exact Plan and auxiliary widget behavior
 
 - **Cashflow:** if monthly income is absent, prompt to configure it. Annual income
-  is monthly income×12; annual expenses is `profile.annualExpenses×12`; surplus
-  is difference; savings rate is surplus/income×100. Label says post-tax estimate
-  but no tax deduction is calculated.
+  is monthly income×12; annual expenses is stored `profile.annualExpenses`
+  (monthly rupees, legacy key name) × 12; surplus is difference; savings rate is
+  surplus/income×100. Label says post-tax estimate but no tax deduction is
+  calculated.
 - **Health:** missing FI target is yellow; a configured target with corpus zero
   remains default green in this implementation. Protection is red when both
   term and health covers are zero; otherwise yellow for gaps. Savings missing

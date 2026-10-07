@@ -12,6 +12,10 @@ let containerId = 'plan';
 let activeContext = createFeatureContext();
 let D = activeContext.state;
 
+// ponytail: assumptions are fixed constants until Profile exposes a return/step-up input
+const ASSUMED_ANNUAL_RETURN = 0.17;
+const ASSUMED_SIP_STEP_UP = 0.1;
+
 export function initPlanModule(id: string = 'plan', context: FeatureContext = activeContext) {
   containerId = id;
   activeContext = context;
@@ -32,12 +36,14 @@ export function renderPlan(context: FeatureContext = activeContext) {
     0,
   );
   const fiProgressPct = fiTarget > 0 ? Math.min((netWorth / fiTarget) * 100, 100) : 0;
+  const goalIsDefault = !D.profile?.fiTarget;
   const baseScenario = context.ports.calculations.calculateFIAge({
     currentCorpus: netWorth,
     monthlyAmount: totalMonthlyAmount,
     targetCorpus: fiTarget,
-    cagr: 0.17,
+    cagr: ASSUMED_ANNUAL_RETURN,
     currentAge,
+    annualStepUp: ASSUMED_SIP_STEP_UP,
   });
 
   const coorgCorpus = D.coorgCorpus || 0;
@@ -89,6 +95,8 @@ export function renderPlan(context: FeatureContext = activeContext) {
               <div class="plan-progress-fill" style="width:${fiProgressPct.toFixed(0)}%"></div>
             </div>
             <p class="plan-progress-note">FI in <strong>${(baseScenario.monthsToFI / 12).toFixed(0)}y</strong> (age ${baseScenario.fiAge.toFixed(0)})</p>
+            <p class="plan-assumptions">Estimate: assumes ${Math.round(ASSUMED_ANNUAL_RETURN * 100)}% a year return and your SIP rising ${Math.round(ASSUMED_SIP_STEP_UP * 100)}% each year, from ${formatCurrency(totalMonthlyAmount, 0)}/mo. Actual returns will differ.</p>
+            ${goalIsDefault ? `<p class="plan-assumptions plan-assumptions--hint">Goal is the default ${formatCurrency(fiTarget, 0)} — set your own in Profile.</p>` : ''}
           </section>
           
           <section class="plan-card plan-coorg-card">
