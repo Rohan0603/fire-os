@@ -10,6 +10,9 @@ import { configurePortfolioStorageScope } from './lib/storage';
 import { initFirestore, loadPortfolio, onPortfolioChange, savePortfolio } from './modules/api/firestore';
 
 // Import types
+import { createRoot } from 'react-dom/client';
+import { createBootstrap } from './app/bootstrap';
+import type { AppBootstrapResult } from './app/bootstrap';
 import { applyPersistedState, initializeState } from './types/state';
 import type { FireOSState } from './types/state';
 import { appState } from './lib/appState';
@@ -187,6 +190,27 @@ function resetLiveAppState(): void {
   delete appState.niftyData;
 }
 
+/**
+ * Production wiring for the bootstrap seam. Resolves once `sessionController.start()`
+ * has run and a session kind is known; React mounts only after that.
+ *
+ * The React tree itself arrives in Task 6. Until `#app-root` exists in index.html
+ * this is a no-op and the legacy compat bridge keeps owning tab rendering.
+ */
+export function bootstrapApp(): Promise<AppBootstrapResult> {
+  return createBootstrap({
+    startAuthSession: () => {
+      // `sessionController.start()` already ran above in initApp. The seam owns the
+      // ordering guarantee; re-starting here would double-register auth listeners.
+    },
+    createReactMount: (container) => {
+      // Task 6 replaces this with the real <App /> tree.
+      createRoot(container).render(null);
+    },
+    resolveMode: () => (sessionController.isGuestSessionActive ? 'guest' : 'authenticated'),
+  })();
+}
+
 
 // Initialize app on startup
 function initApp() {
@@ -221,6 +245,11 @@ function initApp() {
     setupBackgroundNAVRefresh();
     setupOfflineNotification();
     setupTheme();
+    void bootstrapApp().then((result) => {
+      // `#app-root` arrives in Task 6; until then the compat bridge keeps serving tabs.
+      const appRoot = document.getElementById('app-root');
+      if (appRoot) result.mountReact(appRoot);
+    });
   } catch (e) {
     console.error('Fatal error during app initialization:', e);
     handleError(e, 'App initialization failed - please reload the page');
