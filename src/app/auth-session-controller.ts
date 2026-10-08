@@ -60,6 +60,24 @@ export class AuthSessionController {
     });
   }
 
+  /**
+   * Apply the current session state to `#logout-btn`.
+   *
+   * The control itself is rendered by React (`src/app/components/auth-button.tsx`)
+   * and mounts *after* the first session resolves, so the label and visibility are
+   * re-applied once React has rendered it. Called from `bootstrapApp()` after mount.
+   */
+  syncAuthControl(): void {
+    const control = document.getElementById('logout-btn');
+    if (!control) return;
+    if (this.authPromptRequested) {
+      control.style.display = 'none';
+      return;
+    }
+    control.textContent = this.guestSessionActive ? 'Sign in' : 'Logout';
+    control.style.display = 'block';
+  }
+
   async requestSignIn(): Promise<void> {
     if (!this.guestSessionActive) return;
     this.guestSessionActive = false;

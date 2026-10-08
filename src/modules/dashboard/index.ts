@@ -251,7 +251,7 @@ export async function renderDashboard(context: FeatureContext = activeContext): 
     destroyNetWorthChart();
     destroyBenchmarkChart();
     container.innerHTML = `
-      <div class="flex-col flex-align-center flex-justify-center gap-1 text-center" style="padding: 6rem 2rem;">
+      <div class="flex flex-col flex-align-center flex-justify-center gap-4 text-center" style="padding: 6rem 2rem;">
         <div class="loading-spinner"></div>
         <div style="color: var(--text-secondary); font-weight: 500; font-size: 1.1rem;">Updating portfolio NAVs and rates...</div>
       </div>

@@ -77,3 +77,6 @@ fire-os-cleanup.md
 
 # Agent tooling scratch (task briefs, review diffs, build logs)
 .superpowers/
+
+# Installed agent skills (ui-ux-pro-max CLI; reinstall with `uipro init --ai opencode`)
+.opencode/

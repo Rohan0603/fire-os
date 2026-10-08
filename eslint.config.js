@@ -11,6 +11,9 @@ export default tseslint.config(
       'test-results/**',
       'public/chart.js/**',
       'public/pdfjs/**',
+      // Installed agent tooling (ui-ux-pro-max), vendored by `uipro init`.
+      // Not project source; ESLint does not read .gitignore.
+      '.opencode/**',
     ],
   },
   eslint.configs.recommended,

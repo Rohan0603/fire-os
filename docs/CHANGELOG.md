@@ -14,13 +14,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Scenario Comparison**: side-by-side FI projection of two scenarios in the calculators tab
 - **Agent-friendly development**: enhanced `AGENTS.md` with explicit PR/MR workflow, CI check guidance, and issue onboarding; added quick-reference validation table and agent-contributing guide to `docs/README.md`
 
+### Fixed
+- **Assistant CORS on `firebaseapp.com`**: the assistant worker's `ALLOWED_ORIGIN` held a
+  single origin (`fire-os-dd6d6.web.app`), so every request from the `firebaseapp.com`
+  host was rejected by the browser. It is now a comma-separated allowlist that also
+  covers `firebaseapp.com` and the local dev server.
+
 ### Changed
+- **React shell and routing foundation**: the UI now renders through React 19 with
+  React Router routes and a Tailwind CSS v4 theme. Navigation moves to a sidebar
+  (persistent at `lg` and above, a `<details>` drawer below it) with `aria-current`
+  and visible focus rings. Design tokens are converted to OKLCH, and dark mode
+  follows `prefers-color-scheme` unless the user picks a theme. `src/main.ts`
+  remains the entry point and mounts React last, through a bootstrap seam that
+  resolves only after the auth session does. Feature modules still render their own
+  DOM and are ported route by route; each route carries `data-migration-state`
+  until it is migrated. The prerender-script retirement and the move to Cloudflare
+  Workers are not part of this change.
 - **Reactive Status Stores**: sync, market-refresh, and cloud-mode labels update live from shared status stores
 - Consolidated project, architecture, API, Assistant, deployment, and
   troubleshooting guidance into `docs/README.md`.
 - Removed duplicated and historical planning documents.
 
 ### Fixed
+- **Google sign-in message on guest-only builds**: with no `VITE_FIREBASE_*` configuration,
+  `requireAuth()` threw `app/firebase-unconfigured`, but that code was missing from the
+  error-message map, so every sign-in attempt reported the generic "An authentication error
+  occurred. Please try again." and invited a retry that could never succeed. The code is
+  now mapped to an explicit explanation.
+- **Auth screen no longer offers dead-end sign-in when unconfigured**: the screen shows an
+  inline notice explaining that sign-in, accounts and cloud sync are unavailable while guest
+  mode still works, and the Login, Sign Up, Google and "Forgot password" controls are
+  disabled rather than wired to handlers that cannot succeed.
 - **Guest-only startup**: the app no longer fails to render when `VITE_FIREBASE_*`
   is absent or partial. Firebase `Auth` is now resolved through `getOptionalAuth()`,
   which returns null instead of throwing during module evaluation, so the

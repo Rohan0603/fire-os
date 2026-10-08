@@ -46,6 +46,11 @@ const firebaseErrorMessages: Record<string, string> = {
   'auth/popup-blocked': 'Your browser blocked the Google sign-in popup. Allow popups and try again.',
   'auth/unauthorized-domain': 'This domain is not authorized in Firebase Authentication.',
   'auth/account-exists-with-different-credential': 'An account already exists with a different sign-in method.',
+  // Thrown by requireAuth() when VITE_FIREBASE_* is absent or partial. Without this
+  // entry it fell through to the generic fallback, which told users to retry a
+  // sign-in that can never succeed on an unconfigured deployment.
+  'app/firebase-unconfigured':
+    'Sign-in is unavailable: this deployment has no Firebase configuration. Add the VITE_FIREBASE_* values to .env and reload.',
 };
 
 /**

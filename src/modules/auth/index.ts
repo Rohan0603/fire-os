@@ -5,12 +5,30 @@
 
 import { validateLoginForm, validateSignupForm, validatePasswordResetEmail } from './validation';
 import { loginUser, loginWithGoogle, signupUser, sendPasswordReset } from './firebaseAuth';
+import { getOptionalAuth } from '../../lib/firebase';
+import { CONFIG } from '../../lib/config';
 import './styles.css';
 
 /**
  * Module state
  */
 let containerId = 'auth-screen';
+
+/**
+ * Inline notice for a deployment with no Firebase configuration. Guest mode still
+ * works, so this explains the state rather than presenting an error.
+ */
+function authUnavailableNotice(): string {
+  return `
+    <div class="auth-notice" role="status" id="auth-unavailable">
+      <strong>Sign-in is unavailable in this build.</strong>
+      <p>No Firebase configuration was found, so accounts, cloud sync and Google
+      sign-in cannot work. Your portfolio is still saved in this browser, and
+      everything else on this screen is fully usable in guest mode.</p>
+      <p class="auth-notice-hint">To enable sign-in, add the <code>VITE_FIREBASE_*</code>
+      values to <code>.env</code> and reload.</p>
+    </div>`;
+}
 
 /**
  * Initialize the auth module
@@ -29,11 +47,17 @@ export function renderAuthScreen(): void {
   const container = document.getElementById(containerId);
   if (!container) return;
 
+  // Guest-only deployments have no Firebase credentials, so every sign-in path is a
+  // guaranteed failure. Say so up front and disable the controls rather than letting
+  // the user click through to a generic error.
+  const unconfigured = !getOptionalAuth(CONFIG.firebaseConfig);
+
   container.innerHTML = `
     <div class="auth-screen" id="auth-screen-root">
       <div class="auth-container">
         <h1>FIRE OS</h1>
         <p class="subtitle">Financial Independence Dashboard</p>
+        ${unconfigured ? authUnavailableNotice() : ''}
 
         <div class="auth-tabs">
           <button class="tab-login active">Login</button>
@@ -139,6 +163,26 @@ export function showAuthScreen(): void {
  * Attach event listeners to auth form elements
  */
 function attachAuthEventListeners(): void {
+  // Guest-only deployments cannot sign in, so block the dead-end paths before the
+  // user reaches them. The notice in renderAuthScreen() explains why.
+  if (document.getElementById('auth-unavailable')) {
+    for (const id of [
+      'login-submit',
+      'signup-submit',
+      'login-google',
+      'signup-google',
+      'forgot-password-link',
+    ]) {
+      const control = document.getElementById(id) as HTMLButtonElement | null;
+      if (control) {
+        control.disabled = true;
+        control.setAttribute('aria-disabled', 'true');
+        control.classList.add('btn-disabled');
+      }
+    }
+    return;
+  }
+
   // Tab switching
   document.querySelector('.tab-login')?.addEventListener('click', () => switchTab('login'));
   document.querySelector('.tab-signup')?.addEventListener('click', () => switchTab('signup'));

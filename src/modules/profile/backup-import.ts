@@ -1,4 +1,4 @@
-import * as v from 'valibot';
+
 import type { FeatureContext } from '../../core/feature-context';
 import { normalizePersistedState, persistedPortfolioSchema, type FireOSState } from '../../types/state';
 
@@ -18,11 +18,14 @@ export function parsePortfolioBackup(text: string): { data: Partial<FireOSState>
   const persisted = Object.fromEntries(
     Object.entries(parsed).filter(([key]) => !runtimeStateKeys.has(key)),
   );
-  const result = v.safeParse(persistedPortfolioSchema, persisted);
+  const result = persistedPortfolioSchema.safeParse(persisted);
   if (!result.success) {
-    return { data: null, issues: result.issues.map((issue) => `${issue.path?.map((item) => String(item.key)).join('.') || 'backup'}: ${issue.message}`) };
+    const issues = result.error.issues.map(
+      (issue) => `${issue.path.map(String).join('.') || 'backup'}: ${issue.message}`,
+    );
+    return { data: null, issues };
   }
-  return { data: result.output as Partial<FireOSState>, issues: [] };
+  return { data: result.data as Partial<FireOSState>, issues: [] };
 }
 
 export async function restorePortfolioBackup(

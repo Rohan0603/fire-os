@@ -1,10 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* No blanket `* { margin: 0; padding: 0 }` reset here. This file is unlayered, and
+   unlayered rules outrank every cascade layer, so a `*` reset here silently beats
+   Tailwind's utilities on the whole page. Tailwind's preflight already applies the
+   identical box-sizing/margin/padding reset inside @layer base, where utilities
+   correctly win. Do not reintroduce it. */
 
 body {
   font-family: 'Fira Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -32,20 +32,18 @@ html, body, #app {
   to { transform: rotate(360deg); }
 }
 
-/* CSS Utilities to replace inline styles */
+/* CSS Utilities to replace inline styles.
+   These must not reuse Tailwind class names. This file is unlayered, so it outranks
+   every cascade layer: a legacy `.gap-1` would silently beat Tailwind's `.gap-1` on
+   any element, and `lg:flex-row` could never override a legacy `.flex-col`. The
+   Tailwind-named helpers that used to live here were removed and their three call
+   sites migrated to real Tailwind utilities. */
 .w-100 { width: 100%; }
 .box-border { box-sizing: border-box; }
-.text-center { text-align: center; }
-.flex-col { display: flex; flex-direction: column; }
-.flex-row { display: flex; flex-direction: row; }
-.flex-align-center { display: flex; align-items: center; }
-.flex-justify-center { display: flex; justify-content: center; }
 .gap-0-5 { gap: 0.5rem; }
-.gap-1 { gap: 1rem; }
 .gap-1-25 { gap: 1.25rem; }
 .margin-bottom-1-5 { margin-bottom: 1.5rem; }
 .margin-top-0-25 { margin-top: 0.25rem; }
-.font-medium { font-weight: 500; }
-.font-semibold { font-weight: 600; }
-.display-block { display: block; }
+.flex-align-center { display: flex; align-items: center; }
+.flex-justify-center { display: flex; justify-content: center; }
 

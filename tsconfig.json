@@ -10,6 +10,7 @@
     "strict": true,
     "noImplicitAny": true,
     "resolveJsonModule": true,
+    "jsx": "react-jsx",
     "moduleResolution": "bundler",
     "allowJs": false,
     "declaration": true,

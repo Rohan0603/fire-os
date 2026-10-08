@@ -14,6 +14,16 @@ import { configurePortfolioStorageScope } from './lib/storage';
 import { initFirestore, loadPortfolio, onPortfolioChange, savePortfolio } from './modules/api/firestore';
 
 // Import types
+import { createElement } from 'react';
+import { createRoot } from 'react-dom/client';
+import { App } from './app/app';
+import { createBootstrap } from './app/bootstrap';
+import {
+  registerAuthAction,
+  registerAuthControlSync,
+  registerLegacyTabActivator,
+} from './app/legacy-bridge';
+import type { AppBootstrapResult } from './app/bootstrap';
 import { applyPersistedState, initializeState } from './types/state';
 import { appState } from './lib/appState';
 import { createFeatureContext } from './core/feature-context';
@@ -57,6 +67,8 @@ import { showToast } from './modules/ui';
 import './styles/global.css';
 import './styles/layout.css';
 import './styles/tokens.css';
+// Imported last so the OKLCH theme outranks the legacy tokens.css above.
+import './styles/tokens-oklch.css';
 
 // Global state object - properly typed
 // Firebase configuration
@@ -195,6 +207,26 @@ function resetLiveAppState(): void {
   delete appState.niftyData;
 }
 
+/**
+ * Production wiring for the bootstrap seam. Resolves once `sessionController.start()`
+ * has run and a session kind is known; React mounts only after that.
+ *
+ * The React tree itself arrives in Task 6. Until `#app-root` exists in index.html
+ * this is a no-op and the legacy compat bridge keeps owning tab rendering.
+ */
+export function bootstrapApp(): Promise<AppBootstrapResult> {
+  return createBootstrap({
+    startAuthSession: () => {
+      // `sessionController.start()` already ran above in initApp. The seam owns the
+      // ordering guarantee; re-starting here would double-register auth listeners.
+    },
+    createReactMount: (container) => {
+      createRoot(container).render(createElement(App));
+    },
+    resolveMode: () => (sessionController.isGuestSessionActive ? 'guest' : 'authenticated'),
+  })();
+}
+
 
 // Initialize app on startup
 function initApp() {
@@ -229,6 +261,10 @@ function initApp() {
     setupBackgroundNAVRefresh();
     setupOfflineNotification();
     setupTheme();
+    void bootstrapApp().then((result) => {
+      const appRoot = document.getElementById('app-root');
+      if (appRoot) result.mountReact(appRoot);
+    });
   } catch (e) {
     console.error('Fatal error during app initialization:', e);
     handleError(e, 'App initialization failed - please reload the page');
@@ -245,7 +281,7 @@ function renderApp() {
   if (!app) return;
 
   app.innerHTML = `
-    <nav class="nav">
+    <nav class="nav" id="legacy-nav" hidden>
       <div class="nav-brand">FIRE OS</div>
       <button id="hamburger-btn" class="hamburger-btn" aria-label="Toggle Menu">☰</button>
       <div class="nav-tabs">
@@ -258,17 +294,12 @@ function renderApp() {
         <a class="nav-tab" href="/assistant" data-tab="assistant">Assistant</a>
       </div>
       <div style="display: flex; gap: 1rem; align-items: center;">
-        <label class="theme-switch" title="Toggle Theme">
-          <input type="checkbox" id="theme-toggle">
-          <span class="slider round"></span>
-        </label>
-        <button id="logout-btn" class="btn-logout" style="display: none;">Logout</button>
       </div>
     </nav>
 
     <div id="auth-screen"></div>
 
-    <div class="tabs-container">
+    <div class="tabs-container" id="legacy-tabs">
       <div id="profile" class="tab active"></div>
       <div id="dashboard" class="tab"></div>
       <div id="calculators" class="tab"></div>
@@ -284,6 +315,87 @@ function renderApp() {
   renderAuthScreen();
 }
 
+// Tab navigation
+function setupTabNavigation() {
+  const hamburgerBtn = document.getElementById('hamburger-btn');
+  const navTabs = document.querySelector('.nav-tabs');
+
+  if (hamburgerBtn && navTabs) {
+    hamburgerBtn.addEventListener('click', () => {
+      hamburgerBtn.classList.toggle('open');
+      navTabs.classList.toggle('open');
+    });
+  }
+
+  const activateTab = (target: string): void => {
+    const tabEl = document.getElementById(target);
+    if (!tabEl || !featureRegistry.get(target)) return;
+
+    const currentTab = document.querySelector<HTMLElement>('.tab.active');
+    if (currentTab && currentTab.id !== target) {
+      void featureRegistry.unmount(currentTab.id, currentTab).catch((error) => {
+        console.warn(`Failed to unmount feature ${currentTab.id}:`, error);
+      });
+    }
+
+    document.querySelectorAll('.nav-tab').forEach((tab) => {
+      tab.classList.toggle('active', tab.getAttribute('data-tab') === target);
+    });
+    document.querySelectorAll('.tab').forEach((tab) => tab.classList.remove('active'));
+    tabEl.classList.add('active');
+
+    void featureRegistry.mount(target, tabEl).catch((error) => {
+      console.error(`Failed to load module for tab ${target}:`, error);
+      tabEl.innerHTML = '<p style="padding: 20px; color: #d32f2f;">Error loading module. Please check your connection.</p>';
+    });
+  };
+
+  const activateLocationTab = (): void => {
+    const path = window.location.pathname.replace(/\/+$/, '') || '/';
+    const pathTarget = path.startsWith('/') ? path.slice(1) : path;
+    const hashTarget = window.location.hash.slice(1);
+    const target = featureRegistry.get(pathTarget)?.id ?? featureRegistry.get(hashTarget)?.id ?? 'profile';
+    activateTab(target);
+  };
+
+  document.querySelectorAll('.nav-tab').forEach((tab) => {
+    tab.addEventListener('click', (event) => {
+      event.preventDefault();
+      if (hamburgerBtn && navTabs) {
+        hamburgerBtn.classList.remove('open');
+        navTabs.classList.remove('open');
+      }
+      const target = tab.getAttribute('data-tab');
+      if (target) {
+        window.history.pushState({}, '', `/${target}`);
+        activateTab(target);
+      }
+    });
+  });
+  window.addEventListener('popstate', activateLocationTab);
+  window.addEventListener('hashchange', activateLocationTab);
+  activateLocationTab();
+  // React Router navigates without popstate, so hand it the same activator.
+  registerLegacyTabActivator(activateTab);
+
+  // Auth action. The button itself now lives in the React header
+  // (src/app/components/auth-button.tsx) and still carries `#logout-btn`, which
+  // `AuthSessionController` drives for its label and visibility.
+  registerAuthAction(async () => {
+    try {
+      if (sessionController.isGuestSessionActive) {
+        await sessionController.requestSignIn();
+        return;
+      }
+      await sessionController.signOut();
+    } catch (e) {
+      console.error('Logout failed:', e);
+    }
+  });
+  registerAuthControlSync(() => sessionController.syncAuthControl());
+}
+
+>>>>>>> origin/ao/fire-os-2/assistant-cors-allowlist
 // Auto-refresh dashboard when state changes
 function setupDashboardAutoRefresh() {
   let renderQueued = false;
@@ -303,6 +415,60 @@ function setupDashboardAutoRefresh() {
   window.addEventListener('pagehide', unsubscribe, { once: true });
 }
 
+// Theme toggle logic
+function setupOfflineNotification() {
+  const updateBannerStatus = () => {
+    const app = document.getElementById('app');
+    if (!app) return;
+
+    if (!navigator.onLine) {
+      let banner = document.getElementById('offline-banner');
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'offline-banner';
+        banner.style.cssText = `
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          background: #ff9800;
+          color: white;
+          padding: 10px;
+          text-align: center;
+          font-weight: 500;
+          z-index: 2000;
+        `;
+        banner.textContent = '📡 You are offline - changes will sync when you reconnect';
+        document.body.insertBefore(banner, document.body.firstChild);
+      }
+    } else {
+      const banner = document.getElementById('offline-banner');
+      if (banner) banner.remove();
+    }
+  };
+
+  updateBannerStatus();
+  window.addEventListener('online', updateBannerStatus);
+  window.addEventListener('offline', updateBannerStatus);
+}
+
+// Theme toggle logic
+//
+// Applies the stored preference, or the system preference when nothing is stored.
+// The initial application deliberately does NOT write localStorage: only a real
+// user toggle persists a choice, so an unset preference stays unset and the CSS
+// `@media (prefers-color-scheme)` rule remains authoritative (the spec's
+// system-default behaviour). The React ThemeToggle in src/app/components owns the
+// control itself and reads the same key.
+function setupTheme() {
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const savedTheme = localStorage.getItem('fire-os-theme');
+  const isDark = savedTheme === 'dark' || (savedTheme === null && prefersDark);
+
+  document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
+}
+
+>>>>>>> origin/ao/fire-os-2/assistant-cors-allowlist
 // Start app
 document.addEventListener('DOMContentLoaded', initApp);
 

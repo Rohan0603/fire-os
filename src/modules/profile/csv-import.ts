@@ -1,5 +1,5 @@
 import Papa from 'papaparse';
-import * as v from 'valibot';
+
 import type { FeatureContext } from '../../core/feature-context';
 import type { DematHolding, Holding, Liability, OtherHolding, SIPFund } from '../../types/portfolio';
 import {
@@ -265,7 +265,7 @@ export function parsePortfolioCsv(text: string): CsvImportPreview {
 
   if (Object.keys(draft).length === 0) return preview;
   const candidate: Partial<FireOSState> = draft;
-  if (!v.is(persistedPortfolioSchema, candidate)) {
+  if (!persistedPortfolioSchema.safeParse(candidate).success) {
     issues.push({ row: 1, field: 'file', message: 'Parsed rows do not form a valid portfolio payload.' });
     return { candidate: {}, validRows: 0, issues };
   }
