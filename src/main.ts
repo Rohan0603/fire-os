@@ -10,8 +10,11 @@ import { configurePortfolioStorageScope } from './lib/storage';
 import { initFirestore, loadPortfolio, onPortfolioChange, savePortfolio } from './modules/api/firestore';
 
 // Import types
+import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
+import { RouterProvider } from 'react-router-dom';
 import { createBootstrap } from './app/bootstrap';
+import { router } from './app/routes';
 import type { AppBootstrapResult } from './app/bootstrap';
 import { applyPersistedState, initializeState } from './types/state';
 import type { FireOSState } from './types/state';
@@ -204,8 +207,7 @@ export function bootstrapApp(): Promise<AppBootstrapResult> {
       // ordering guarantee; re-starting here would double-register auth listeners.
     },
     createReactMount: (container) => {
-      // Task 6 replaces this with the real <App /> tree.
-      createRoot(container).render(null);
+      createRoot(container).render(createElement(RouterProvider, { router }));
     },
     resolveMode: () => (sessionController.isGuestSessionActive ? 'guest' : 'authenticated'),
   })();
@@ -246,7 +248,6 @@ function initApp() {
     setupOfflineNotification();
     setupTheme();
     void bootstrapApp().then((result) => {
-      // `#app-root` arrives in Task 6; until then the compat bridge keeps serving tabs.
       const appRoot = document.getElementById('app-root');
       if (appRoot) result.mountReact(appRoot);
     });
