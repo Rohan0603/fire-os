@@ -14,7 +14,11 @@ import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/app';
 import { createBootstrap } from './app/bootstrap';
-import { registerLegacyTabActivator } from './app/legacy-bridge';
+import {
+  registerAuthAction,
+  registerAuthControlSync,
+  registerLegacyTabActivator,
+} from './app/legacy-bridge';
 import type { AppBootstrapResult } from './app/bootstrap';
 import { applyPersistedState, initializeState } from './types/state';
 import type { FireOSState } from './types/state';
@@ -280,7 +284,6 @@ function renderApp() {
         <a class="nav-tab" href="/assistant" data-tab="assistant">Assistant</a>
       </div>
       <div style="display: flex; gap: 1rem; align-items: center;">
-        <button id="logout-btn" class="btn-logout" style="display: none;">Logout</button>
       </div>
     </nav>
 
@@ -365,21 +368,21 @@ function setupTabNavigation() {
   // React Router navigates without popstate, so hand it the same activator.
   registerLegacyTabActivator(activateTab);
 
-  // Logout button
-  const logoutBtn = document.getElementById('logout-btn');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', async () => {
-      try {
-        if (sessionController.isGuestSessionActive) {
-          await sessionController.requestSignIn();
-          return;
-        }
-        await sessionController.signOut();
-      } catch (e) {
-        console.error('Logout failed:', e);
+  // Auth action. The button itself now lives in the React header
+  // (src/app/components/auth-button.tsx) and still carries `#logout-btn`, which
+  // `AuthSessionController` drives for its label and visibility.
+  registerAuthAction(async () => {
+    try {
+      if (sessionController.isGuestSessionActive) {
+        await sessionController.requestSignIn();
+        return;
       }
-    });
-  }
+      await sessionController.signOut();
+    } catch (e) {
+      console.error('Logout failed:', e);
+    }
+  });
+  registerAuthControlSync(() => sessionController.syncAuthControl());
 }
 
 // Auto-refresh dashboard when state changes

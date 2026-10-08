@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
+import { AppHeader } from './components/app-header';
 import { ErrorBoundary } from './components/error-boundary';
 import { Sidebar } from './components/sidebar';
-import { ThemeToggle } from './components/theme-toggle';
 import { syncLegacyTab } from './legacy-bridge';
 import { metaForPath } from './routes/route-meta';
 
@@ -41,14 +41,29 @@ export function AppLayout() {
 
   return (
     <div className="flex min-h-screen flex-col bg-(--color-background) text-(--color-foreground)">
-      <header className="flex items-center justify-between gap-3 border-b border-(--color-border) p-3">
-        <span className="text-lg font-bold">FIRE OS</span>
-        <ThemeToggle />
-      </header>
+      <AppHeader />
 
       <div className="flex flex-1 flex-col lg:flex-row">
         <details className="border-b border-(--color-border) lg:hidden">
-          <summary className="cursor-pointer px-3 py-2 text-sm font-medium">Menu</summary>
+          <summary
+            aria-label="Toggle navigation menu"
+            className="flex cursor-pointer list-none items-center px-3 py-2
+                       focus-visible:outline-2 focus-visible:outline-offset-2
+                       focus-visible:outline-(--color-secondary)"
+          >
+            {/* ponytail: inline SVG instead of an icon dependency for one glyph */}
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </summary>
           <Sidebar />
         </details>
 

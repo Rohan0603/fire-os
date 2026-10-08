@@ -86,6 +86,23 @@ test('sidebar and content sit side by side at desktop width', async ({ page }) =
   );
 });
 
+test('mobile nav disclosure uses a hamburger icon, not the word Menu', async ({ page }) => {
+  await page.setViewportSize({ width: 480, height: 900 });
+  await page.goto('/');
+  const summary = page.locator('details > summary');
+  await expect(summary).toBeVisible();
+  await expect(summary.locator('svg')).toHaveCount(1);
+  await expect(summary).not.toHaveText('Menu');
+  await expect(summary).toHaveAttribute('aria-label', /navigation/i);
+});
+
+test('header exposes the sign-in control in guest mode', async ({ page }) => {
+  await page.goto('/');
+  const button = page.locator('header #logout-btn');
+  await expect(button).toBeVisible();
+  await expect(button).toHaveText(/Sign in/i);
+});
+
 test('every interactive element shows a focus ring', async ({ page }) => {
   await page.goto('/');
   const outline = await page.getByRole('link', { name: 'Dashboard' }).evaluate((el) => {
