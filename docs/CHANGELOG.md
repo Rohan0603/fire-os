@@ -36,6 +36,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed duplicated and historical planning documents.
 
 ### Fixed
+- **Google sign-in message on guest-only builds**: with no `VITE_FIREBASE_*` configuration,
+  `requireAuth()` threw `app/firebase-unconfigured`, but that code was missing from the
+  error-message map, so every sign-in attempt reported the generic "An authentication error
+  occurred. Please try again." and invited a retry that could never succeed. The code is
+  now mapped to an explicit explanation.
+- **Auth screen no longer offers dead-end sign-in when unconfigured**: the screen shows an
+  inline notice explaining that sign-in, accounts and cloud sync are unavailable while guest
+  mode still works, and the Login, Sign Up, Google and "Forgot password" controls are
+  disabled rather than wired to handlers that cannot succeed.
 - **Guest-only startup**: the app no longer fails to render when `VITE_FIREBASE_*`
   is absent or partial. Firebase `Auth` is now resolved through `getOptionalAuth()`,
   which returns null instead of throwing during module evaluation, so the
