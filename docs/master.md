@@ -7,10 +7,10 @@ financial advice or a product roadmap. Detailed area references:
 
 ## Product and runtime
 
-FIRE OS is a local-first TypeScript single-page app built with Vite. It targets
-Indian FIRE planning: profile, holdings and liabilities; market values; FI and
-retirement planning; insurance; tax planning; ESOP valuation; and review
-guidance. Guest portfolios remain in browser storage. Firebase-authenticated
+FIRE OS is a local-first TypeScript single-page app built with Vite and React 19.
+It targets Indian FIRE planning: profile, holdings and liabilities; market
+values; FI and retirement planning; insurance; tax planning; ESOP valuation; and
+review guidance. Guest portfolios remain in browser storage. Firebase-authenticated
 users get UID-scoped local storage plus Firestore synchronization. The Assistant
 is a separate proxy request to a Cloudflare Worker and OpenRouter.
 
@@ -21,6 +21,7 @@ src/index.html -> src/main.ts
   -> guest: localStorage
   -> signed-in: localStorage -> SyncCoordinator -> Firestore
   -> Assistant: sanitized summary -> Worker -> OpenRouter
+  -> bootstrap seam -> React 19 shell (src/app) -> routes -> FeatureRegistry
 ```
 
 Production is Firebase Hosting (`dist/`); rewrites send app routes to the SPA.
@@ -30,12 +31,41 @@ Express Assistant proxy used by `npm run dev`/tests; `worker/` is production.
 ## Bootstrap, navigation, and ownership
 
 `src/main.ts` initializes global error handling, loads scoped local state,
-hydrates market-data caches, renders navigation and auth UI, starts the auth
-session controller, configures timers and theme, and mounts the profile.
-`FeatureRegistry` maps `profile`, `dashboard`, `calculators`, `insurance`,
-`plan`, `esop`, and `assistant` to module lifecycle functions. URL paths and
-hashes select tabs; history/popstate restore navigation. The registry mounts
-the selected module and unmounts the previous module when it provides teardown.
+hydrates market-data caches, renders the legacy navigation and auth UI, starts
+the auth session controller, configures timers and theme, and mounts the profile.
+It remains the entry point and still owns session startup and persistence.
+
+`src/app/bootstrap.ts` is the seam between that startup and React.
+`createBootstrap()` resolves only after `startAuthSession()` has run, so the
+React tree never renders against half-initialised state, and `mountReact` is
+idempotent. The seam owns ordering, not session startup: `main.ts` still calls
+`AuthSessionController.start()` directly, because restarting it here would
+double-register auth listeners.
+
+`src/app` holds the React layer. `routes.tsx` builds a React Router table from
+`routes/route-meta.ts`, which is the source of truth for paths, DOM ids and
+per-route copy. `layout.tsx` renders the sidebar shell, the theme toggle and the
+routed outlet inside a per-route `ErrorBoundary`. `hooks/use-store.ts` binds
+nanostores to React through `useSyncExternalStore`; components read stores and
+never call the network layer directly. `hooks/use-route-meta.ts` applies the
+active route's `document.title` and description.
+
+`FeatureRegistry` still maps `profile`, `dashboard`, `calculators`, `insurance`,
+`plan`, `esop`, and `assistant` to module lifecycle functions, and still owns
+route content for every route that has not been ported. React Router navigates
+with `pushState`, which never fires `popstate`, so `src/app/legacy-bridge.ts`
+lets `main.ts` register its tab activator and the shell call it on each route
+change. A route marks progress with `data-migration-state`: while a route is a
+`placeholder` the legacy container keeps the `id` and the `active` class, and
+only a `migrated` route claims them itself. Two elements sharing one id would
+break the `#<id>.active` contract asserted by `e2e/portfolio.spec.ts`. The
+legacy top nav (`#legacy-nav`) is hidden because the React sidebar supersedes
+it. `FeatureRegistry` and its test are retired in the final migration PR.
+
+Routes are not session-gated. `profile` and `assistant` both work in guest mode
+today, which is what the existing specs assert; guards are revisited when the
+auth screen is ported.
+
 `FeatureContext` provides the shared mutable state, portfolio repository, and
 injected UI/calculation/widget/market-data ports.
 
@@ -224,7 +254,8 @@ boundaries are in [AI reference](ai.md).
 
 | Path | Purpose |
 | --- | --- |
-| `src/main.ts`, `src/app/` | Bootstrap, feature routing, auth/session lifecycle |
+| `src/main.ts` | Entry point: session startup, persistence, legacy tabs, React mount |
+| `src/app/` | React shell: bootstrap seam, router, layout/sidebar, theme toggle, store binding, route metadata |
 | `src/core/` | Feature context/ports, reactive status stores (`stores.ts`) and portfolio repository seam |
 | `src/lib/` | State persistence, auth coordination, data transforms, calculations and Assistant policy client |
 | `src/modules/` | Product UI, domain calculations and external API adapters |

@@ -20,6 +20,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   covers `firebaseapp.com` and the local dev server.
 
 ### Changed
+- **React shell and routing foundation**: the UI now renders through React 19 with
+  React Router routes and a Tailwind CSS v4 theme. Navigation moves to a sidebar
+  (persistent at `lg` and above, a `<details>` drawer below it) with `aria-current`
+  and visible focus rings. Design tokens are converted to OKLCH, and dark mode
+  follows `prefers-color-scheme` unless the user picks a theme. `src/main.ts`
+  remains the entry point and mounts React last, through a bootstrap seam that
+  resolves only after the auth session does. Feature modules still render their own
+  DOM and are ported route by route; each route carries `data-migration-state`
+  until it is migrated. The prerender-script retirement and the move to Cloudflare
+  Workers are not part of this change.
 - **Reactive Status Stores**: sync, market-refresh, and cloud-mode labels update live from shared status stores
 - Consolidated project, architecture, API, Assistant, deployment, and
   troubleshooting guidance into `docs/README.md`.

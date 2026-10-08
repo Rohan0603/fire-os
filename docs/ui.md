@@ -2,21 +2,58 @@
 
 ## UI framework and lifecycle
 
-The client is vanilla TypeScript rendered by Vite; there is no component
-framework. `src/main.ts` creates the nav and seven tab containers, starts auth,
-sets theme/offline listeners and routes paths/hash to a `FeatureRegistry`.
-Feature modules receive a shared `FeatureContext` (`state`, portfolio
-repository, feature ports). Modules own their DOM and use template strings,
-native controls, CSS and explicit event listeners. Dashboard is unmounted when
-leaving its tab; profile and most other modules initialize once then render on
-activation. CSS tokens/themes are in `src/styles/tokens.css`, layout/global
-styles are in `src/styles/`, with feature CSS under each module.
+The client is React 19 rendered by Vite, with Tailwind CSS v4 as the styling
+layer. This is a migration in progress: `src/app` holds the React shell and
+routing while feature modules in `src/modules` still own their DOM through
+template strings and `FeatureContext`. Each module is ported route by route.
 
-Theme is saved as `fire-os-theme` and follows OS dark preference on first load.
-Offline banner tracks browser online/offline events. The
-`portfolioSavedStore` save signal (Nanostores, `src/core/stores.ts`)
-triggers the dashboard refresh, coalesced to an animation frame. App root
-catches module and fatal initialization errors and renders fallback messages.
+`src/main.ts` remains the entry point and still creates the legacy nav and tab
+containers, starts auth, sets theme/offline listeners and resolves the initial
+path through the `FeatureRegistry`. It mounts React last, through the
+`src/app/bootstrap.ts` seam, once a session has resolved.
+
+Routes come from `src/app/routes/route-meta.ts`, the source of truth for paths,
+DOM ids and per-route copy. `src/app/routes.tsx` turns that into a React Router
+table; `src/app/layout.tsx` renders the shell. `hooks/use-store.ts` binds
+Nanostores atoms to components through `useSyncExternalStore`, and
+`hooks/use-route-meta.ts` applies the active route's title and description.
+
+**Sidebar navigation.** Persistent from the `lg` breakpoint up; below it the
+sidebar is an off-canvas drawer driven by a native `<details>` disclosure, so no
+JS state is involved. Links are `NavLink`s, so the active route carries
+`aria-current="page"` automatically. Accessible names are exactly Profile,
+Dashboard, Calculators, Insurance, Plan, ESOP and Assistant — the e2e specs
+locate several of them by role and name. Every interactive element carries a
+`:focus-visible` outline.
+
+**Migration marker.** A route's container carries `data-migration-state`, either
+`placeholder` or `migrated`. While a route is a placeholder the legacy container
+still owns its `id` and the `active` class and React renders a hidden
+`[data-route]` marker instead; only a migrated route claims the id itself. This
+avoids duplicate ids and preserves the `#<id>.active` contract the e2e specs
+assert.
+
+**Theme.** `src/styles/app.css` is the Tailwind v4 entry and declares the
+`@theme` tokens; `src/styles/tokens-oklch.css` holds the `:root` overrides and
+is imported and linked *after* the legacy `tokens.css` so it wins the cascade.
+Both are unlayered `:root` blocks of equal specificity, so source order decides.
+Colours are OKLCH, converted from the old hex palette with identity preserved
+(amber primary, violet CTA, emerald/red/amber status, deep-slate dark surfaces).
+
+Dark mode follows `prefers-color-scheme` when no preference is stored. The manual
+toggle owns `#theme-toggle`, persists to `localStorage` under `fire-os-theme`,
+sets `data-theme` on `<html>`, and dispatches `themeChanged` (the dashboard
+listens for it to re-theme its charts). Only a real toggle persists: initial
+application reads the stored value or the system preference without writing one,
+so an unset preference stays unset and the media query stays authoritative.
+
+Legacy layout/global styles remain in `src/styles/` with feature CSS under each
+module; they shrink as routes are ported.
+
+The `portfolioSavedStore` save signal (Nanostores, `src/core/stores.ts`)
+triggers the dashboard refresh, coalesced to an animation frame. The app root
+and each React route sit inside an `ErrorBoundary`, so a failure in one route
+renders a retry fallback rather than blanking the app.
 
 ## Tabs and behaviors
 

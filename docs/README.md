@@ -156,8 +156,21 @@ migration complexity.
 npm run lint
 npm test
 npm run build
+npm run format:check
+npm run test:metadata
 npm run test:e2e
 ```
+
+The Playwright suite is the component-test harness for the React layer; there is
+no jsdom or Testing Library. It covers route resolution and the
+`#<id>.active` selector contract (`routing.spec.ts`), the sidebar, theme and
+focus behaviour (`shell.spec.ts`), per-route metadata and guest-mode boot at a
+deep URL (`meta-and-guards.spec.ts`), and the OKLCH tokens resolving in both
+colour schemes (`theme.spec.ts`), alongside the original `portfolio.spec.ts` and
+`assistant.spec.ts`.
+
+Note: hosting is still Firebase Hosting. The planned move to Cloudflare Workers
+has not happened yet; do not assume a Workers deploy path exists.
 
 For local Firebase rules, start the emulator before running:
 
