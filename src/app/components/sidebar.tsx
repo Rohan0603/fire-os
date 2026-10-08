@@ -23,10 +23,10 @@ export function Sidebar() {
           className={({ isActive }) =>
             [
               'block rounded-md px-3 py-2 text-sm font-medium no-underline transition-colors',
-              'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[--color-secondary]',
+              'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--color-secondary)',
               isActive
-                ? 'bg-[--color-surface-raised] text-[--color-primary]'
-                : 'text-[--color-muted-foreground] hover:bg-[--color-surface-raised] hover:text-[--color-foreground]',
+                ? 'bg-(--color-surface-raised) text-(--color-primary)'
+                : 'text-(--color-muted-foreground) hover:bg-(--color-surface-raised) hover:text-(--color-foreground)',
             ].join(' ')
           }
         >

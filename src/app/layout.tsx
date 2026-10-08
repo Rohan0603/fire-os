@@ -40,19 +40,19 @@ export function AppLayout() {
   }, []);
 
   return (
-    <div className="flex min-h-screen flex-col bg-[--color-background] text-[--color-foreground]">
-      <header className="flex items-center justify-between gap-3 border-b border-[--color-border] p-3">
+    <div className="flex min-h-screen flex-col bg-(--color-background) text-(--color-foreground)">
+      <header className="flex items-center justify-between gap-3 border-b border-(--color-border) p-3">
         <span className="text-lg font-bold">FIRE OS</span>
         <ThemeToggle />
       </header>
 
       <div className="flex flex-1 flex-col lg:flex-row">
-        <details className="border-b border-[--color-border] lg:hidden">
+        <details className="border-b border-(--color-border) lg:hidden">
           <summary className="cursor-pointer px-3 py-2 text-sm font-medium">Menu</summary>
           <Sidebar />
         </details>
 
-        <aside className="hidden w-56 shrink-0 border-r border-[--color-border] lg:block">
+        <aside className="hidden w-56 shrink-0 border-r border-(--color-border) lg:block">
           <Sidebar />
         </aside>
 

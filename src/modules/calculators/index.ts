@@ -446,7 +446,7 @@ function renderSWPScheduler(): string {
         <input type="month" id="swp-start-date" value="${swp.startDate ? swp.startDate.substring(0, 7) : ''}">
       </div>
 
-      <div class="flex-row gap-1">
+      <div class="flex flex-row gap-4">
         <button id="save-swp-btn" class="btn btn-primary">Save SWP Config</button>
         <button id="trigger-swp-btn" class="btn btn-secondary">Simulate Withdrawal</button>
       </div>

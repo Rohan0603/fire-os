@@ -53,9 +53,9 @@ export function ThemeToggle() {
       aria-checked={isDark}
       aria-label="Toggle dark mode"
       onClick={() => apply(isDark ? 'light' : 'dark')}
-      className="rounded-md border border-[--color-border] px-3 py-1.5 text-sm
+      className="rounded-md border border-(--color-border) px-3 py-1.5 text-sm
                  focus-visible:outline-2 focus-visible:outline-offset-2
-                 focus-visible:outline-[--color-secondary]"
+                 focus-visible:outline-(--color-secondary)"
     >
       {isDark ? 'Dark' : 'Light'}
     </button>
