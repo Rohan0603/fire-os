@@ -149,22 +149,20 @@ splitting should be considered only when
 observed document size or write contention justifies its added merge and
 migration complexity.
 
-## Validation
+## Validation (quick reference)
 
-```bash
-npm run check
-```
+| Goal | Command |
+|------|---------|
+| Fast local gate (no emulator/browser) | `npm run check` |
+| Lint + format + build + unit tests | `npm run lint && npm run format:check && npm run build && npm test` |
+| Run Playwright e2e | `npm run test:e2e` |
+| Run worker unit tests | `npm run test:worker` |
+| TypeScript check only | `npm run build` (tsc --noEmit) |
+| Verify route metadata | `npm run test:metadata` |
 
-`check` runs the fast local gate in CI order: `build`, `lint`, `format:check`,
+`npm run check` runs the fast local gate in CI order: `build`, `lint`, `format:check`,
 unit tests, Worker tests, then route metadata. It omits the checks that need a
-server, emulator, or browser — run those separately:
-
-```bash
-npm run lint
-npm test
-npm run build
-npm run test:e2e
-```
+server, emulator, or browser — run those separately.
 
 For local Firebase rules, start the emulator before running:
 
@@ -175,6 +173,37 @@ npm run test:rules:emulator
 For deployed HTTP checks, start a preview server and run the project's HTTP
 verification script, or set `BASE_URL` to the deployed site as documented in
 the script. A local Vite preview does not apply Firebase Hosting headers.
+
+## Agent-contributing guide
+
+### Starting work
+
+1. Check existing AO sessions: `ao session ls --project fire-os`.
+2. If no suitable active worker exists, spawn one:
+   `ao spawn --project fire-os --name "<label>" --prompt "<clear task description>"`
+   — add `--agent <name>` or `--model <id>` as needed.
+3. Never claim a PR into the orchestrator session. If a PR needs continuation, assign or spawn a worker.
+
+### Common checks before committing
+
+- `npm run lint && npm run format:check && npm run build` — syntax, style, compile
+- `npm test` — unit tests (vitest), excluding firestore.rules
+- `npm run test:e2e` — Playwright browser specs; any selector change must preserve the `id` and `data-testid` attributes listed in `docs/master.md` §8
+
+### Publishing scope
+
+- Freeform work: publish only when the user requests it or explicitly configured project rules authorize it.
+- Review-only: authorizes submitting the explicitly requested provider review, but forbids code changes, other PR/MR mutations, and AO ownership changes (claiming/attaching the PR/MR).
+- Local-only / do-not-publish: complete the permitted local work and report the result without publishing.
+- These restrictions take precedence over workflow defaults, including issue-task prompts and CI/review follow-up instructions.
+
+### PR / MR workflow
+
+1. Make small, focused commits with Conventional Commit messages (`feat:`, `fix:`, `refactor:`).
+2. Before opening a PR: ensure lint + format + build pass and unit tests pass.
+3. For e2e/Playwright changes: run `npm run test:e2e` on the branch first; selector contracts (`id`, `data-testid`) must not change.
+4. Push to a topic branch. The orchestrator will open the PR, or use the GitHub CLI if available.
+5. If a PR has no owning AO session, run `ao review trigger <session-id>` to start the native reviewer, then `ao review ls <session-id>` to inspect verdicts.
 
 ## Deployment
 
