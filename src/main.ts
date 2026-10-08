@@ -12,9 +12,9 @@ import { initFirestore, loadPortfolio, onPortfolioChange, savePortfolio } from '
 // Import types
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { RouterProvider } from 'react-router-dom';
+import { App } from './app/app';
 import { createBootstrap } from './app/bootstrap';
-import { router } from './app/routes';
+import { registerLegacyTabActivator } from './app/legacy-bridge';
 import type { AppBootstrapResult } from './app/bootstrap';
 import { applyPersistedState, initializeState } from './types/state';
 import type { FireOSState } from './types/state';
@@ -207,7 +207,7 @@ export function bootstrapApp(): Promise<AppBootstrapResult> {
       // ordering guarantee; re-starting here would double-register auth listeners.
     },
     createReactMount: (container) => {
-      createRoot(container).render(createElement(RouterProvider, { router }));
+      createRoot(container).render(createElement(App));
     },
     resolveMode: () => (sessionController.isGuestSessionActive ? 'guest' : 'authenticated'),
   })();
@@ -267,7 +267,7 @@ function renderApp() {
   if (!app) return;
 
   app.innerHTML = `
-    <nav class="nav">
+    <nav class="nav" id="legacy-nav" hidden>
       <div class="nav-brand">FIRE OS</div>
       <button id="hamburger-btn" class="hamburger-btn" aria-label="Toggle Menu">☰</button>
       <div class="nav-tabs">
@@ -280,17 +280,13 @@ function renderApp() {
         <a class="nav-tab" href="/assistant" data-tab="assistant">Assistant</a>
       </div>
       <div style="display: flex; gap: 1rem; align-items: center;">
-        <label class="theme-switch" title="Toggle Theme">
-          <input type="checkbox" id="theme-toggle">
-          <span class="slider round"></span>
-        </label>
         <button id="logout-btn" class="btn-logout" style="display: none;">Logout</button>
       </div>
     </nav>
 
     <div id="auth-screen"></div>
 
-    <div class="tabs-container">
+    <div class="tabs-container" id="legacy-tabs">
       <div id="profile" class="tab active"></div>
       <div id="dashboard" class="tab"></div>
       <div id="calculators" class="tab"></div>
@@ -366,6 +362,8 @@ function setupTabNavigation() {
   window.addEventListener('popstate', activateLocationTab);
   window.addEventListener('hashchange', activateLocationTab);
   activateLocationTab();
+  // React Router navigates without popstate, so hand it the same activator.
+  registerLegacyTabActivator(activateTab);
 
   // Logout button
   const logoutBtn = document.getElementById('logout-btn');
@@ -443,30 +441,19 @@ function setupOfflineNotification() {
 }
 
 // Theme toggle logic
+//
+// Applies the stored preference, or the system preference when nothing is stored.
+// The initial application deliberately does NOT write localStorage: only a real
+// user toggle persists a choice, so an unset preference stays unset and the CSS
+// `@media (prefers-color-scheme)` rule remains authoritative (the spec's
+// system-default behaviour). The React ThemeToggle in src/app/components owns the
+// control itself and reads the same key.
 function setupTheme() {
-  const toggleInput = document.getElementById('theme-toggle') as HTMLInputElement;
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const savedTheme = localStorage.getItem('fire-os-theme');
+  const isDark = savedTheme === 'dark' || (savedTheme === null && prefersDark);
 
-  const setDarkTheme = (isDark: boolean) => {
-    document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
-    localStorage.setItem('fire-os-theme', isDark ? 'dark' : 'light');
-    if (toggleInput) toggleInput.checked = isDark;
-    window.dispatchEvent(new Event('themeChanged'));
-  };
-
-  // Initial setup
-  if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
-    setDarkTheme(true);
-  } else {
-    setDarkTheme(false);
-  }
-
-  if (toggleInput) {
-    toggleInput.addEventListener('change', (e) => {
-      setDarkTheme((e.target as HTMLInputElement).checked);
-    });
-  }
+  document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
 }
 
 // Start app
