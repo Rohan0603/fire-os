@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import * as v from 'valibot';
 import { HISTORY_CACHE_MAX_ENTRIES, initializeState, persistedPortfolioSchema } from './state';
 
 /**
@@ -13,8 +12,7 @@ import { HISTORY_CACHE_MAX_ENTRIES, initializeState, persistedPortfolioSchema } 
  * The explicitly-undefined behaviour of `exactOptional` is pinned separately in
  * state.test.ts, along with strict-mode unknown-key rejection.
  */
-const parses = (payload: unknown): boolean =>
-  v.safeParse(persistedPortfolioSchema, payload).success;
+const parses = (payload: unknown): boolean => persistedPortfolioSchema.safeParse(payload).success;
 
 describe('persisted schema bounds', () => {
   it('accepts a liability name at the 100 character limit and rejects 101', () => {

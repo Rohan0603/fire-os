@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import * as v from 'valibot';
 import {
   applyPersistedState,
   HISTORY_CACHE_MAX_ENTRIES,
@@ -52,12 +51,12 @@ describe('persisted portfolio validation and normalization', () => {
   });
 
   it('rejects unknown nested keys and non-finite values through the schema', () => {
-    expect(v.safeParse(persistedPortfolioSchema, { profile: { ...initializeState().profile, unexpected: true } }).success).toBe(false);
-    expect(v.safeParse(persistedPortfolioSchema, { nav: { '123': { schemeCode: '123', nav: Number.NaN, timestamp: new Date().toISOString(), ttl: 1 } } }).success).toBe(false);
+    expect(persistedPortfolioSchema.safeParse({ profile: { ...initializeState().profile, unexpected: true } }).success).toBe(false);
+    expect(persistedPortfolioSchema.safeParse({ nav: { '123': { schemeCode: '123', nav: Number.NaN, timestamp: new Date().toISOString(), ttl: 1 } } }).success).toBe(false);
   });
 
   it('keeps the schema allowlist aligned and excludes runtime-only state', () => {
-    expect(Object.keys(persistedPortfolioSchema.entries).sort()).toEqual([...PERSISTED_STATE_KEYS].sort());
+    expect(Object.keys(persistedPortfolioSchema.shape).sort()).toEqual([...PERSISTED_STATE_KEYS].sort());
     expect(isPersistedPortfolioData({ currentUser: null })).toBe(false);
     expect(isPersistedPortfolioData({ _lastSavedAt: new Date().toISOString() })).toBe(false);
     expect(isPersistedPortfolioData({ _syncMetadata: { isDirty: false } })).toBe(false);
@@ -73,13 +72,13 @@ describe('persisted portfolio validation and normalization', () => {
 
   it('rejects more than 50 liabilities through the schema', () => {
     const liabilities = Object.fromEntries(Array.from({ length: 51 }, (_, index) => [`loan-${index}`, { name: 'Loan', amount: 1 }]));
-    expect(v.safeParse(persistedPortfolioSchema, { liabilities }).success).toBe(false);
+    expect(persistedPortfolioSchema.safeParse({ liabilities }).success).toBe(false);
   });
 
   it('accepts optional legacy fields and normalized partial data through the schema', () => {
     const legacy = { profile: { name: 'Legacy', age: 35, annualExpenses: 80000, fiTarget: 24000000, monthlyIncome: 150000 } };
 
-    expect(v.safeParse(persistedPortfolioSchema, legacy).success).toBe(true);
+    expect(persistedPortfolioSchema.safeParse(legacy).success).toBe(true);
     expect(isPersistedPortfolioData(legacy)).toBe(true);
     expect(normalizePersistedState(legacy)).toMatchObject({
       profile: { name: 'Legacy', taxSlabRate: 30 },
@@ -109,11 +108,11 @@ describe('persisted market history cache', () => {
   function parseWithHistory(mutate: (history: any) => void): boolean {
     const history = JSON.parse(JSON.stringify(validHistory));
     mutate(history);
-    return v.safeParse(persistedPortfolioSchema, { marketHistory: history }).success;
+    return persistedPortfolioSchema.safeParse({ marketHistory: history }).success;
   }
 
   it('accepts typed history entries and rejects malformed shapes', () => {
-    expect(v.safeParse(persistedPortfolioSchema, { marketHistory: validHistory }).success).toBe(true);
+    expect(persistedPortfolioSchema.safeParse({ marketHistory: validHistory }).success).toBe(true);
     expect(isPersistedPortfolioData({ marketHistory: validHistory })).toBe(true);
 
     expect(parseWithHistory((history) => { history.nifty.points[0].value = 0; })).toBe(false);
@@ -129,7 +128,7 @@ describe('persisted market history cache', () => {
     const tooMany = Object.fromEntries(
       Array.from({ length: HISTORY_CACHE_MAX_ENTRIES + 1 }, (_, index) => [`nav:${index}`, validHistory.nifty]),
     );
-    expect(v.safeParse(persistedPortfolioSchema, { marketHistory: tooMany }).success).toBe(false);
+    expect(persistedPortfolioSchema.safeParse({ marketHistory: tooMany }).success).toBe(false);
   });
 
   it('defaults market history and safely discards malformed persisted history', () => {

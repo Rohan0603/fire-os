@@ -76,7 +76,6 @@
     "react-is": "^19.3.0",
     "react-router-dom": "^7.18.4",
     "recharts": "^3.10.1",
-    "valibot": "^1.5.0",
     "xirr": "^1.1.0",
     "zod": "^4.6.5"
   }

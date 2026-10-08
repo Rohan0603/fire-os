@@ -6,7 +6,7 @@
 import type { PortfolioProfile, Holdings, DematHoldings, AlphaTrackerDataCollection, SIPFunds, OtherHoldings, Liabilities } from './portfolio';
 import type { CurrencyRateCacheMap, CurrencyRateData, HistoricalSeries, NiftyData, NAVCacheMap } from './api';
 import type { SyncMetadata, FirebaseUser } from './firebase';
-import * as v from 'valibot';
+import { z } from 'zod';
 
 // Firebase User type - Firebase authenticated user or null
 export type FirebaseUserType = FirebaseUser | null;
@@ -161,6 +161,34 @@ export interface FireOSState {
   esopDetails: EsopDetails;
 }
 
+/**
+ * Zod adapters replacing three valibot behaviours the persisted-portfolio schema
+ * depends on.
+ */
+
+/**
+ * Accepts an absent key but rejects a key present with an explicit `undefined`.
+ *
+ * This was `v.exactOptional()`. Plain `z.optional()` accepts both, which would
+ * silently widen what the loader accepts. `src/types/state.test.ts` pins this:
+ * `{ eurInr: undefined }` must be rejected while `{}` must be accepted.
+ */
+function exactOptional<T extends z.ZodTypeAny>(schema: T) {
+  return schema.optional().refine((value) => value !== undefined, {
+    message: 'Explicitly undefined is not allowed for persisted values.',
+  });
+}
+
+/** Caps the entry count of a record schema. Replaces `v.pipe(v.record(...), v.maxEntries(n))`. */
+function maxEntries<T extends z.ZodTypeAny>(schema: T, max: number) {
+  return schema.refine((value) => Object.keys(value as object).length <= max, {
+    message: `Expected at most ${max} entries.`,
+  });
+}
+
+const isValid = (schema: z.ZodTypeAny, value: unknown): boolean =>
+  schema.safeParse(value).success;
+
 /** Top-level keys accepted in persisted portfolio data (allowlist). */
 export const PERSISTED_STATE_KEYS = [
   'profile', 'mf', 'fd', 'epf', 'sip', 'esop', 'bonds', 'otherHoldings', 'liabilities', 'demat', 'nav',
@@ -170,111 +198,111 @@ export const PERSISTED_STATE_KEYS = [
   'completedActions', 'achievedMilestones', 'insurance', 'esopDetails',
 ] as const;
 
-const finiteNumberSchema = v.pipe(v.number(), v.finite());
-const timestampSchema = v.pipe(v.string(), v.check((value) => Number.isFinite(Date.parse(value))));
-const statusSchema = v.picklist(['live', 'cache-fresh', 'stale', 'manual']);
-const legacyNiftyStatusSchema = v.picklist(['live', 'cache-fresh', 'manual']);
-const profileSchema = v.strictObject({
-  name: v.string(), dateOfBirth: v.optional(v.string()), age: finiteNumberSchema,
-  taxSlabRate: v.optional(finiteNumberSchema), annualExpenses: finiteNumberSchema,
+const finiteNumberSchema = z.number();
+const timestampSchema = z.string().refine((value) => Number.isFinite(Date.parse(value)));
+const statusSchema = z.enum(['live', 'cache-fresh', 'stale', 'manual']);
+const legacyNiftyStatusSchema = z.enum(['live', 'cache-fresh', 'manual']);
+const profileSchema = z.strictObject({
+  name: z.string(), dateOfBirth: z.string().optional(), age: finiteNumberSchema,
+  taxSlabRate: finiteNumberSchema.optional(), annualExpenses: finiteNumberSchema,
   fiTarget: finiteNumberSchema, monthlyIncome: finiteNumberSchema,
 });
-const holdingMapSchema = v.record(v.string(), v.strictObject({ amount: finiteNumberSchema, currency: v.string() }));
-const otherHoldingMapSchema = v.record(v.string(), v.strictObject({
-  name: v.pipe(v.string(), v.check((name) => name.trim().length > 0 && name.length <= 200)),
-  amount: v.pipe(finiteNumberSchema, v.minValue(0)),
-  annualReturn: v.pipe(finiteNumberSchema, v.minValue(0), v.maxValue(100)),
+const holdingMapSchema = z.record(z.string(), z.strictObject({ amount: finiteNumberSchema, currency: z.string() }));
+const otherHoldingMapSchema = z.record(z.string(), z.strictObject({
+  name: z.string().min(1).refine((name) => name.trim().length > 0 && name.length <= 200),
+  amount: finiteNumberSchema.min(0),
+  annualReturn: finiteNumberSchema.min(0).max(100),
 }));
-const sipMapSchema = v.record(v.string(), v.strictObject({
-  name: v.string(), schemeCode: v.optional(v.string()), units: finiteNumberSchema,
-  startDate: v.string(), monthlyAmount: finiteNumberSchema, costBasis: v.optional(finiteNumberSchema),
+const sipMapSchema = z.record(z.string(), z.strictObject({
+  name: z.string(), schemeCode: z.string().optional(), units: finiteNumberSchema,
+  startDate: z.string(), monthlyAmount: finiteNumberSchema, costBasis: finiteNumberSchema.optional(),
 }));
-const dematMapSchema = v.record(v.string(), v.strictObject({
-  isin: v.string(), quantity: finiteNumberSchema, currentValue: finiteNumberSchema, name: v.string(),
+const dematMapSchema = z.record(z.string(), z.strictObject({
+  isin: z.string(), quantity: finiteNumberSchema, currentValue: finiteNumberSchema, name: z.string(),
 }));
-const navMapSchema = v.record(v.string(), v.strictObject({
-  schemeCode: v.string(), nav: finiteNumberSchema, timestamp: timestampSchema, ttl: finiteNumberSchema,
-  source: v.exactOptional(v.string()), status: v.exactOptional(statusSchema),
+const navMapSchema = z.record(z.string(), z.strictObject({
+  schemeCode: z.string(), nav: finiteNumberSchema, timestamp: timestampSchema, ttl: finiteNumberSchema,
+  source: exactOptional(z.string()), status: exactOptional(statusSchema),
 }));
-const currencyRateSchema = v.strictObject({
-  rate: finiteNumberSchema, timestamp: timestampSchema, sourceCurrency: v.exactOptional(v.string()),
-  targetCurrency: v.exactOptional(v.string()), source: v.exactOptional(v.string()), status: v.exactOptional(statusSchema),
+const currencyRateSchema = z.strictObject({
+  rate: finiteNumberSchema, timestamp: timestampSchema, sourceCurrency: exactOptional(z.string()),
+  targetCurrency: exactOptional(z.string()), source: exactOptional(z.string()), status: exactOptional(statusSchema),
 });
-const historicalPointSchema = v.strictObject({
-  date: v.pipe(v.string(), v.check((value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)))),
-  value: v.pipe(finiteNumberSchema, v.check((value) => value > 0)),
+const historicalPointSchema = z.strictObject({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine((value) => Number.isFinite(Date.parse(value))),
+  value: finiteNumberSchema.positive(),
 });
-const historicalSeriesSchema = v.strictObject({
-  points: v.array(historicalPointSchema),
-  source: v.string(),
+const historicalSeriesSchema = z.strictObject({
+  points: z.array(historicalPointSchema),
+  source: z.string(),
   fetchedAt: timestampSchema,
   status: statusSchema,
 });
-const marketHistorySchema = v.pipe(
-  v.record(v.string(), historicalSeriesSchema),
-  v.maxEntries(HISTORY_CACHE_MAX_ENTRIES),
+const marketHistorySchema = maxEntries(
+  z.record(z.string(), historicalSeriesSchema),
+  HISTORY_CACHE_MAX_ENTRIES,
 );
 const persistedPortfolioShape = {
-  profile: v.exactOptional(profileSchema), mf: v.exactOptional(sipMapSchema), fd: v.exactOptional(holdingMapSchema),
-  epf: v.exactOptional(holdingMapSchema), sip: v.exactOptional(sipMapSchema), esop: v.exactOptional(holdingMapSchema),
-  bonds: v.exactOptional(holdingMapSchema), otherHoldings: v.exactOptional(otherHoldingMapSchema),
-  liabilities: v.exactOptional(v.pipe(v.record(v.string(), v.strictObject({
-    name: v.pipe(v.string(), v.maxLength(100)), amount: v.pipe(finiteNumberSchema, v.minValue(0)),
-  })), v.maxEntries(50))),
-  demat: v.exactOptional(dematMapSchema), nav: v.exactOptional(navMapSchema), niftyHigh: v.exactOptional(finiteNumberSchema),
-  niftyData: v.exactOptional(v.strictObject({
-    level: finiteNumberSchema, high52w: finiteNumberSchema, timestamp: timestampSchema, source: v.string(),
-    status: v.exactOptional(legacyNiftyStatusSchema),
+  profile: exactOptional(profileSchema), mf: exactOptional(sipMapSchema), fd: exactOptional(holdingMapSchema),
+  epf: exactOptional(holdingMapSchema), sip: exactOptional(sipMapSchema), esop: exactOptional(holdingMapSchema),
+  bonds: exactOptional(holdingMapSchema), otherHoldings: exactOptional(otherHoldingMapSchema),
+  liabilities: exactOptional(maxEntries(z.record(z.string(), z.strictObject({
+    name: z.string().max(100), amount: finiteNumberSchema.min(0),
+  })), 50)),
+  demat: exactOptional(dematMapSchema), nav: exactOptional(navMapSchema), niftyHigh: exactOptional(finiteNumberSchema),
+  niftyData: exactOptional(z.strictObject({
+    level: finiteNumberSchema, high52w: finiteNumberSchema, timestamp: timestampSchema, source: z.string(),
+    status: exactOptional(legacyNiftyStatusSchema),
   })),
-  currencyRates: v.exactOptional(v.record(v.string(), currencyRateSchema)),
-  marketHistory: v.exactOptional(marketHistorySchema),
-  eurInr: v.exactOptional(finiteNumberSchema),
-  eurInrData: v.exactOptional(currencyRateSchema),
-  alphaTrackerData: v.exactOptional(v.record(v.string(), v.strictObject({
-    fund: v.string(), benchmark: v.string(), year: finiteNumberSchema, return: finiteNumberSchema, benchmarkReturn: finiteNumberSchema,
+  currencyRates: exactOptional(z.record(z.string(), currencyRateSchema)),
+  marketHistory: exactOptional(marketHistorySchema),
+  eurInr: exactOptional(finiteNumberSchema),
+  eurInrData: exactOptional(currencyRateSchema),
+  alphaTrackerData: exactOptional(z.record(z.string(), z.strictObject({
+    fund: z.string(), benchmark: z.string(), year: finiteNumberSchema, return: finiteNumberSchema, benchmarkReturn: finiteNumberSchema,
   }))),
-  coorgCorpus: v.exactOptional(finiteNumberSchema), coorgStartDate: v.exactOptional(v.string()),
-  coorgTarget: v.exactOptional(finiteNumberSchema), coorgMonthlyAmount: v.exactOptional(finiteNumberSchema),
-  watchdogRules: v.exactOptional(v.strictObject({
+  coorgCorpus: exactOptional(finiteNumberSchema), coorgStartDate: exactOptional(z.string()),
+  coorgTarget: exactOptional(finiteNumberSchema), coorgMonthlyAmount: exactOptional(finiteNumberSchema),
+  watchdogRules: exactOptional(z.strictObject({
     ppfcfAumLimit: finiteNumberSchema, nipponGrowthBlockThreshold: finiteNumberSchema,
     nipponSmallCapBlockThreshold: finiteNumberSchema,
-    currentAum: v.strictObject({ PPFCF: finiteNumberSchema }),
-    blockedDays: v.strictObject({ NipponGrowth: finiteNumberSchema, NipponSmallCap: finiteNumberSchema }),
-    managerExits: v.strictObject({ PPFCF: v.boolean(), NipponSmallCap: v.boolean() }),
+    currentAum: z.strictObject({ PPFCF: finiteNumberSchema }),
+    blockedDays: z.strictObject({ NipponGrowth: finiteNumberSchema, NipponSmallCap: finiteNumberSchema }),
+    managerExits: z.strictObject({ PPFCF: z.boolean(), NipponSmallCap: z.boolean() }),
   })),
-  swpSchedule: v.exactOptional(v.strictObject({ enabled: v.boolean(), startDate: v.string(), monthlyAmount: finiteNumberSchema, rate: finiteNumberSchema })),
-  taxCalendar: v.exactOptional(v.strictObject({ lastLTCGHarvestDate: v.string(), lastHarvestedAmount: finiteNumberSchema, harvestTarget: finiteNumberSchema })),
-  expenses: v.exactOptional(v.array(v.strictObject({ date: v.string(), category: v.string(), amount: finiteNumberSchema, linkedToSWP: v.boolean() }))),
-  netWorthHistory: v.exactOptional(v.array(v.strictObject({ date: v.string(), value: finiteNumberSchema }))),
-  completedActions: v.exactOptional(v.record(v.string(), v.strictObject({ completedAt: timestampSchema }))),
-  achievedMilestones: v.exactOptional(v.array(v.string())),
-  insurance: v.exactOptional(v.strictObject({
-    termLife: v.strictObject({ currentCover: finiteNumberSchema, annualPremium: finiteNumberSchema, expiryDate: v.string(), provider: v.string() }),
-    health: v.strictObject({ currentCover: finiteNumberSchema, annualPremium: finiteNumberSchema, familySize: finiteNumberSchema, provider: v.string() }),
-    vehicle: v.strictObject({ covered: v.boolean(), annualPremium: finiteNumberSchema }),
+  swpSchedule: exactOptional(z.strictObject({ enabled: z.boolean(), startDate: z.string(), monthlyAmount: finiteNumberSchema, rate: finiteNumberSchema })),
+  taxCalendar: exactOptional(z.strictObject({ lastLTCGHarvestDate: z.string(), lastHarvestedAmount: finiteNumberSchema, harvestTarget: finiteNumberSchema })),
+  expenses: exactOptional(z.array(z.strictObject({ date: z.string(), category: z.string(), amount: finiteNumberSchema, linkedToSWP: z.boolean() }))),
+  netWorthHistory: exactOptional(z.array(z.strictObject({ date: z.string(), value: finiteNumberSchema }))),
+  completedActions: exactOptional(z.record(z.string(), z.strictObject({ completedAt: timestampSchema }))),
+  achievedMilestones: exactOptional(z.array(z.string())),
+  insurance: exactOptional(z.strictObject({
+    termLife: z.strictObject({ currentCover: finiteNumberSchema, annualPremium: finiteNumberSchema, expiryDate: z.string(), provider: z.string() }),
+    health: z.strictObject({ currentCover: finiteNumberSchema, annualPremium: finiteNumberSchema, familySize: finiteNumberSchema, provider: z.string() }),
+    vehicle: z.strictObject({ covered: z.boolean(), annualPremium: finiteNumberSchema }),
   })),
-  esopDetails: v.exactOptional(v.strictObject({
+  esopDetails: exactOptional(z.strictObject({
     shares: finiteNumberSchema,
-    holdings: v.optional(v.pipe(v.array(v.strictObject({ name: v.string(), symbol: v.string(), quantity: finiteNumberSchema, currency: v.string() })), v.maxLength(20))),
-    grantPrice: finiteNumberSchema, liquidationShares: v.optional(finiteNumberSchema), vestingFmv: v.optional(finiteNumberSchema),
-    currentPrice: v.optional(finiteNumberSchema), slabRate: v.optional(finiteNumberSchema),
-    vestingSchedule: v.array(v.strictObject({ date: v.string(), shares: finiteNumberSchema })),
-    triggers: v.strictObject({ marriage: v.boolean(), childBirth: v.boolean(), jobChange: v.boolean(), coorgConstruction: v.boolean() }),
+    holdings: z.array(z.strictObject({ name: z.string(), symbol: z.string(), quantity: finiteNumberSchema, currency: z.string() })).max(20).optional(),
+    grantPrice: finiteNumberSchema, liquidationShares: finiteNumberSchema.optional(), vestingFmv: finiteNumberSchema.optional(),
+    currentPrice: finiteNumberSchema.optional(), slabRate: finiteNumberSchema.optional(),
+    vestingSchedule: z.array(z.strictObject({ date: z.string(), shares: finiteNumberSchema })),
+    triggers: z.strictObject({ marriage: z.boolean(), childBirth: z.boolean(), jobChange: z.boolean(), coorgConstruction: z.boolean() }),
   })),
 };
 
 /** Exact allowlisted persisted shape; omitted sections remain valid for legacy data. */
-export const persistedPortfolioSchema = v.strictObject(persistedPortfolioShape);
-export type PersistedPortfolioData = v.InferOutput<typeof persistedPortfolioSchema>;
+export const persistedPortfolioSchema = z.strictObject(persistedPortfolioShape);
+export type PersistedPortfolioData = z.infer<typeof persistedPortfolioSchema>;
 
 /** Validate the shared persisted payload used by localStorage and Firestore. */
 export function isPersistedPortfolioData(value: unknown): value is Partial<FireOSState> {
-  return v.is(persistedPortfolioSchema, value);
+  return isValid(persistedPortfolioSchema, value);
 }
 
 /** Validate a single cached history series before it enters memory or persistence. */
 export function isValidHistoricalSeries(value: unknown): value is HistoricalSeries {
-  return v.is(historicalSeriesSchema, value);
+  return isValid(historicalSeriesSchema, value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -295,7 +323,7 @@ function isTimestamp(value: unknown): value is string {
  */
 function dropMalformedMarketHistory(value: unknown): unknown {
   if (!isRecord(value) || !('marketHistory' in value)) return value;
-  if (v.is(marketHistorySchema, value.marketHistory)) return value;
+  if (isValid(marketHistorySchema, value.marketHistory)) return value;
   const cleaned = { ...value };
   delete cleaned.marketHistory;
   return cleaned;
