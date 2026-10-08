@@ -33,6 +33,17 @@ test('content stays usable at 390px', async ({ page }) => {
   await expect(page.locator('#profile')).toBeVisible();
 });
 
+test('legacy route content renders inside the shell content pane, not below it', async ({
+  page,
+}) => {
+  await page.goto('/profile');
+  const main = page.locator('main');
+  // While a route is a placeholder its content still comes from the legacy tab
+  // container in #app, which must sit inside <main> or it renders under the whole
+  // shell instead of beside the sidebar.
+  await expect(main.locator('#profile')).toBeVisible();
+});
+
 test('every interactive element shows a focus ring', async ({ page }) => {
   await page.goto('/');
   const outline = await page.getByRole('link', { name: 'Dashboard' }).evaluate((el) => {

@@ -28,11 +28,10 @@ export function ThemeToggle() {
     if (theme) {
       root.dataset.theme = theme;
     } else {
+      // No stored preference: leave the attribute unset so the CSS
+      // `@media (prefers-color-scheme)` rule stays authoritative.
       delete root.dataset.theme;
-      // Keep the checkbox aligned with the system preference while unset.
-      setTheme(null);
     }
-    document.getElementById('theme-toggle')?.toggleAttribute('data-unset', !theme);
   }, [theme]);
 
   const isDark = theme

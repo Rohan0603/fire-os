@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { ErrorBoundary } from './components/error-boundary';
 import { Sidebar } from './components/sidebar';
@@ -19,6 +19,7 @@ import { metaForPath } from './routes/route-meta';
  */
 export function AppLayout() {
   const location = useLocation();
+  const legacyMount = useRef<HTMLDivElement>(null);
 
   // React Router navigates without a popstate event, so the legacy tabs are told
   // about the change here. Routes claim the container id themselves once migrated,
@@ -26,6 +27,17 @@ export function AppLayout() {
   useEffect(() => {
     syncLegacyTab(metaForPath(location.pathname).id);
   }, [location.pathname]);
+
+  // `#app` is a sibling of `#app-root` in index.html. Move it into the content pane
+  // so placeholder routes render beside the sidebar instead of below the whole
+  // shell. It is relocated rather than re-rendered, so the legacy containers the
+  // FeatureRegistry writes into stay the same DOM nodes.
+  useEffect(() => {
+    const legacy = document.getElementById('app');
+    if (legacy && legacyMount.current && legacy.parentElement !== legacyMount.current) {
+      legacyMount.current.appendChild(legacy);
+    }
+  }, []);
 
   return (
     <div className="flex min-h-screen flex-col bg-[--color-background] text-[--color-foreground]">
@@ -48,6 +60,9 @@ export function AppLayout() {
           <ErrorBoundary>
             <Outlet />
           </ErrorBoundary>
+          {/* Legacy compat bridge: still owns the containers for routes that have
+              not been ported. Removed once the last route is migrated. */}
+          <div ref={legacyMount} />
         </main>
       </div>
     </div>
