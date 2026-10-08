@@ -1,43 +1,80 @@
-/* Design-token overrides. Loaded AFTER the legacy stylesheets so these values win
-   the cascade while the legacy tab CSS still resolves the same palette.
-   Kept separate from app.css so Tailwind's preflight stays in its base layer and
-   does not outrank the legacy component rules it is meant to sit beside. */
+/* Design-token overrides.
+   Loaded AFTER the legacy stylesheets so these values win the cascade. Both are
+   unlayered :root blocks of equal specificity, so source order decides.
+
+   Generated from design-system/fire-os/MASTER.md. The generator emits only a dark
+   palette; the light half is derived from the same hues and recorded as O4 in the
+   design system. Values are OKLCH so the ramps stay perceptually even.
+
+   Dark is the default here so `color-scheme` follows the OS unless the manual
+   override sets data-theme. */
 :root,
 :root[data-theme='light'] {
   color-scheme: light;
-  --color-primary: oklch(76.9% 0.188 70.08);
-  --color-primary-dark: oklch(68.7% 0.19 63.2);
-  --color-cta: oklch(55.4% 0.246 305.9);
-  --color-success: oklch(69.6% 0.17 162.5);
-  --color-danger: oklch(63.7% 0.237 25.33);
+
+  --color-primary: oklch(36.6% 0.146 264.6);
+  --color-primary-dark: oklch(30.5% 0.14 264.6);
+  --color-secondary: oklch(54.6% 0.215 262.9);
+  /* #047857 rather than the generated #059669: white on #059669 is ~3.1:1 and
+     fails the 4.5:1 rule the design system sets for itself. See O5. */
+  --color-accent: oklch(52.7% 0.135 163.2);
+  --color-destructive: oklch(55.3% 0.215 27.3);
   --color-warning: oklch(76.9% 0.188 70.08);
-  --color-gold: oklch(79.1% 0.159 82.7);
-  --color-background: oklch(96.7% 0.003 264.5);
+  --color-on-primary: oklch(100% 0 0);
+  --color-on-accent: oklch(100% 0 0);
+
+  --color-background: oklch(96.9% 0.004 264.5);
   --color-surface: oklch(100% 0 0);
-  --color-surface-raised: oklch(98.4% 0.003 264.5);
-  --color-border: oklch(87% 0.01 264.5);
-  --color-foreground: oklch(27.6% 0.03 264.4);
-  --color-muted-foreground: oklch(55.5% 0.03 264.4);
+  --color-surface-raised: oklch(93.5% 0.006 264.5);
+  --color-muted: oklch(93.5% 0.006 264.5);
+  --color-foreground: oklch(20.5% 0.03 264.4);
+  --color-muted-foreground: oklch(52.4% 0.031 261.3);
+  --color-border: oklch(87.2% 0.007 264.5);
+  --color-ring: oklch(36.6% 0.146 264.6);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     color-scheme: dark;
+
+    --color-primary: oklch(70.2% 0.148 258.4);
+    --color-primary-dark: oklch(78.4% 0.115 257.5);
+    --color-secondary: oklch(70.4% 0.15 259.6);
+    --color-accent: oklch(63.9% 0.135 163.2);
+    --color-destructive: oklch(72.4% 0.176 24.6);
+    --color-warning: oklch(79.1% 0.159 82.7);
+    --color-on-primary: oklch(15.3% 0.03 264.4);
+    --color-on-accent: oklch(15.3% 0.03 264.4);
+
     --color-background: oklch(20.5% 0.03 264.4);
     --color-surface: oklch(27.6% 0.04 262.9);
     --color-surface-raised: oklch(32.6% 0.04 262.9);
-    --color-border: oklch(37.2% 0.04 262.9);
-    --color-foreground: oklch(96.7% 0.01 264.5);
+    --color-muted: oklch(32.6% 0.04 262.9);
+    --color-foreground: oklch(98% 0.003 264.5);
     --color-muted-foreground: oklch(71.4% 0.04 261.3);
+    --color-border: oklch(37.2% 0.04 262.9);
+    --color-ring: oklch(98% 0.003 264.5);
   }
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
+
+  --color-primary: oklch(70.2% 0.148 258.4);
+  --color-primary-dark: oklch(78.4% 0.115 257.5);
+  --color-secondary: oklch(70.4% 0.15 259.6);
+  --color-accent: oklch(63.9% 0.135 163.2);
+  --color-destructive: oklch(72.4% 0.176 24.6);
+  --color-warning: oklch(79.1% 0.159 82.7);
+  --color-on-primary: oklch(15.3% 0.03 264.4);
+  --color-on-accent: oklch(15.3% 0.03 264.4);
+
   --color-background: oklch(20.5% 0.03 264.4);
   --color-surface: oklch(27.6% 0.04 262.9);
   --color-surface-raised: oklch(32.6% 0.04 262.9);
-  --color-border: oklch(37.2% 0.04 262.9);
-  --color-foreground: oklch(96.7% 0.01 264.5);
+  --color-muted: oklch(32.6% 0.04 262.9);
+  --color-foreground: oklch(98% 0.003 264.5);
   --color-muted-foreground: oklch(71.4% 0.04 261.3);
+  --color-border: oklch(37.2% 0.04 262.9);
+  --color-ring: oklch(98% 0.003 264.5);
 }
