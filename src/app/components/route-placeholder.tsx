@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { useRouteMeta } from '../hooks/use-route-meta';
 import type { RouteMeta } from '../routes/route-meta';
 
 export interface RouteShellProps {
@@ -17,6 +18,10 @@ export interface RouteShellProps {
 }
 
 export function RouteShell({ meta, children, migrationState = 'placeholder' }: RouteShellProps) {
+  // Only one RouteShell is mounted at a time, so calling the hook here is safe
+  // and keeps metadata tied to whichever route is showing.
+  useRouteMeta();
+
   if (migrationState === 'placeholder') {
     return (
       <div data-route={meta.id} data-migration-state="placeholder" hidden>
