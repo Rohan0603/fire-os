@@ -101,19 +101,8 @@ export function setupTabNavigation(registry: FeatureRegistry, session: TabSessio
   });
   registerAuthControlSync(() => session.syncAuthControl());
 
-  // Logout button
-  const logoutBtn = document.getElementById('logout-btn');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', async () => {
-      try {
-        if (session.isGuestSessionActive) {
-          await session.requestSignIn();
-          return;
-        }
-        await session.signOut();
-      } catch (e) {
-        console.error('Logout failed:', e);
-      }
-    });
-  }
+  // No direct `#logout-btn` listener here. The button is rendered by the React
+  // header (auth-button.tsx), which mounts after this runs, so a listener bound
+  // now would find a null element and never attach. The bridge registration
+  // above is the live path: the React button calls triggerAuthAction().
 }

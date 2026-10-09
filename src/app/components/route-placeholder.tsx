@@ -22,10 +22,15 @@ export function RouteShell({ meta, children, migrationState = 'placeholder' }: R
   // and keeps metadata tied to whichever route is showing.
   useRouteMeta();
 
-  // Test-only seam. The error boundary had no way to be reached, so the kit it
-  // renders was never exercised in a browser. Set by e2e/ui-kit.spec.ts via
-  // addInitScript; unset in every real session.
-  if (typeof window !== 'undefined' && (window as { __forceRouteError?: boolean }).__forceRouteError) {
+  // Test-only seam, compiled out of production builds. The error boundary had
+  // no way to be reached, so the kit it renders was never exercised in a
+  // browser. Set by e2e/ui-kit.spec.ts via addInitScript. Playwright runs the
+  // dev server, so DEV is true there; a production build has no such path.
+  if (
+    import.meta.env.DEV &&
+    typeof window !== 'undefined' &&
+    (window as { __forceRouteError?: boolean }).__forceRouteError
+  ) {
     throw new Error('Forced route error for e2e coverage');
   }
 
