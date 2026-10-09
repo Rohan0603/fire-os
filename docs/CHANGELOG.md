@@ -19,6 +19,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Agent-friendly development**: enhanced `AGENTS.md` with explicit PR/MR workflow, CI check guidance, and issue onboarding; added quick-reference validation table and agent-contributing guide to `docs/README.md`
 
 ### Fixed
+- **Theme preference was persisted on initial load**: `setupTheme` applied the resolved theme via
+  the toggle's own helper, writing `fire-os-theme` to `localStorage` during startup. That froze the
+  OS preference seen on first load, so a later change of OS setting was ignored, and it
+  contradicted the documented rule that an unset preference stays unset. It also meant the dark
+  half of the design-system and theme specs had been asserting the light palette, because the
+  freshly written value beat the emulated preference. A real toggle still persists.
+- **IBM Plex Sans never loaded**: the font was an `@import` in `app.css`, but `global.css` is
+  imported first and carries its own `@import` plus rules, which invalidates a later stylesheet's
+  `@import`. The request was dropped from the build and the theme silently fell back to system
+  sans. Now linked from `index.html`, which is not subject to the ordering rule.
+- **CI e2e job could not pass**: `e2e/auth.spec.ts` asserts the configured auth path but the
+  quality workflow never injected `VITE_FIREBASE_*`, so both auth tests failed on a clean
+  checkout.
+- **Dark `--color-on-destructive` had no override**: the dark destructive is a lighter red, so
+  inherited white text fell below 4.5:1. Latent until a danger button is mounted. Now covered by
+  the design-system contrast spec.
 - **Migration merge defects**: the React rewrite was merged into `main` in a broken state and
   the result was never pushed. Repaired in six commits: two orphaned `>>>>>>>` conflict markers
   left in `src/main.ts`; five Zod schema primitives dropped from `src/types/state.ts`;
