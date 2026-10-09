@@ -1,4 +1,4 @@
-import * as v from 'valibot';
+import { z } from 'zod';
 
 const DESTRUCTIVE_PATTERNS = [
   /\bdelete\s+(all|everything)\b/i,
@@ -10,31 +10,31 @@ const DESTRUCTIVE_PATTERNS = [
   /\bremove\s+(all|everything)\b/i,
 ];
 
-const messageSchema = v.strictObject({
-  role: v.union([v.literal('user'), v.literal('assistant')]),
-  content: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(6000)),
+const messageSchema = z.strictObject({
+  role: z.union([z.literal('user'), z.literal('assistant')]),
+  content: z.string().trim().min(1).max(6000),
 });
-const requestSchema = v.record(v.string(), v.unknown());
-const questionSchema = v.pipe(v.string(), v.trim(), v.minLength(1));
-const contextSummarySchema = v.pipe(
-  v.unknown(),
-  v.check((value) => value !== null),
-);
-const messagesSchema = v.pipe(
-  v.array(messageSchema),
-  v.minLength(1),
-  v.maxLength(12),
-  v.check(
+const requestSchema = z.record(z.string(), z.unknown());
+const questionSchema = z.string().trim().min(1);
+const contextSummarySchema = z.unknown().refine((value) => value !== null);
+const messagesSchema = z
+  .array(messageSchema)
+  .min(1)
+  .max(12)
+  .refine(
     (messages) =>
       messages.every((message, index) => message.role === (index % 2 === 0 ? 'user' : 'assistant')),
-    'messages must alternate user/assistant with text content only',
-  ),
-);
-const latestMessageSchema = v.pipe(
-  messageSchema,
-  v.check((message) => message.role === 'user', 'last message must match question'),
-);
-const proposalEnvelopeSchema = v.record(v.string(), v.unknown());
+    { message: 'messages must alternate user/assistant with text content only' },
+  );
+const latestMessageSchema = messageSchema.refine((message) => message.role === 'user', {
+  message: 'last message must match question',
+});
+const proposalEnvelopeSchema = z.record(z.string(), z.unknown());
+const sendExactSchema = z.boolean();
+const messageArrayShapeSchema = z.array(z.unknown()).min(1).max(12);
+
+/** Valibot's `is`: true when the value satisfies the schema, never throwing. */
+const is = (schema, value) => schema.safeParse(value).success;
 
 const PII_REQUEST_PATTERNS = [
   /\b(show|give|send|reveal|return|dump|list|share)\b[^.?!]*\b(email|e-mail|uid|user\s*id|transaction\s*(id|ids)|account\s*(number|numbers)|ssn|social\s*security|pan\s*number|dob|date\s+of\s+birth)\b/i,
@@ -99,19 +99,19 @@ export function checkPromptPolicy(question) {
 
 /** @returns {null | { status: number, error: string }} */
 export function validateAssistantRequest(body) {
-  if (!v.is(requestSchema, body)) {
+  if (!is(requestSchema, body)) {
     return { status: 400, error: 'JSON body required' };
   }
-  if (!v.is(questionSchema, body.question)) {
+  if (!is(questionSchema, body.question)) {
     return { status: 400, error: 'question is required' };
   }
-  if (body.contextSummary === undefined || !v.is(contextSummarySchema, body.contextSummary)) {
+  if (body.contextSummary === undefined || !is(contextSummarySchema, body.contextSummary)) {
     return { status: 400, error: 'contextSummary is required' };
   }
-  if (!v.is(v.pipe(v.array(v.unknown()), v.minLength(1), v.maxLength(12)), body.messages)) {
+  if (!is(messageArrayShapeSchema, body.messages)) {
     return { status: 400, error: 'messages must contain 1–12 conversation messages' };
   }
-  const result = v.safeParse(messagesSchema, body.messages);
+  const result = messagesSchema.safeParse(body.messages);
   if (!result.success) {
     return {
       status: 400,
@@ -119,10 +119,10 @@ export function validateAssistantRequest(body) {
     };
   }
   const latestMessage = body.messages.at(-1);
-  if (!v.is(latestMessageSchema, latestMessage) || latestMessage.content !== body.question) {
+  if (!is(latestMessageSchema, latestMessage) || latestMessage.content !== body.question) {
     return { status: 400, error: 'last message must match question' };
   }
-  if (body.sendExact !== undefined && !v.is(v.boolean(), body.sendExact)) {
+  if (body.sendExact !== undefined && !is(sendExactSchema, body.sendExact)) {
     return { status: 400, error: 'sendExact must be boolean' };
   }
   if (JSON.stringify(body).length > 100_000) {
@@ -138,7 +138,7 @@ export function extractProposedChanges(reply) {
   if (!match) return null;
   try {
     const parsed = JSON.parse(match[0]);
-    if (!v.is(proposalEnvelopeSchema, parsed)) return null;
+    if (!is(proposalEnvelopeSchema, parsed)) return null;
     const allowed = new Set(PERSISTED_ALLOWLIST);
     const filtered = {};
     for (const [key, value] of Object.entries(parsed)) {

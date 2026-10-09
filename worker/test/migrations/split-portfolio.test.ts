@@ -5,7 +5,10 @@ import {
   TransactionsCollectionSchema,
   shouldSplitPortfolio,
 } from '../../../src/lib/portfolio/types';
-import { migratePortfolio, rollbackMigration } from '../../../worker/src/migrations/split-portfolio';
+import {
+  migratePortfolio,
+  rollbackMigration,
+} from '../../../worker/src/migrations/split-portfolio';
 
 // Mock firebase/firestore module
 vi.mock('firebase/firestore', () => {
@@ -16,7 +19,13 @@ vi.mock('firebase/firestore', () => {
       name: 'Test Portfolio',
       holdings: [],
       transactions: [],
-      metadata: { id: 'p1', splitVersion: 1, originalDocId: 'p1', splitAt: '2024-01-01T00:00:00.000Z', migrated: false },
+      metadata: {
+        id: 'p1',
+        splitVersion: 1,
+        originalDocId: 'p1',
+        splitAt: '2024-01-01T00:00:00.000Z',
+        migrated: false,
+      },
     }),
     exists: vi.fn().mockReturnValue(true),
     ref: { path: 'portfolios/p1' },
@@ -36,7 +45,9 @@ vi.mock('firebase/firestore', () => {
     collection: vi.fn().mockReturnValue({
       doc: vi.fn().mockReturnValue({
         id: 'placeholder',
-        data: vi.fn().mockReturnValue({ id: 'placeholder', fundId: 'placeholder', quantity: 0, costBasis: 0 }),
+        data: vi
+          .fn()
+          .mockReturnValue({ id: 'placeholder', fundId: 'placeholder', quantity: 0, costBasis: 0 }),
         exists: vi.fn().mockReturnValue(true),
       }),
     }),
@@ -101,12 +112,8 @@ describe('Portfolio split schemas', () => {
 describe('migratePortfolio', () => {
   const testPortfolio = {
     id: 'p1',
-    holdings: [
-      { id: 'h1', fundId: 'f1', quantity: 100, costBasis: 5000 },
-    ],
-    transactions: [
-      { id: 't1', type: 'buy', amount: 10000, date: '2024-01-15' },
-    ],
+    holdings: [{ id: 'h1', fundId: 'f1', quantity: 100, costBasis: 5000 }],
+    transactions: [{ id: 't1', type: 'buy', amount: 10000, date: '2024-01-15' }],
     name: 'Test Portfolio',
   };
 
@@ -120,7 +127,13 @@ describe('migratePortfolio', () => {
         name: 'Test Portfolio',
         holdings: testPortfolio.holdings,
         transactions: testPortfolio.transactions,
-        metadata: { id: 'p1', splitVersion: 1, originalDocId: 'p1', splitAt: '2024-01-01T00:00:00.000Z', migrated: false },
+        metadata: {
+          id: 'p1',
+          splitVersion: 1,
+          originalDocId: 'p1',
+          splitAt: '2024-01-01T00:00:00.000Z',
+          migrated: false,
+        },
       }),
     });
 
@@ -139,7 +152,13 @@ describe('migratePortfolio', () => {
         name: 'Test Portfolio',
         holdings: testPortfolio.holdings,
         transactions: testPortfolio.transactions,
-        metadata: { id: 'p1', splitVersion: 1, originalDocId: 'p1', splitAt: '2024-01-01T00:00:00.000Z', migrated: false },
+        metadata: {
+          id: 'p1',
+          splitVersion: 1,
+          originalDocId: 'p1',
+          splitAt: '2024-01-01T00:00:00.000Z',
+          migrated: false,
+        },
       }),
     });
 
