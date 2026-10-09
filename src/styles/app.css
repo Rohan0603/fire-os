@@ -20,6 +20,14 @@
   --color-destructive: oklch(55.3% 0.215 27.3);
   --color-warning: oklch(76.9% 0.188 70.08);
 
+  /* Foreground pairs for the filled backgrounds above. Declared here as well as
+     in tokens-oklch.css because Tailwind only generates `text-(--color-x)`
+     utilities for tokens that exist inside @theme. Kept in sync by hand; the
+     values are the same OKLCH literals. */
+  --color-on-primary: oklch(100% 0 0);
+  --color-on-accent: oklch(15.3% 0.03 264.4);
+  --color-on-destructive: oklch(100% 0 0);
+
   --color-background: oklch(96.9% 0.004 264.5);
   --color-surface: oklch(100% 0 0);
   --color-surface-raised: oklch(93.5% 0.006 264.5);

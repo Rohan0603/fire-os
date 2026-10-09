@@ -22,6 +22,13 @@ export function RouteShell({ meta, children, migrationState = 'placeholder' }: R
   // and keeps metadata tied to whichever route is showing.
   useRouteMeta();
 
+  // Test-only seam. The error boundary had no way to be reached, so the kit it
+  // renders was never exercised in a browser. Set by e2e/ui-kit.spec.ts via
+  // addInitScript; unset in every real session.
+  if (typeof window !== 'undefined' && (window as { __forceRouteError?: boolean }).__forceRouteError) {
+    throw new Error('Forced route error for e2e coverage');
+  }
+
   if (migrationState === 'placeholder') {
     return (
       <div data-route={meta.id} data-migration-state="placeholder" hidden>

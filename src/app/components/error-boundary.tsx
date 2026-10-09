@@ -1,5 +1,7 @@
 import { Component } from 'react';
 import type { ErrorInfo, ReactNode } from 'react';
+import { Button } from '../ui/Button';
+import { Card, CardBody, CardHeader, CardTitle } from '../ui/Card';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -33,19 +35,15 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     if (!error) return this.props.children;
 
     return (
-      <div role="alert" className="rounded-md border border-(--color-danger) p-4">
-        <h2 className="text-base font-semibold">This section failed to load</h2>
-        <p className="mt-1 text-sm text-(--color-muted-foreground)">{error.message}</p>
-        <button
-          type="button"
-          onClick={this.retry}
-          className="mt-3 rounded-md border border-(--color-border) px-3 py-1.5 text-sm
-                     focus-visible:outline-2 focus-visible:outline-offset-2
-                     focus-visible:outline-(--color-secondary)"
-        >
+      <Card role="alert" className="border-(--color-destructive)">
+        <CardHeader>
+          <CardTitle>This section failed to load</CardTitle>
+          <CardBody className="text-(--color-muted-foreground)">{error.message}</CardBody>
+        </CardHeader>
+        <Button variant="secondary" size="sm" onClick={this.retry}>
           Try again
-        </button>
-      </div>
+        </Button>
+      </Card>
     );
   }
 }
