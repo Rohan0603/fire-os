@@ -197,6 +197,16 @@ export const PERSISTED_STATE_KEYS = [
   'watchdogRules', 'swpSchedule', 'taxCalendar', 'expenses', 'netWorthHistory',
   'completedActions', 'achievedMilestones', 'insurance', 'esopDetails',
 ] as const;
+
+const finiteNumberSchema = z.number();
+const timestampSchema = z.string().refine((value) => Number.isFinite(Date.parse(value)));
+const statusSchema = z.enum(['live', 'cache-fresh', 'stale', 'manual']);
+const legacyNiftyStatusSchema = z.enum(['live', 'cache-fresh', 'manual']);
+const profileSchema = z.strictObject({
+  name: z.string(), dateOfBirth: z.string().optional(), age: finiteNumberSchema,
+  taxSlabRate: finiteNumberSchema.optional(), annualExpenses: finiteNumberSchema,
+  fiTarget: finiteNumberSchema, monthlyIncome: finiteNumberSchema,
+});
 const holdingMapSchema = z.record(z.string(), z.strictObject({ amount: finiteNumberSchema, currency: z.string() }));
 const otherHoldingMapSchema = z.record(z.string(), z.strictObject({
   name: z.string().min(1).refine((name) => name.trim().length > 0 && name.length <= 200),
