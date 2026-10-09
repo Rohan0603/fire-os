@@ -395,7 +395,6 @@ function setupTabNavigation() {
   registerAuthControlSync(() => sessionController.syncAuthControl());
 }
 
->>>>>>> origin/ao/fire-os-2/assistant-cors-allowlist
 // Auto-refresh dashboard when state changes
 function setupDashboardAutoRefresh() {
   let renderQueued = false;
@@ -468,7 +467,6 @@ function setupTheme() {
   document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
 }
 
->>>>>>> origin/ao/fire-os-2/assistant-cors-allowlist
 // Start app
 document.addEventListener('DOMContentLoaded', initApp);
 
