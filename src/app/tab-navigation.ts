@@ -37,9 +37,11 @@ export function setupTabNavigation(registry: FeatureRegistry, session: TabSessio
   }
 
   const activateTab = (target: string): void => {
-    const tabEl = document.getElementById(target);
-    if (!tabEl || !registry.get(target)) return;
+    if (!registry.get(target)) return;
 
+    // Drop the active class from every legacy tab/marker first so a migrated
+    // route (whose React section owns the id) can take over without a stale
+    // container still showing underneath.
     const currentTab = document.querySelector<HTMLElement>('.tab.active');
     if (currentTab && currentTab.id !== target) {
       void registry.unmount(currentTab.id, currentTab).catch((error) => {
@@ -51,12 +53,17 @@ export function setupTabNavigation(registry: FeatureRegistry, session: TabSessio
       tab.classList.toggle('active', tab.getAttribute('data-tab') === target);
     });
     document.querySelectorAll('.tab').forEach((tab) => tab.classList.remove('active'));
+
+    // A migrated route renders its own React <section id> with `active`; there is
+    // no legacy container to mount into, so leave it as React rendered it.
+    const tabEl = document.getElementById(target);
+    if (!tabEl) return;
     tabEl.classList.add('active');
 
     void registry.mount(target, tabEl).catch((error) => {
       console.error(`Failed to load module for tab ${target}:`, error);
       tabEl.innerHTML =
-        '<p style="padding: 20px; color: #d32f2f;">Error loading module. Please check your connection.</p>';
+        '<p style="padding: 20px; color: #d32f2f;">Error loading module. Please reload.</p>';
     });
   };
 

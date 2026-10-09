@@ -8,6 +8,5 @@ firebase.json
 firestore.indexes.json
 tsconfig.json
 vite.config.ts
-public/chart.js/**
 public/pdfjs/**
 worker/worker-configuration.d.ts

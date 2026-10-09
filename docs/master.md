@@ -52,7 +52,9 @@ active route's `document.title` and description.
 
 `FeatureRegistry` still maps `profile`, `dashboard`, `calculators`, `insurance`,
 `plan`, `esop`, and `assistant` to module lifecycle functions, and still owns
-route content for every route that has not been ported. React Router navigates
+route content for every route that has not been ported. The migrated `dashboard`
+entry keeps a no-op `mount` so `resolveTabTarget` still resolves the id, while
+the React route owns its content. React Router navigates
 with `pushState`, which never fires `popstate`, so `src/app/legacy-bridge.ts`
 lets `main.ts` register its tab activator and the shell call it on each route
 change. A route marks progress with `data-migration-state`: while a route is a
@@ -222,14 +224,17 @@ engine. Read [UI](ui.md) for tab-level logic and additional calculations.
   serialization with spreadsheet formula protection in
   `src/lib/portfolioCsv.ts`, parse/preview/merge-replace apply in
   `src/modules/profile/csv-import.ts`), PDF/CAS parsing and save.
-- **Dashboard** (`src/modules/dashboard/`): net worth, SIP P&L, FI progress,
+- **Dashboard** (React route `src/app/routes/dashboard/`; shared data helpers
+  `src/modules/dashboard/`): net worth, SIP P&L, FI progress,
   market drawdown, allocation visualization, and analytics charts over two
   distinct series — persisted daily net-worth snapshots (sparse, never
-  backfilled or interpolated) and fetched Nifty market history (benchmark
-  only, always labeled with provider, freshness and span). Plain `chart.js`
-  dependency; module-local lifecycle helpers replace each chart instance on
-  repaint and destroy them on unmount, with a no-op fallback when no 2D
-  canvas context exists; cashflow/data trust panels, goals,
+  backfilled or interpolated, downsampled above 500 points) and fetched Nifty
+  market history (benchmark
+  only, always labeled with provider, freshness and span). Charts are React
+  components on the existing **Recharts** dependency (the legacy `chart.js`
+  dependency and module CSS were removed); pure series/range/downsample logic
+  lives in `chart-data.ts`, and the route refreshes NAVs/FX and benchmark
+  history once on mount. Cashflow/data trust panels, goals,
   and conditional SWP/expense/advisor widgets.
 - **Planning Tools** (`src/modules/calculators/`): crash protocol, emergency
   runway, SIP pause, LTCG tax planner, SWP scheduler, allocation rebalancing and

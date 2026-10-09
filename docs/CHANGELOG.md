@@ -65,6 +65,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   until it is migrated. The prerender-script retirement and the move to Cloudflare
   Workers are not part of this change.
 - **Reactive Status Stores**: sync, market-refresh, and cloud-mode labels update live from shared status stores
+- **Dashboard migrated to React** (`src/app/routes/dashboard/`): the dashboard route, KPI cards,
+  composition/trend/benchmark charts, data-trust panel and SWP/expense/advisor widgets are now
+  React components, and the route claims `#dashboard` with `data-migration-state="migrated"`.
+  Charts use the existing **Recharts** dependency; the legacy `chart.js` dependency,
+  `src/modules/dashboard/styles.css` and the imperative `renderDashboard`/`teardownDashboard`
+  wiring were removed. `src/modules/dashboard/` keeps only the shared data helpers
+  (`fetchSIPNAVs`, `refreshStaleData`, `staleSourceLabels`, `updateCrashAlert`), and
+  `FeatureRegistry` keeps a no-op `dashboard` mount so `resolveTabTarget` still resolves it.
 - Consolidated project, architecture, API, Assistant, deployment, and
   troubleshooting guidance into `docs/README.md`.
 - Removed duplicated and historical planning documents.

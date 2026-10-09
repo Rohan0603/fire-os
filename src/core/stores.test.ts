@@ -116,18 +116,20 @@ describe('portfolio save signal', () => {
     expect(calls).toBe(100);
   });
 
-  it('wires save invalidation through the store in storage and main', () => {
+  it('wires save invalidation through the store in storage and the React provider', () => {
     const storage = readSource('../lib/storage.ts');
     expect(storage).toMatch(/notifyPortfolioSaved\(\)/);
     expect(storage).not.toContain('portfolioStateSaved');
 
+    // The React provider subscribes; main.ts no longer owns a dashboard refresh
+    // subscription of its own.
+    const providers = readSource('../app/providers.tsx');
+    expect(providers).toContain('useStore(portfolioSavedStore)');
+
     const main = readSource('../main.ts');
-    expect(main).toContain('portfolioSavedStore.subscribe(refreshDashboard)');
+    expect(main).not.toContain('portfolioSavedStore');
     expect(main).not.toContain("addEventListener('portfolioStateSaved'");
-    expect(main).toContain('if (renderQueued) return;');
-    expect(main).toMatch(/requestAnimationFrame\(/);
-    expect(main).toMatch(/renderDashboard\(/);
-    expect(main).toContain('pagehide');
+    expect(main).not.toMatch(/renderDashboard\(/);
   });
 });
 
