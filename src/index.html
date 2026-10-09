@@ -12,6 +12,14 @@
   <meta property="og:image" content="https://fire-os-dd6d6.web.app/og-image.svg">
   <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebPage","name":"FIRE OS — Financial Independence Dashboard","description":"FIRE OS is a local-first financial independence dashboard for portfolio planning, calculators, insurance, retirement plans, and ESOP analysis.","url":"https://fire-os-dd6d6.web.app/","isPartOf":{"@type":"WebSite","name":"FIRE OS","url":"https://fire-os-dd6d6.web.app/"}}</script>
   <title>FIRE OS — Financial Independence Dashboard</title>
+  <!-- The design system's typeface. Loaded here rather than via @import in
+       app.css: global.css is imported first and carries its own @import, which
+       makes a later stylesheet's @import invalid, so the font request was
+       silently dropped from the build. A <link> in the document head is not
+       subject to that rule. Fira Code (mono) still comes from global.css. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap">
   <link rel="stylesheet" href="/styles/app.css">
   <link rel="stylesheet" href="/styles/tokens-oklch.css">
   <script src="/pdfjs/pdf.min.js"></script>
