@@ -704,13 +704,15 @@ function attachProfileHandlers(context: FeatureContext) {
   document.getElementById('backup-confirm-btn')?.addEventListener('click', async () => {
     if (!pendingBackup) return;
     try {
-      const summary = await restorePortfolioBackup(pendingBackup, activeContext, true);
+      // Snapshot before the destructive restore so the summary can compare.
+      const before = captureStateSnapshot(D);
+      await restorePortfolioBackup(pendingBackup, activeContext, true);
       pendingBackup = null;
       backupDialog.style.display = 'none';
       context.ports.ui.showToast('Portfolio backup restored locally');
       const profileContainer = document.getElementById('profile');
       if (profileContainer) renderProfile(profileContainer, context);
-      if (summary) showImportSummary(summary);
+      showImportSummary(buildImportSummary(before, D));
     } catch {
       const message = 'Restore failed. The current portfolio was not changed.';
       if (backupSummary) backupSummary.textContent = message;
@@ -776,14 +778,16 @@ function attachProfileHandlers(context: FeatureContext) {
     const mode = selectedCsvMode();
     if (!preview || !mode) return;
     try {
-      const summary = await applyPortfolioCsvImport(preview.candidate, activeContext, mode, true);
+      // Snapshot before the destructive import so the summary can compare.
+      const before = captureStateSnapshot(D);
+      await applyPortfolioCsvImport(preview.candidate, activeContext, mode, true);
       const rows = preview.validRows;
       pendingCsvImport = null;
       csvDialog.style.display = 'none';
       context.ports.ui.showToast(`Imported ${rows} CSV row${rows === 1 ? '' : 's'} (${mode})`);
       const profileContainer = document.getElementById('profile');
       if (profileContainer) renderProfile(profileContainer, context);
-      if (summary) showImportSummary(summary);
+      showImportSummary(buildImportSummary(before, D));
     } catch {
       const message = 'Import failed. The current portfolio was not changed.';
       if (csvSummary) csvSummary.textContent = message;
@@ -1196,37 +1200,6 @@ export async function saveProfile(): Promise<boolean> {
     handleError(e, 'Failed to save profile');
     return false;
   }
-}
-
-const IMPORT_SECTION_LABELS_PLACEHOLDER: never = null;
-void IMPORT_SECTION_LABELS_PLACEHOLDER;
-
-/**
- * Show the post-import before/after summary dialog: per-section holdings
- * counts plus totals, so replaced (rather than appended) entries are visible.
- */
-function showImportSummary(summary: ImportSummary): void {
-  const dialog = document.getElementById('import-summary');
-  const body = document.getElementById('import-summary-body');
-  if (!dialog || !body) return;
-  const lines = summary.sections.map((entry) => {
-    const parts: string[] = [];
-    if (entry.added) parts.push(`${entry.added} added`);
-    if (entry.removed) parts.push(`${entry.removed} removed`);
-    if (entry.replaced) parts.push(`${entry.replaced} replaced`);
-    return `${IMPORT_SECTION_LABELS[entry.section] ?? entry.section}: ${parts.join(', ')}`;
-  });
-  if (summary.otherChangedSections.length > 0) {
-    lines.push(`Also updated: ${summary.otherChangedSections.join(', ')}`);
-  }
-  const { added, removed, replaced } = summary.totals;
-  lines.push(
-    added + removed + replaced > 0
-      ? `Total: ${added} added, ${removed} removed, ${replaced} replaced`
-      : 'No portfolio changes detected.'
-  );
-  body.textContent = lines.join('\n');
-  dialog.style.display = 'flex';
 }
 
 /**
