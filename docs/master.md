@@ -66,6 +66,31 @@ Routes are not session-gated. `profile` and `assistant` both work in guest mode
 today, which is what the existing specs assert; guards are revisited when the
 auth screen is ported.
 
+`src/app/ui` is the shared component kit that migrated routes use instead of
+hand-rolled markup. It is deliberately small: Button, Input, Card, Table, Tabs,
+Select and Dialog, over a local `cn` helper rather than a class-merge
+dependency, because the kit composes fixed internal variant maps. Colours come
+from the `@theme` tokens in `src/styles/app.css` using Tailwind v4's
+`bg-(--color-x)` syntax; the v3 `bg-[--color-x]` shorthand compiles to nothing,
+and a token absent from `@theme` yields no utility at all even when it is
+defined elsewhere, which is how the `--color-on-*` and `--color-danger` bugs
+happened. Tabs, Select and Dialog wrap Radix primitives already in
+`package.json`, for focus trapping and keyboard semantics. Each component
+carries `cursor-pointer`, a visible focus ring and `motion-reduce:`
+transitions structurally, so a caller cannot forget a checklist item.
+
+The kit is proven by reading computed styles on real rendered elements, not by
+asserting on the built CSS: the failure mode this guards against is an
+unlayered legacy rule (`global.css`, `layout.css`) outranking a Tailwind
+utility regardless of specificity, which still compiles and ships. A utility
+can therefore be present in the stylesheet and inert on screen.
+`e2e/ui-kit.spec.ts` covers this and was confirmed to fail when the trap is
+reintroduced. Tabs, Select and Dialog are not yet mounted by any route, so they
+are typechecked and built but not yet exercised in a browser; they get covered
+as the modules needing them are ported. Toast is still imperative
+(`src/modules/ui/Toast.ts`) because 40 call sites go through the `showToast`
+feature port; it joins the kit with that port.
+
 `FeatureContext` provides the shared mutable state, portfolio repository, and
 injected UI/calculation/widget/market-data ports.
 
@@ -259,6 +284,7 @@ boundaries are in [AI reference](ai.md).
 | --- | --- |
 | `src/main.ts` | Entry point: session startup, persistence, legacy tabs, React mount |
 | `src/app/` | React shell: bootstrap seam, router, layout/sidebar, theme toggle, store binding, route metadata |
+| `src/app/ui/` | Shared UI kit: Button, Input, Card, Table, Tabs, Select, Dialog |
 | `src/core/` | Feature context/ports, reactive status stores (`stores.ts`) and portfolio repository seam |
 | `src/lib/` | State persistence, auth coordination, data transforms, calculations and Assistant policy client |
 | `src/modules/` | Product UI, domain calculations and external API adapters |

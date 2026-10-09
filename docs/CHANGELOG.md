@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Shared UI kit** (`src/app/ui`): Button, Input, Card, Table, Tabs, Select and Dialog for
+  migrated routes, plus a `cn` helper. Tabs/Select/Dialog wrap the Radix primitives already in
+  `package.json`. Proven by computed-style assertions in `e2e/ui-kit.spec.ts`, because an
+  unlayered legacy rule can beat a Tailwind utility while still appearing in the built CSS.
 - **CSV Import**: preview a parsed portfolio CSV with row-level issues and confirm before applying
 - **Dashboard Charts**: interactive portfolio composition pie plus net-worth snapshot trend and Nifty benchmark performance and drawdown history views with range controls
 - **XIRR Period Returns**: `calculatePeriodReturn()` derives annualized returns from dated cash flows within an inclusive window; exported helper, not yet surfaced in the SIP status KPI
@@ -15,6 +19,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Agent-friendly development**: enhanced `AGENTS.md` with explicit PR/MR workflow, CI check guidance, and issue onboarding; added quick-reference validation table and agent-contributing guide to `docs/README.md`
 
 ### Fixed
+- **Migration merge defects**: the React rewrite was merged into `main` in a broken state and
+  the result was never pushed. Repaired in six commits: two orphaned `>>>>>>>` conflict markers
+  left in `src/main.ts`; five Zod schema primitives dropped from `src/types/state.ts`;
+  stale local shell helpers shadowing their `src/app` module equivalents; a stale
+  `showImportSummary` copy in the profile module; the backup-restore and CSV-import summary
+  dialogs had silently stopped rendering because both callers were refactored to `Promise<void>`;
+  and `shared/assistant-policy.js` still imported the `valibot` dependency that the Zod swap had
+  removed, which failed two worker suites at import. A regression this introduced — the bridge
+  handlers losing their only call site, which would have made React sign-in/sign-out silently
+  no-op — was caught by lint and fixed.
+- **`--color-danger` / `--color-on-*` tokens**: these were referenced from Tailwind utilities but
+  absent from `@theme`, so `border-(--color-danger)` compiled to nothing and the error boundary's
+  border never rendered. Declared in `@theme` alongside the existing definitions.
 - **Assistant CORS on `firebaseapp.com`**: the assistant worker's `ALLOWED_ORIGIN` held a
   single origin (`fire-os-dd6d6.web.app`), so every request from the `firebaseapp.com`
   host was rejected by the browser. It is now a comma-separated allowlist that also
