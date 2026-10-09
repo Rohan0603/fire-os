@@ -68,13 +68,13 @@ auth screen is ported.
 
 `src/app/ui` is the shared component kit that migrated routes use instead of
 hand-rolled markup. It is deliberately small: Button, Input, Card, Table, Tabs,
-Select and Dialog, over a local `cn` helper rather than a class-merge
-dependency, because the kit composes fixed internal variant maps. Colours come
-from the `@theme` tokens in `src/styles/app.css` using Tailwind v4's
-`bg-(--color-x)` syntax; the v3 `bg-[--color-x]` shorthand compiles to nothing,
-and a token absent from `@theme` yields no utility at all even when it is
-defined elsewhere, which is how the `--color-on-*` and `--color-danger` bugs
-happened. Tabs, Select and Dialog wrap Radix primitives already in
+Select, Dialog and the Toaster, over a local `cn` helper rather than a
+class-merge dependency, because the kit composes fixed internal variant maps.
+Colours come from the `@theme` tokens in `src/styles/app.css` using Tailwind
+v4's `bg-(--color-x)` syntax; the v3 `bg-[--color-x]` shorthand compiles to
+nothing, and a token absent from `@theme` yields no utility at all even when it
+is defined elsewhere, which is how the `--color-on-*` and `--color-danger` bugs
+happened. Tabs, Select, Dialog and Toast wrap Radix primitives already in
 `package.json`, for focus trapping and keyboard semantics. Each component
 carries `cursor-pointer`, a visible focus ring and `motion-reduce:`
 transitions structurally, so a caller cannot forget a checklist item.
@@ -87,9 +87,13 @@ can therefore be present in the stylesheet and inert on screen.
 `e2e/ui-kit.spec.ts` covers this and was confirmed to fail when the trap is
 reintroduced. Tabs, Select and Dialog are not yet mounted by any route, so they
 are typechecked and built but not yet exercised in a browser; they get covered
-as the modules needing them are ported. Toast is still imperative
-(`src/modules/ui/Toast.ts`) because 40 call sites go through the `showToast`
-feature port; it joins the kit with that port.
+as the modules needing them are ported. Toast content still comes from the
+imperative `showToast` API in `src/modules/ui/Toast.ts` — 40 call sites go
+through the `showToast` feature port, so that API is unchanged — but rendering
+is delegated to the kit's `<Toaster>`, which subscribes to the stream and
+renders through Radix. The imperative DOM renderer remains as a fallback for
+toasts fired before the React tree mounts; subscribing hands the stream over
+and disables it.
 
 `FeatureContext` provides the shared mutable state, portfolio repository, and
 injected UI/calculation/widget/market-data ports.

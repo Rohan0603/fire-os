@@ -221,7 +221,9 @@ timestamp/freshness and three starter questions.
 ## Shared UI and formatting
 
 `src/modules/ui/Modal.ts` wraps native `<dialog>` behavior for shared callers;
-`Toast.ts` exposes transient status notifications. `lib/formatters.ts` provides
+`Toast.ts` exposes transient status notifications via the imperative `showToast`
+API, which the kit's Radix `<Toaster>` subscribes to and renders (`src/app/ui/Toast.tsx`).
+`lib/formatters.ts` provides
 Indian currency/number formatting. The dashboard charts (composition pie,
 net-worth trend, Nifty benchmark) use plain `chart.js` (no chart
 wrapper/framework) with their lifecycle owned by
@@ -622,6 +624,11 @@ comma grouping; non-finite becomes ₹0. `formatNumber()` uses Indian grouping;
 `formatPercentage()` expects fractional input and multiplies by 100. Date and
 time helpers return empty string for invalid input. Modal helper uses native
 `<dialog>.showModal()`, text content for title/button labels and caller-supplied
-HTML for modal body; backdrop click and close button close it. Toast uses
-role=status/aria-live polite, message textContent, four types and duration-based
-dismissal.
+HTML for modal body; backdrop click and close button close it. The imperative
+Toast API keeps `showToast(message, duration, type)` (four types, duration-based
+dismissal, sticky when duration is 0) and feeds the kit's Radix `<Toaster>`,
+which renders bottom-right with swipe-to-dismiss; Radix supplies the
+`aria-live` region. Until React mounts, toasts render through the legacy DOM
+fallback (`#toast-container`, role=status/aria-live polite), so nothing fired
+during session bootstrap is lost; the first `<Toaster>` subscription switches
+that off.
