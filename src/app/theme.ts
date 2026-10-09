@@ -20,8 +20,15 @@ export function setupTheme(): void {
     window.dispatchEvent(new Event('themeChanged'));
   };
 
-  // Initial setup
-  setDarkTheme(resolveInitialTheme(savedTheme, prefersDark));
+  // Initial setup applies the resolved theme WITHOUT persisting it. Only a real
+  // toggle writes a preference, so an unset preference stays unset and the CSS
+  // `@media (prefers-color-scheme)` rule stays authoritative (docs/ui.md).
+  // Writing here would freeze the OS preference seen on first load into
+  // localStorage, so a later change of OS setting would be ignored.
+  const initialIsDark = resolveInitialTheme(savedTheme, prefersDark);
+  document.documentElement.dataset.theme = initialIsDark ? 'dark' : 'light';
+  if (toggleInput) toggleInput.checked = initialIsDark;
+  window.dispatchEvent(new Event('themeChanged'));
 
   if (toggleInput) {
     toggleInput.addEventListener('change', (e) => {
