@@ -45,6 +45,9 @@
     --color-warning: oklch(79.1% 0.159 82.7);
     --color-on-primary: oklch(15.3% 0.03 264.4);
     --color-on-accent: oklch(15.3% 0.03 264.4);
+    /* The dark destructive is a lighter red, so it needs dark text to stay
+       above 4.5:1. Without this it inherited the light-mode white and failed. */
+    --color-on-destructive: oklch(15.3% 0.03 264.4);
 
     --color-background: oklch(20.5% 0.03 264.4);
     --color-surface: oklch(27.6% 0.04 262.9);

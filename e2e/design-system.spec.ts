@@ -23,6 +23,10 @@ test.describe('design system checklist', () => {
       ['--color-destructive', '--color-surface'],
       ['--color-on-primary', '--color-primary'],
       ['--color-on-accent', '--color-accent'],
+      // Added with the dark --color-on-destructive override. The dark
+      // destructive is a lighter red, so it needs dark text; without the
+      // override it inherited the light-mode white and failed 4.5:1.
+      ['--color-on-destructive', '--color-destructive'],
     ];
 
     for (const scheme of ['light', 'dark'] as const) {
