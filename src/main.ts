@@ -18,11 +18,6 @@ import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/app';
 import { createBootstrap } from './app/bootstrap';
-import {
-  registerAuthAction,
-  registerAuthControlSync,
-  registerLegacyTabActivator,
-} from './app/legacy-bridge';
 import type { AppBootstrapResult } from './app/bootstrap';
 import { applyPersistedState, initializeState } from './types/state';
 import { appState } from './lib/appState';

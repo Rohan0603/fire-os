@@ -1,10 +1,12 @@
 import type { FeatureRegistry } from './feature-registry';
+import { registerAuthAction, registerAuthControlSync, registerLegacyTabActivator } from './legacy-bridge';
 
 /** Session behaviour the logout button needs from the auth session controller. */
 export interface TabSession {
   readonly isGuestSessionActive: boolean;
   requestSignIn(): Promise<void>;
   signOut(): Promise<void>;
+  syncAuthControl(): void;
 }
 
 /**
@@ -79,6 +81,25 @@ export function setupTabNavigation(registry: FeatureRegistry, session: TabSessio
   window.addEventListener('popstate', activateLocationTab);
   window.addEventListener('hashchange', activateLocationTab);
   activateLocationTab();
+
+  // React Router navigates without popstate, so hand it the same activator.
+  registerLegacyTabActivator(activateTab);
+
+  // Auth action. The button itself lives in the React header
+  // (src/app/components/auth-button.tsx) and still carries `#logout-btn`, which
+  // `AuthSessionController` drives for its label and visibility.
+  registerAuthAction(async () => {
+    try {
+      if (session.isGuestSessionActive) {
+        await session.requestSignIn();
+        return;
+      }
+      await session.signOut();
+    } catch (e) {
+      console.error('Logout failed:', e);
+    }
+  });
+  registerAuthControlSync(() => session.syncAuthControl());
 
   // Logout button
   const logoutBtn = document.getElementById('logout-btn');
