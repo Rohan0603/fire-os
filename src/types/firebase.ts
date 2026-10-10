@@ -125,7 +125,7 @@ const persistedFields = new Set<keyof PersistedPortfolioData>([
   'niftyHigh', 'niftyData', 'currencyRates', 'eurInr', 'eurInrData', 'alphaTrackerData',
   'coorgCorpus', 'coorgStartDate', 'coorgTarget', 'coorgMonthlyAmount',
   'watchdogRules', 'swpSchedule', 'taxCalendar', 'expenses', 'netWorthHistory',
-  'completedActions', 'achievedMilestones', 'insurance', 'esopDetails',
+  'completedActions', 'achievedMilestones', 'insurance', 'esopDetails', 'assistant',
 ]);
 
 function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
