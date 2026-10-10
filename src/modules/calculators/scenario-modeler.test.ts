@@ -22,7 +22,21 @@ describe('calculateFIAge (preserved behavior)', () => {
         cagr: 0.15,
         currentAge: 32,
       }),
-    ).toEqual({ fiAge: 32, monthsToFI: 0, finalCorpus: 6_000_000, cagr: '15% CAGR' });
+    ).toEqual({ fiAge: 32, monthsToFI: 0, finalCorpus: 6_000_000, cagr: '15% CAGR', unreachable: false });
+  });
+
+  it('reports an explicit unreachable result instead of a capped 83-year horizon', () => {
+    const result = calculateFIAge({
+      currentCorpus: 0,
+      monthlyAmount: 0,
+      targetCorpus: 5_500_000,
+      cagr: 0.17,
+      currentAge: 25,
+    });
+
+    expect(result.unreachable).toBe(true);
+    expect(result.fiAge).toBeNull();
+    expect(result.monthsToFI).toBeNull();
   });
 
   it('throws on invalid parameters', () => {
@@ -44,7 +58,7 @@ describe('compareFIScenarios', () => {
     const results = compareFIScenarios([baseScenario, conservative]);
 
     expect(results).toHaveLength(2);
-    expect(results[0].monthsToGoal).toBeLessThan(results[1].monthsToGoal);
+    expect(results[0].monthsToGoal!).toBeLessThan(results[1].monthsToGoal!);
 
     for (const [index, input] of [baseScenario, conservative].entries()) {
       const expected = calculateFIAge({
@@ -71,6 +85,7 @@ describe('compareFIScenarios', () => {
       'label',
       'monthsToGoal',
       'projectedCorpus',
+      'unreachable',
     ]);
     expect(Object.keys(result.assumptions).sort()).toEqual([
       'annualReturnPercent',
@@ -90,7 +105,7 @@ describe('compareFIScenarios', () => {
     const results = compareFIScenarios([slow, fast, baseScenario]);
 
     expect(results.map((r) => r.label)).toEqual(['Slow 6%', 'Fast 18%', 'Base 12%']);
-    expect(results[0].monthsToGoal).toBeGreaterThan(results[1].monthsToGoal);
+    expect(results[0].monthsToGoal!).toBeGreaterThan(results[1].monthsToGoal!);
   });
 
   it('filters invalid assumptions deterministically without letting exceptions escape', () => {

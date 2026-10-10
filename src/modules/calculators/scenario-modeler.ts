@@ -14,11 +14,15 @@ export interface ScenarioParams {
 }
 
 export interface ScenarioResult {
-  fiAge: number; // Age when FI reached (e.g., 45.2)
-  monthsToFI: number; // Months from now (rounded to nearest integer)
-  finalCorpus: number; // Final corpus at FI
+  fiAge: number | null; // Age when FI reached; null when unreachable within the horizon
+  monthsToFI: number | null; // Months from now (rounded); null when unreachable
+  finalCorpus: number; // Corpus at FI, or the simulated corpus at the horizon cap when unreachable
   cagr: string; // Display CAGR as "15% CAGR"
+  unreachable: boolean; // True when the goal is not reached within MAX_FI_MONTHS
 }
+
+/** Simulation horizon: 1000 months (~83 years). Beyond this a projection is not meaningful. */
+const MAX_FI_MONTHS = 1000;
 
 export interface CoastFireResult {
   coastAge: number | null;
@@ -83,10 +87,10 @@ export function calculateFIAge(params: ScenarioParams): ScenarioResult {
   let corpus = currentCorpus;
   let currentSIP = monthlyAmount;
   let month = 0;
-  let monthsToFI = 0;
+  let reached = currentCorpus >= targetCorpus;
 
   // Simulate month by month until target is reached
-  while (corpus < targetCorpus && month < 1000) {
+  while (!reached && month < MAX_FI_MONTHS) {
     // Apply monthly return to current corpus
     corpus = corpus * (1 + monthlyReturn);
 
@@ -100,24 +104,27 @@ export function calculateFIAge(params: ScenarioParams): ScenarioResult {
       currentSIP = currentSIP * (1 + annualStepUp);
     }
 
-    // Safety check to avoid infinite loops (1000 months = ~83 years)
-    if (month >= 1000) {
-      break;
-    }
+    if (corpus >= targetCorpus) reached = true;
   }
-
-  monthsToFI = month;
-  const yearsToFI = monthsToFI / 12;
-  const fiAge = currentAge + yearsToFI;
 
   // Format CAGR display
   const cagrDisplay = `${(cagr * 100).toFixed(0)}% CAGR`;
 
+  // Goal not reached within the horizon: report explicitly instead of a capped,
+  // fake "FI in 83 years" projection.
+  if (!reached) {
+    return { fiAge: null, monthsToFI: null, finalCorpus: Math.round(corpus), cagr: cagrDisplay, unreachable: true };
+  }
+
+  const yearsToFI = month / 12;
+  const fiAge = currentAge + yearsToFI;
+
   return {
     fiAge: parseFloat(fiAge.toFixed(1)), // Round to 1 decimal place
-    monthsToFI: Math.round(monthsToFI), // Round to nearest integer
+    monthsToFI: Math.round(month), // Round to nearest integer
     finalCorpus: Math.round(corpus), // Round to nearest rupee
     cagr: cagrDisplay,
+    unreachable: false,
   };
 }
 
@@ -135,9 +142,10 @@ export interface FIScenarioInput {
 /** Projected outcome for one scenario. Values are estimates, not guarantees. */
 export interface FIScenarioResult {
   label: string;
-  monthsToGoal: number;
-  ageAtGoal: number;
+  monthsToGoal: number | null; // null when the goal is unreachable within the horizon
+  ageAtGoal: number | null; // null when the goal is unreachable within the horizon
   projectedCorpus: number;
+  unreachable: boolean;
   assumptions: FIScenarioInput;
 }
 
@@ -185,6 +193,7 @@ export function compareFIScenarios(scenarios: FIScenarioInput[]): FIScenarioResu
       monthsToGoal: projected.monthsToFI,
       ageAtGoal: projected.fiAge,
       projectedCorpus: projected.finalCorpus,
+      unreachable: projected.unreachable,
       assumptions: { ...scenario },
     });
   }

@@ -517,11 +517,13 @@ contain recognized categories.
 `calculateFIAge()` throws on invalid parameters — corpus/SIP must be nonnegative,
 goal >0, CAGR/current age nonnegative. Monthly return = `(1+CAGR)^(1/12)-1`; every
 iteration grows current corpus then adds current SIP; after each 12th contribution
-monthly SIP steps up by default 10%. It stops when goal reached or at 1,000 months
-(~83 years), then returns age to one decimal, month count, rounded final corpus and
-a rounded percent label. If unreachable, it still returns capped-horizon values; no
-separate failure status. The Plan tab uses fixed 17% CAGR, profile FI target or
-₹55,000,000 fallback, profile age or 25 fallback, and total SIP monthlyAmount.
+monthly SIP steps up by default 10%. The simulation caps at 1,000 months
+(~83 years): when the goal is reached it returns age to one decimal, month count,
+rounded final corpus and a rounded percent label; when the goal is not reached
+within the horizon it returns an explicit unreachable result (`unreachable: true`,
+null `fiAge`/`monthsToFI`) instead of a capped "FI in 83y" figure. The Plan tab uses fixed 17% CAGR, profile FI target or
+₹55,000,000 fallback, profile age or 25 fallback, and total SIP monthlyAmount; an
+unreachable projection renders a "goal not reached" note rather than a fake horizon.
 Coast FIRE helper is exported through ports but not displayed in current Plan
 render; required corpus is target/(1+return)^years available; if already above
 threshold coasting begins now; otherwise logs solve years from target/current
@@ -531,7 +533,9 @@ and returns null if no positive return or beyond retirement age. Like
 `calculateFIAge()` math and returns results in input order with an `assumptions`
 echo of the full input (label, corpus, SIP, step-up, return, goal, age);
 scenarios with non-finite or negative (or zero-goal) assumptions are filtered
-out without throwing. Comparison outputs are labeled estimates — the calculator
+out without throwing. Unreachable scenarios carry `unreachable: true` and render
+"Not reachable" in the comparison table's month/age rows. Comparison outputs are
+labeled estimates — the calculator
 table and disclaimer state the assumptions used and describe every projection as
 an estimate, never as a guaranteed or actual return.
 

@@ -212,7 +212,7 @@ Core formulas and their code locations:
 | SIP future value | `P × (((1+r)^n − 1)/r)` with monthly rate; zero-rate fallback `P × n` | `src/lib/calculations.ts` |
 | XIRR | `xirr` package (Newton-Raphson) solves annualized return on dated cash flows; invalid dates/non-finite amounts are dropped (null when fewer than two valid flows remain), null when a sign is missing, and any package error (same-day flows, nonconvergence) or non-finite result converts to null | `src/lib/calculations.ts` |
 | Allocation drift | Current bucket percentage minus target (40/30/20/10); recommend when absolute rounded drift >5 percentage points | `src/modules/calculators/portfolio-rebalancing.ts` |
-| FIRE-age scenario | Monthly compounding from annual CAGR, add SIP monthly, annual step-up default 10%, stop at goal or 1,000 months | `src/modules/calculators/scenario-modeler.ts` |
+| FIRE-age scenario | Monthly compounding from annual CAGR, add SIP monthly, annual step-up default 10%; simulation caps at 1,000 months (~83 years) and returns `unreachable: true` with null age/months when the goal is not reached in that horizon | `src/modules/calculators/scenario-modeler.ts` |
 | Coast FIRE | Required today = target / `(1+return)^years`; coast age solves compound growth without contributions | `src/modules/calculators/scenario-modeler.ts` |
 | LTCG harvest | Estimated long-term units from SIP months older than 12; gains allocated up to hard-coded ₹125,000 remaining yearly allowance | `src/modules/calculators/tax/ltcg-planner.ts` |
 | Emergency runway | Selected liquid assets / monthly expenses; UI floors to whole months | `src/modules/calculators/index.ts`, `src/lib/calculations.ts` |
