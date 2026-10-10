@@ -23,6 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Agent-friendly development**: enhanced `AGENTS.md` with explicit PR/MR workflow, CI check guidance, and issue onboarding; added quick-reference validation table and agent-contributing guide to `docs/README.md`
 
 ### Fixed
+- **Legacy modules rendered light cards with invisible text in dark mode**: the legacy palette in
+  `tokens.css` defined its dark half only under `html[data-theme="dark"]`, but the Tailwind palette
+  also treats `prefers-color-scheme: dark` as authoritative and the theme toggle deliberately leaves
+  `data-theme` unset until the user toggles. On a system-dark machine with no stored preference the
+  React shell went dark while every legacy token stayed light, so the not-yet-migrated routes —
+  Plan cards most visibly, plus ESOP, Calculators, Profile and Assistant — painted light surfaces
+  inside a dark page. Measured sub-4.5:1 text samples on those routes went from 42 to 2; the two
+  remaining are unrelated hardcoded-red contrast issues. `tokens.css` now mirrors its dark values
+  under `@media (prefers-color-scheme: dark)` for `html:not([data-theme='light'])`.
 - **Theme preference was persisted on initial load**: `setupTheme` applied the resolved theme via
   the toggle's own helper, writing `fire-os-theme` to `localStorage` during startup. That froze the
   OS preference seen on first load, so a later change of OS setting was ignored, and it

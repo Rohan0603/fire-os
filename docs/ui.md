@@ -47,6 +47,17 @@ listens for it to re-theme its charts). Only a real toggle persists: initial
 application reads the stored value or the system preference without writing one,
 so an unset preference stays unset and the media query stays authoritative.
 
+Because `data-theme` stays unset in that case, **both** palettes must honour the
+media query, not just `tokens-oklch.css`: `tokens.css` defines its legacy dark
+half under `html[data-theme="dark"]` *and* under
+`@media (prefers-color-scheme: dark)` for `html:not([data-theme='light'])`. When
+only the pinned-attribute rule existed, a system-dark machine with no stored
+preference rendered the React shell dark while every legacy token stayed light,
+so the not-yet-migrated modules (`.plan-card` and the other legacy surfaces read
+`--bg-primary`) painted light cards inside a dark page and inherited near-white
+body text. `e2e/theme.spec.ts` pins that the legacy card background and its text
+both track the system preference.
+
 Legacy layout/global styles remain in `src/styles/` with feature CSS under each
 module; they shrink as routes are ported.
 
