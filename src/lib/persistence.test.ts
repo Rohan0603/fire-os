@@ -115,17 +115,19 @@ describe('portfolio persistence contracts', () => {
     const events: string[] = [];
     const coordinator = {
       markDirty: vi.fn(() => events.push('cloud')),
-    } as unknown as SyncCoordinator;
+      flush: vi.fn(async () => undefined),
+    };
     const state = initializeState();
     state.currentUser = { uid: 'user-1' } as typeof state.currentUser;
     configurePortfolioStorageScope('user-1');
     vi.spyOn(localStorage, 'setItem').mockImplementation(() => events.push('local'));
-    configurePortfolioSync(coordinator);
+    configurePortfolioSync(coordinator as never);
 
     persistPortfolioState(state);
 
     expect(events).toEqual(['local', 'cloud']);
     expect(coordinator.markDirty).toHaveBeenCalledOnce();
+    expect(coordinator.flush).toHaveBeenCalledOnce();
   });
 
   it('keeps guest changes in anonymous local storage without cloud enqueueing', () => {
