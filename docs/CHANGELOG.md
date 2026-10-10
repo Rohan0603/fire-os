@@ -77,6 +77,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   wiring were removed. `src/modules/dashboard/` keeps only the shared data helpers
   (`fetchSIPNAVs`, `refreshStaleData`, `staleSourceLabels`, `updateCrashAlert`), and
   `FeatureRegistry` keeps a no-op `dashboard` mount so `resolveTabTarget` still resolves it.
+- **Dashboard route and kit Toaster ship together**: this change integrates the
+  React dashboard migration and the `<Toaster>` bridge over the imperative toast
+  stream (`src/modules/ui/Toast.ts` → `src/app/ui/Toast.tsx`). Both are validated
+  as one change (unit, worker, route-metadata and e2e), sharing the updated
+  `docs/master.md` and `docs/ui.md`.
 - Consolidated project, architecture, API, Assistant, deployment, and
   troubleshooting guidance into `docs/README.md`.
 - Removed duplicated and historical planning documents.

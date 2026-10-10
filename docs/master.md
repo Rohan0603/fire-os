@@ -156,16 +156,20 @@ never write.
 Reactive UI signals are vanilla Nanostores atoms in `src/core/stores.ts`:
 `portfolioSavedStore` (monotonic save invalidation), `syncStatusStore`
 (`SyncCoordinator` status: `idle`, `pending`, `syncing`, `offline`, `error`,
-`conflict`), `activeScopeStore` (active identity/UID) and
-`marketRefreshStatusStore` (`idle`, `refreshing`, `refreshed`, `stale`). They are
-ephemeral signals only — there is no `@nanostores/persistent` and no second copy
-of the portfolio: durable portfolio persistence remains in
+`conflict`), `activeScopeStore` (identity-neutral active scope, `local`/`cloud`),
+`marketRefreshStatusStore` (market-refresh cycle: `idle`, `refreshing`, `success`,
+`error`) and `crashAlertStore` (latest `CrashAlert | null`, read by the dashboard
+banner). They are ephemeral signals only — there is no `@nanostores/persistent`
+and no second copy of the portfolio: durable portfolio persistence remains in
 `PortfolioRepository`/`storage.ts` (identity-scoped localStorage) plus
-Firestore. `main.ts` subscribes the dashboard refresh to the save store and keeps
-its requestAnimationFrame coalescing; session teardown publishes the cleared
+Firestore. Migrated React routes subscribe to the save signal through
+`usePortfolioSaved()` in the React provider, replacing the imperative
+requestAnimationFrame repaint; session teardown publishes the cleared
 scope, disposes the coordinator (resetting status to `idle`), cancels the Nifty
 monitor and runs `resetScopeStatuses()` plus registered unsubscribes so a
-previous identity cannot push stale updates to the next one.
+previous identity cannot push stale updates to the next one. `resetScopeStatuses`
+clears sync, market and scope but not `crashAlertStore`, which the Nifty monitor
+owns.
 
 Authenticated synchronization uses an envelope (`schemaVersion`, `lastSavedAt`,
 client metadata, section clocks, persisted `data`) and merge helpers in
@@ -233,8 +237,8 @@ engine. Read [UI](ui.md) for tab-level logic and additional calculations.
   market drawdown, allocation visualization, and analytics charts over two
   distinct series — persisted daily net-worth snapshots (sparse, never
   backfilled or interpolated, downsampled above 500 points) and fetched Nifty
-  market history (benchmark
-  only, always labeled with provider, freshness and span). Charts are React
+  market history (benchmark only, always labeled with provider, freshness and
+  span). Charts are React
   components on the existing **Recharts** dependency (the legacy `chart.js`
   dependency and module CSS were removed); pure series/range/downsample logic
   lives in `chart-data.ts`, and the route refreshes NAVs/FX and benchmark
@@ -251,7 +255,9 @@ engine. Read [UI](ui.md) for tab-level logic and additional calculations.
 - **ESOP Tools** (`src/modules/esop/`): vesting, triggers and quoted valuation.
 - **Assistant** (`src/modules/assistant/`): consent-aware chat, proposal review,
   reauthentication for sensitive changes, local audit and undo.
-- **Other shared UI** (`src/modules/ui/`): native dialog wrapper and toasts;
+- **Other shared UI** (`src/modules/ui/`): native dialog wrapper and the
+  imperative toast stream (`Toast.ts`), rendered by the kit `<Toaster>`
+  (`src/app/ui/Toast.tsx`) over Radix with a DOM fallback before React mounts;
   global responsive layout/theme tokens in `src/styles/`.
 
 All features persist the shared state; navigation does not imply a separate
