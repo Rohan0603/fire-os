@@ -22,7 +22,11 @@ Primary sources are `src/modules/assistant/index.ts`, `src/lib/assistant/`,
 ## Consent and user scope
 
 Assistant write permission is stored by `consentScope(uid)` in localStorage;
-guests have a separate scope. Reads are enabled by default. Write access is
+guests have a separate scope. Reads are enabled by default — every question sends
+the sanitized context and conversation to the configured provider (see Context
+construction and privacy), so the UI copy must not claim purely local
+processing; the Profile privacy notice and the assistant consent copy state this
+explicitly. Write access is
 explicitly toggled in the panel and can be revoked. When the authenticated user
 scope changes, pending proposals and attachments are cleared. Chat history is
 provided by Deep Chat in the browser and only the most recent 12 alternating

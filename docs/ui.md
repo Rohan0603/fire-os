@@ -83,6 +83,12 @@ serialization uses PapaParse in both directions: export lives in
 `src/lib/portfolioCsv.ts`, import parsing/validation in
 `src/modules/profile/csv-import.ts`.
 
+The Profile privacy notice (`privacy-notice`) is deliberately precise: the
+portfolio is stored in the browser unless the user signs in and chooses cloud
+sync, and the Assistant sends a sanitized summary to the FIRE OS assistant
+service — exact figures only when "Send exact figures" is on. Do not restore a
+blanket "stays in this browser" claim.
+
 ### Dashboard — `src/app/routes/dashboard/`
 
 The dashboard is migrated: React owns the route (`DashboardRoute`), its

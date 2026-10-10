@@ -136,7 +136,7 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
           <span class="save-cloud-hint" style="display: none; color: var(--text-secondary); font-size: 0.875rem;">Log in to sync to Firestore</span>
         </div>
         <p id="backup-reminder" class="form-hint"></p>
-        <p class="privacy-notice"><strong>Privacy:</strong> portfolio data stays in this browser unless you sign in and choose cloud sync. JSON backups and CSV exports download locally and include financial details; store them securely.</p>
+        <p class="privacy-notice"><strong>Privacy:</strong> your portfolio is stored in this browser unless you sign in and choose cloud sync. The Assistant sends a sanitized summary of your data to the FIRE OS assistant service; exact figures are sent only if you turn on "Send exact figures". JSON backups and CSV exports download locally and include financial details; store them securely.</p>
         <p class="completeness-status">Profile completeness: ${calculateProfileCompleteness(D)}%</p>
         <input type="file" id="pdf-input" accept=".pdf" style="display: none;">
         <input type="file" id="backup-input" accept=".json,application/json" style="display: none;">
