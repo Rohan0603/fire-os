@@ -259,9 +259,10 @@ export function fiProgress(state: FireOSState): FIProgressKPI {
   // Progress percentage
   const progressPercent = fiTarget > 0 ? (currentCorpus / fiTarget) * 100 : 0;
 
-  // Years remaining: null if not yet achieved
+  // Years remaining: null while not achieved. With no positive target set,
+  // nothing has been achieved, so report null rather than a false zero.
   let yearsRemaining: number | null = null;
-  if (currentCorpus >= fiTarget) {
+  if (fiTarget > 0 && currentCorpus >= fiTarget) {
     yearsRemaining = 0;
   }
 

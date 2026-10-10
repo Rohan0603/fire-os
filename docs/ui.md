@@ -101,7 +101,9 @@ value/invested/P&L; FI progress; Nifty drawdown; cashflow summary; market-data
 freshness, sync mode, last-save time, profile completeness and liabilities;
 category composition pie (Recharts, HTML legend below the chart); FI target
 progress; Coorg goal; two analytics charts (below); and, when SWP enabled, the
-SWP schedule, tax and expense-tracker widgets. A market crash monitor can show
+SWP schedule, tax and expense-tracker widgets. With no positive FI target set the
+FI progress KPI reports "No FI target set" and the FI Goal Progress card prompts
+to set a target instead of claiming "FI achieved". A market crash monitor can show
 a severity banner (`crashAlertStore`), and the trust-panel sync, market-refresh
 and cloud-mode labels update live from the reactive status stores. Charts are
 static markup (`isAnimationActive={false}`) and honour

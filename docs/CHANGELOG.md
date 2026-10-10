@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Advisor webhook integration**: the dashboard CFP-review widget and `src/modules/integrations/advisor-webhook.ts` are gone. It POSTed the user's email and exact portfolio figures to `https://api.fire-os.app`, an NXDOMAIN/unowned domain with no backend, exposing a registerable leak.
 
 ### Fixed
+- **Fresh profile claimed "FI achieved"**: with no positive FI target set, `fiProgress()` treated `currentCorpus >= fiTarget` as achieved, so the dashboard's FI Goal Progress card showed "FI achieved" for an empty profile. The achieved branch now requires a positive target, and the card/KPI report "Set an FI target to track progress" / "No FI target set" instead.
 - **Legacy modules rendered light cards with invisible text in dark mode**: the legacy palette in
   `tokens.css` defined its dark half only under `html[data-theme="dark"]`, but the Tailwind palette
   also treats `prefers-color-scheme: dark` as authoritative and the theme toggle deliberately leaves

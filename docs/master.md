@@ -208,7 +208,7 @@ Core formulas and their code locations:
 | Portfolio composition | Each asset category / total assets; zero categories omitted | `src/modules/dashboard/kpis.ts` |
 | Period return | Annualized XIRR over flows dated within `[start, end]` inclusive; does not synthesize missing historical values. Returns null when an endpoint is invalid or the in-period flows cannot be solved. Exported helper, not the value behind the SIP status KPI | `src/modules/dashboard/kpis.ts`, `src/lib/calculations.ts` |
 | SIP P&L | Current value minus explicit cost basis or monthly contribution × elapsed months; XIRR approximates monthly cash outflows and current value | `src/modules/dashboard/kpis.ts`, `src/lib/calculations.ts` |
-| FI progress | Net worth / user-entered FI target; achieved => 0 years remaining, otherwise unknown | `src/modules/dashboard/kpis.ts` |
+| FI progress | Net worth / user-entered FI target; achieved => 0 years remaining, otherwise unknown. With no positive target set, progress is 0% and years remaining stays unknown (never a false "achieved") | `src/modules/dashboard/kpis.ts` |
 | SIP future value | `P × (((1+r)^n − 1)/r)` with monthly rate; zero-rate fallback `P × n` | `src/lib/calculations.ts` |
 | XIRR | `xirr` package (Newton-Raphson) solves annualized return on dated cash flows; invalid dates/non-finite amounts are dropped (null when fewer than two valid flows remain), null when a sign is missing, and any package error (same-day flows, nonconvergence) or non-finite result converts to null | `src/lib/calculations.ts` |
 | Allocation drift | Current bucket percentage minus target (40/30/20/10); recommend when absolute rounded drift >5 percentage points | `src/modules/calculators/portfolio-rebalancing.ts` |
