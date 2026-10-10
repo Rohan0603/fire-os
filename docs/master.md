@@ -275,6 +275,8 @@ exact totals only when the user has opted in through the persisted
 extracted-proposal envelopes with Zod in `shared/assistant-policy.js`, applies
 the separate prompt regex policy, rate limits, forwards a system prompt and conversation to
 OpenRouter, extract a JSON proposal from model output, and return the reply.
+The same Worker serves the read-only `GET /api/market/*` Yahoo proxy with
+Cache-API TTLs and stale fallback.
 OpenRouter credentials remain server-side. `PERSISTED_ALLOWLIST` remains the
 server's top-level output projection; the browser merges proposals into a
 candidate and validates the full persisted state before review/acceptance.

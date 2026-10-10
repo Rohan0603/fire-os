@@ -157,6 +157,26 @@ local Worker work run `npx wrangler dev --config worker/wrangler.toml` with
 `OPENROUTER_API_KEY` in `.dev.vars`, and point `VITE_ASSISTANT_API_URL` at the
 local Wrangler URL (otherwise the browser calls the deployed Worker).
 
+## Market endpoints
+
+The same Worker proxies read-only market data so the browser no longer needs a
+public CORS proxy or a key compiled into the bundle. Routes accept `GET` (CORS
+`ALLOWED_ORIGIN` plus the shared `ASSISTANT_RATE_LIMITER`, 20 req/min/IP):
+
+| Route | Upstream | TTL | Response fields |
+|-------|----------|-----|-----------------|
+| `GET /api/market/nifty` | Yahoo `^NSEI` `interval=1d&range=5y` | 1h | `level`, `high52w`, `points[]`, `source`, `timestamp`, `stale` |
+| `GET /api/market/currency?from=&to=` | Yahoo `{FROM}{TO}=X` daily | 24h | `from`, `to`, `rate`, `source`, `timestamp`, `stale` |
+| `GET /api/market/quote?symbol=` | Yahoo `{symbol}` daily | 15m | `symbol`, `price`, `currency`, `source`, `timestamp`, `stale` |
+
+Each response is cached with the Cache API, keyed by path+query. A fresh hit is
+served directly; an expired hit is served with `stale: true` when the upstream
+fails; an upstream failure with no cached copy returns 502 (504 on timeout). Yahoo
+is fetched server-side with a browser User-Agent, a 10s timeout and a 2MB response
+cap. Currency codes must be three letters; the quote symbol is validated against a
+charset allowlist. No secret is required, and failures return empty state to the
+client rather than breaking the charts.
+
 ## Configuration and deployment
 
 Root `.env.example` describes browser config. `OPENROUTER_API_KEY` is a server

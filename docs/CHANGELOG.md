@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Worker market proxy** (`GET /api/market/nifty|currency|quote`): the Worker now
+  fetches Yahoo Finance server-side with Cache-API TTLs (1h/24h/15m) and a stale
+  fallback, reusing the existing CORS allowlist and rate limiter, so the browser
+  needs no public CORS proxy.
 - **Personal-identifier guard** (`scripts/check-personal-identifiers.mjs`, `npm run test:privacy`):
   fails the Quality workflow if the maintainer's personal identifiers, external-advisor
   references, or the personal support email reappear in `src`, `worker`, `shared`,
