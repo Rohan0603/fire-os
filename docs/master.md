@@ -159,7 +159,8 @@ Reactive UI signals are vanilla Nanostores atoms in `src/core/stores.ts`:
 (`SyncCoordinator` status: `idle`, `pending`, `syncing`, `offline`, `error`,
 `conflict`), `activeScopeStore` (identity-neutral active scope, `local`/`cloud`),
 `marketRefreshStatusStore` (market-refresh cycle: `idle`, `refreshing`, `success`,
-`error`) and `crashAlertStore` (latest `CrashAlert | null`, read by the dashboard
+`error`; a refresh that had nothing to fetch returns to `idle` rather than a false
+`success`) and `crashAlertStore` (latest `CrashAlert | null`, read by the dashboard
 banner). They are ephemeral signals only — there is no `@nanostores/persistent`
 and no second copy of the portfolio: durable portfolio persistence remains in
 `PortfolioRepository`/`storage.ts` (identity-scoped localStorage) plus

@@ -284,7 +284,11 @@ disposal runs). The session also publishes the scope signal when a sync
 coordinator is attached. The dashboard's data-trust panel (`DataTrustPanel`)
 renders these signals (`sync-status-value`, `market-refresh-value`,
 `scope-mode-label`) and reads them through `useStore`, so React handles
-subscription and cleanup. `crashAlertStore` is not cleared by
+subscription and cleanup. Its labels are honest about the active scope: in
+local-only mode an idle coordinator reads "Local-only (not cloud synced)" rather
+than "Synced", and the market-data row only shows "Up to date" after a refresh
+that actually fetched a NAV — a refresh with nothing to fetch stays "Not
+refreshed yet". `crashAlertStore` is not cleared by
 `resetScopeStatuses`; the Nifty monitor owns its value.
 
 Ownership is unchanged: these stores are ephemeral UI signals only — durable

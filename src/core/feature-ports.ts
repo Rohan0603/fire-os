@@ -85,8 +85,9 @@ export function refreshPortfolioNAVs(state: FireOSState): Promise<void> {
 
   marketRefreshStatusStore.set('refreshing');
   const refresh = refreshPortfolioNAVsNow(state)
-    .then(() => {
-      marketRefreshStatusStore.set('success');
+    .then((fetched) => {
+      // Nothing to fetch (e.g. empty portfolio): don't claim "up to date".
+      marketRefreshStatusStore.set(fetched > 0 ? 'success' : 'idle');
     })
     .catch((error: unknown) => {
       marketRefreshStatusStore.set('error');
@@ -97,8 +98,9 @@ export function refreshPortfolioNAVs(state: FireOSState): Promise<void> {
   return refresh;
 }
 
-async function refreshPortfolioNAVsNow(state: FireOSState): Promise<void> {
+async function refreshPortfolioNAVsNow(state: FireOSState): Promise<number> {
   const sipsToFetch = Object.entries(state.sip).filter(([, fund]) => fund.units && fund.units > 0);
+  let fetched = 0;
 
   for (const [key, fund] of sipsToFetch) {
     const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
@@ -108,6 +110,7 @@ async function refreshPortfolioNAVsNow(state: FireOSState): Promise<void> {
         const navCache = getNAVCacheMap();
         if (navCache[schemeCode]) {
           state.nav[schemeCode] = navCache[schemeCode];
+          fetched++;
         }
       } catch (error) {
         console.warn(`[MarketData] Failed to fetch NAV for SIP ${key}:`, error);
@@ -115,6 +118,8 @@ async function refreshPortfolioNAVsNow(state: FireOSState): Promise<void> {
     }
     await new Promise(resolve => setTimeout(resolve, 100));
   }
+
+  return fetched;
 }
 
 export function createFeaturePorts(): FeaturePorts {

@@ -10,6 +10,7 @@ import {
 import { initializeState, type FireOSState } from '../types/state';
 import type { PortfolioEnvelope, SyncStatus } from '../types/firebase';
 import { refreshPortfolioNAVs } from './feature-ports';
+import { fetchNAV, getNAVCacheMap } from '../modules/api';
 import {
   activeScopeStore,
   marketRefreshStatusStore,
@@ -19,6 +20,11 @@ import {
   syncStatusStore,
 } from './stores';
 import type { ActiveScopeStatus, MarketRefreshStatus } from './stores';
+
+vi.mock('../modules/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../modules/api')>();
+  return { ...actual, fetchNAV: vi.fn(), getNAVCacheMap: vi.fn(() => ({})) };
+});
 
 function createLocalStorage() {
   const values = new Map<string, string>();
@@ -263,15 +269,36 @@ describe('market refresh signal', () => {
     expect(seen).toEqual(['idle', 'refreshing']);
   });
 
-  it('publishes refreshing then success for a completed refresh cycle', async () => {
+  it('stays idle (no false success) when there is nothing to fetch', async () => {
+    vi.mocked(getNAVCacheMap).mockReturnValue({});
     const seen: MarketRefreshStatus[] = [];
     const unsubscribe = marketRefreshStatusStore.subscribe((status) => seen.push(status));
 
     await refreshPortfolioNAVs(initializeState());
 
+    expect(marketRefreshStatusStore.get()).toBe('idle');
+    expect(seen).toEqual(['idle', 'refreshing', 'idle']);
+    unsubscribe();
+  });
+
+  it('publishes refreshing then success when a NAV was actually fetched', async () => {
+    vi.mocked(fetchNAV).mockResolvedValue({ schemeCode: '12345' } as never);
+    vi.mocked(getNAVCacheMap).mockReturnValue({
+      '12345': { schemeCode: '12345', nav: 100, timestamp: new Date().toISOString() },
+    } as never);
+
+    const state = initializeState();
+    state.sip = { key1: { units: 10, schemeCode: '12345', name: 'Test Fund' } } as never;
+
+    const seen: MarketRefreshStatus[] = [];
+    const unsubscribe = marketRefreshStatusStore.subscribe((status) => seen.push(status));
+
+    await refreshPortfolioNAVs(state);
+
     expect(marketRefreshStatusStore.get()).toBe('success');
     expect(seen).toEqual(['idle', 'refreshing', 'success']);
     unsubscribe();
+    marketRefreshStatusStore.set('idle');
   });
 
   it('publishes the error status when the refresh cycle fails', async () => {
