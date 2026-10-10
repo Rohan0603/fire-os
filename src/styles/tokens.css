@@ -141,3 +141,57 @@ html[data-theme="dark"] {
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
 }
+
+/* System preference. The block above only covers a pinned `data-theme="dark"`, but
+   the Tailwind palette in tokens-oklch.css also treats `prefers-color-scheme: dark`
+   as authoritative, and ThemeToggle deliberately leaves `data-theme` unset when the
+   user has never toggled. Without a matching rule here the React shell went dark
+   while every legacy token stayed light, so the not-yet-migrated modules painted
+   light surfaces (`.plan-card` reads `--bg-primary`) holding inherited near-white
+   text, inside a dark page. These values mirror the block above on purpose: keep the
+   two in step when the palette changes. */
+@media (prefers-color-scheme: dark) {
+  html:not([data-theme='light']) {
+    --bg-primary: #0F172A; /* Deep Slate */
+    --bg-secondary: #1E293B;
+    --bg-tertiary: #334155;
+    --bg-overlay: rgba(15, 23, 42, 0.85);
+    
+    --text-primary: #F8FAFC;
+    --text-secondary: #CBD5E1;
+    --text-tertiary: #94A3B8;
+    --text-inverse: #0F172A;
+    
+    --border-primary: #334155;
+    --border-secondary: #475569;
+    
+    --accent: var(--color-primary);
+    --accent-hover: var(--color-primary-dark);
+    
+    --card-bg: #1E293B;
+    --card-border: #334155;
+    
+    --nav-bg: rgba(15, 23, 42, 0.97);
+    --nav-border: #334155;
+    
+    --input-bg: #0F172A;
+    --input-border: #475569;
+    --input-text: #F8FAFC;
+    
+    --status-good-bg: rgba(16, 185, 129, 0.15);
+    --status-good-text: #34D399;
+    --status-bad-bg: rgba(239, 68, 68, 0.15);
+    --status-bad-text: #F87171;
+    --status-warn-bg: rgba(245, 158, 11, 0.15);
+    --status-warn-text: #FBBF24;
+    
+    --chart-grid: #334155;
+    --chart-text: #CBD5E1;
+    
+    --row-hover: rgba(255, 255, 255, 0.05);
+    
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.5);
+  }
+}

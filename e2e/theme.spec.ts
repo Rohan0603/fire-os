@@ -89,9 +89,76 @@ test('a real toggle persists the choice', async ({ page }) => {
 });
 
 /**
+ * Regression guard for the light-background-in-dark-mode defect.
+ *
+ * The Tailwind palette (`tokens-oklch.css`) treats `prefers-color-scheme: dark` as
+ * authoritative, but the legacy palette (`tokens.css`) only defined its dark half
+ * under `html[data-theme="dark"]`, and ThemeToggle deliberately leaves `data-theme`
+ * unset when the user has never toggled. On a system-dark machine with no stored
+ * preference the shell went dark while every legacy token stayed light, so the
+ * un-migrated Plan cards painted `#f5f5f5` while their inherited body text stayed
+ * near-white — unreadable in both schemes' worth of a dark page.
+ *
+ * Asserted as a relationship, not an exact value: the legacy card background and
+ * the legacy body text must both flip between schemes, and in dark mode the card
+ * must be dark and its text light, so the two are legible against each other.
+ */
+test('legacy surfaces follow the system preference when no theme is stored', async ({ page }) => {
+  const read = () =>
+    page.evaluate(() => {
+      const root = getComputedStyle(document.documentElement);
+      const card = document.querySelector('.plan-card')!;
+      const title = document.querySelector('.plan-card-title')!;
+      return {
+        stored: localStorage.getItem('fire-os-theme'),
+        bgPrimary: root.getPropertyValue('--bg-primary').trim(),
+        cardBg: getComputedStyle(card).backgroundColor,
+        titleColor: getComputedStyle(title).color,
+      };
+    });
+
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/plan');
+  // The legacy bridge renders Plan after auth resolves, and a cold Vite server can
+  // take well over Playwright's 5s default. Wait generously: without this the RED
+  // run can die on a missing card instead of on the contrast assertion, which would
+  // make the test fail for a timing reason rather than the defect it guards.
+  await expect(page.locator('#plan .plan-card').first()).toBeVisible({ timeout: 20_000 });
+  const light = await read();
+
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const dark = await read();
+
+  // An unset preference must stay unset; the media query is what has to do the work.
+  expect(light.stored).toBeNull();
+  expect(dark.stored).toBeNull();
+
+  // The legacy token and the card that reads it must both react to the system.
+  expect(dark.bgPrimary, '--bg-primary in dark').not.toBe(light.bgPrimary);
+  expect(dark.cardBg, '.plan-card background in dark').not.toBe(light.cardBg);
+
+  // Relative lightness, so the assertion survives a palette change. A light card in
+  // dark mode is the defect: every channel of the dark card must be below the light one.
+  const channel = (c: string) => (c.match(/[\d.]+/g) ?? []).map(Number).slice(0, 3);
+  const [lr, lg, lb] = channel(light.cardBg);
+  const [dr, dg, db] = channel(dark.cardBg);
+  expect(Math.max(dr, dg, db), 'dark card is darker than light card').toBeLessThan(
+    Math.min(lr, lg, lb),
+  );
+
+  // And dark-mode body text must be the lighter of the two, so it is legible on the card.
+  const [tr, tg, tb] = channel(dark.titleColor);
+  const [ltr, ltg, ltb] = channel(light.titleColor);
+  expect(
+    Math.min(tr, tg, tb),
+    'dark-mode title is lighter than its light-mode counterpart',
+  ).toBeGreaterThan(Math.max(ltr, ltg, ltb));
+});
+
+/**
  * The design system's typeface is linked from index.html, not @imported from
- * app.css: global.css is imported first and carries its own @import, which makes
- * a later stylesheet's @import invalid, so the font request was dropped from the
+ * app.css: global.css is imported first and carries its own @import, which makes a
+ * later stylesheet's @import invalid, so the font request was dropped from the
  * build while still appearing in source.
  */
 test('the design system typeface is actually requested', async ({ page }) => {
