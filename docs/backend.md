@@ -82,7 +82,7 @@ removes child holdings and state. Rules permit only authenticated owner reads,
 writes and deletes; state and MF shapes have allowlists, bounded strings/maps,
 lists and schema versions. The Firestore source is `firestore.rules`.
 
-`persistedPortfolioSchema` in `src/types/state.ts` is the Valibot client
+`persistedPortfolioSchema` in `src/types/state.ts` is the Zod client
 boundary; `isPersistedPortfolioData()` delegates to it and normalization still
 fills legacy partial payloads from defaults. The strict schema enforces exact
 keys and finite numbers, plus limits such as 50 liabilities, 20 ESOP quote
@@ -141,7 +141,7 @@ the cloud envelope, and is mirrored into identity-scoped localStorage on save.
 
 Production Worker is configured in `worker/wrangler.toml`; secret binding is
 `OPENROUTER_API_KEY`, rate limiter binding is `ASSISTANT_RATE_LIMITER`. The
-endpoint accepts OPTIONS and `POST /api/assistant/query`. Shared Valibot
+endpoint accepts OPTIONS and `POST /api/assistant/query`. Shared Zod
 schemas in `shared/assistant-policy.js` validate request fields, strict message
 objects, role alternation, and extracted-proposal envelopes. It limits body to
 100KB, requires 1–12 alternating message objects and matching latest question,
@@ -307,7 +307,7 @@ are limited to schemaVersion, lastSavedAt, client, serverMetadata, data,
 sectionUpdatedAt, entryUpdatedAt, migration, format. Supported schema strings
 are fireOS_v2/v3/v4. Owner may delete canonical doc and child holdings. Rules
 validate top-level envelope and selected nested structures, bounds and
-allowlisted keys independently of Assistant Valibot validation. Client
+allowlisted keys independently of Assistant Zod validation. Client
 `isPersistedPortfolioData()` does stricter nested
 validation for locally loaded/updated data. Keep both rule emulator tests and
 client validator tests when changing schema.

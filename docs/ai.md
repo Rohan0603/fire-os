@@ -76,7 +76,7 @@ base URL it is same-origin. Browser timeout defaults to 30s. JSON body:
 }
 ```
 
-Shared Valibot schemas in `shared/assistant-policy.js` validate request and
+Shared Zod schemas in `shared/assistant-policy.js` validate request and
 proposal-envelope shapes. Message history has 1–12 strict message objects,
 strictly alternating user/assistant starting with user; text must be non-empty and ≤6,000 chars. The last message must be the
 user question exactly. `contextSummary` is required and must be non-null (400 if
@@ -122,7 +122,7 @@ clarifies `exact.holdings.sip` means current SIP market value, while
 Model configuration defaults to `openrouter/free`, then configured free-model
 fallbacks, capped at OpenRouter's 3-model limit. Reply extraction reads first
 choice content (or compatible `content` field). Proposal extraction parses the
-first greedy `{...}` substring as a Valibot-validated object envelope, then
+first greedy `{...}` substring as a Zod-validated object envelope, then
 `PERSISTED_ALLOWLIST` projects allowed persisted top-level fields and removes
 runtime/underscore keys. Extraction does not establish semantic correctness;
 the browser applies the complete persisted-state schema to the merged candidate

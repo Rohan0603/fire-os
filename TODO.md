@@ -101,7 +101,7 @@ Ideas to validate with people beyond the primary developer/user:
 
 ## Completed improvements
 
-- Removed unused Chart.js; dashboard charts use canvas.
+- Removed unused Chart.js; dashboard charts use Recharts.
 - Consolidated route metadata into `scripts/routes.mjs`.
 - Switched the shared modal to native `<dialog>`.
 - Added browser-native CSV export and displayed existing market-data freshness

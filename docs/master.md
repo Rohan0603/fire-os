@@ -119,7 +119,7 @@ calendar; expenses; net-worth history; completed actions and milestones;
 insurance; ESOP detail/vesting; Assistant preferences (`assistant.sendExactFigures`,
 opt-in and false by default); and `marketHistory`, a bounded local cache of
 market series. `currentUser`, `_lastSavedAt`, and `_syncMetadata`
-are runtime-only. `persistedPortfolioSchema` (Valibot) and
+are runtime-only. `persistedPortfolioSchema` (Zod) and
 `isPersistedPortfolioData()` enforce exact key/nested shapes, types, finite
 numbers and selected limits; `normalizePersistedState()` fills omitted fields
 from defaults, discarding a malformed `marketHistory` without discarding the
@@ -272,7 +272,7 @@ exact totals only when the user has opted in through the persisted
 `state.assistant.sendExactFigures` setting (false by default; the request's
 `sendExact` mirrors it), and POSTs to
 `/api/assistant/query`. The Worker validates the request and
-extracted-proposal envelopes with Valibot in `shared/assistant-policy.js`, applies
+extracted-proposal envelopes with Zod in `shared/assistant-policy.js`, applies
 the separate prompt regex policy, rate limits, forwards a system prompt and conversation to
 OpenRouter, extract a JSON proposal from model output, and return the reply.
 OpenRouter credentials remain server-side. `PERSISTED_ALLOWLIST` remains the
