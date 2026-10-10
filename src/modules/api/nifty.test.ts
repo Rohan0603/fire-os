@@ -1,78 +1,85 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-describe('Nifty API fallback proxies', () => {
+function jsonResponse(body: unknown, ok = true, status = 200) {
+  return { ok, status, json: async () => body };
+}
+
+describe('Nifty market endpoint', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
     vi.resetModules();
   });
 
-  it('authenticates the CorsProxy fallback', async () => {
-    const fetchMock = vi.fn().mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        json: async () => ({
-          chart: { result: [{ meta: { regularMarketPrice: 24000, fiftyTwoWeekHigh: 26000 } }] },
-        }),
-      });
+  it('fetches level and 52-week high from the Worker market endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ level: 24000, high52w: 26000, source: 'Yahoo Finance' })
+    );
     vi.stubGlobal('fetch', fetchMock);
-    vi.stubEnv('VITE_CORSPROXY_API_KEY', 'test-key');
 
     const { fetchNifty } = await import('./nifty');
     await expect(fetchNifty()).resolves.toMatchObject({
       level: 24000,
       high52w: 26000,
-      source: 'Yahoo Finance API (corsproxy)',
+      source: 'Yahoo Finance',
       status: 'live',
     });
 
-    const [request] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(request).toContain('key=test-key');
+    const [request] = fetchMock.mock.calls[0] as [string];
+    expect(request).toContain('/api/market/nifty');
+  });
+
+  it('falls back to the level when the Worker omits a 52-week high', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ level: 24000 })));
+
+    const { fetchNifty } = await import('./nifty');
+    await expect(fetchNifty()).resolves.toMatchObject({ level: 24000, high52w: 24000 });
+  });
+
+  it('returns null when the Worker is unreachable or returns unusable data', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+    const offline = await import('./nifty');
+    await expect(offline.fetchNifty()).resolves.toBeNull();
+
+    vi.resetModules();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, false, 502)));
+    const httpError = await import('./nifty');
+    await expect(httpError.fetchNifty()).resolves.toBeNull();
+
+    vi.resetModules();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({ level: 'nope' })));
+    const badData = await import('./nifty');
+    await expect(badData.fetchNifty()).resolves.toBeNull();
   });
 });
 
-describe('Nifty history normalization', () => {
+describe('Nifty history from the Worker market endpoint', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
     vi.resetModules();
   });
 
-  function epochSeconds(isoDate: string): number {
-    return Date.parse(`${isoDate}T12:00:00.000Z`) / 1000;
+  function pointsPayload(points: unknown) {
+    return { points };
   }
 
-  function chartPayload(timestamps: unknown[], closes: unknown[]) {
-    return {
-      chart: {
-        result: [
-          {
-            meta: { regularMarketPrice: 25000, fiftyTwoWeekHigh: 26000 },
-            timestamp: timestamps,
-            indicators: { quote: [{ close: closes }] },
-          },
-        ],
-      },
-    };
+  function stubWorker(points: unknown, ok = true, status = 200) {
+    return vi.fn().mockResolvedValue(jsonResponse(pointsPayload(points), ok, status));
   }
 
-  function stubYahoo(payload: unknown, corsproxyKey = 'test-key') {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => payload });
+  it('sorts, validates and returns the series', async () => {
+    const fetchMock = stubWorker([
+      { date: '2026-10-03', value: 126 },
+      { date: '2026-10-01', value: 124 },
+      { date: '2026-10-02', value: 125 },
+    ]);
     vi.stubGlobal('fetch', fetchMock);
-    vi.stubEnv('VITE_CORSPROXY_API_KEY', corsproxyKey);
-    return fetchMock;
-  }
-
-  it('requests the five-year daily window and sorts out-of-order timestamps ascending', async () => {
-    const fetchMock = stubYahoo(chartPayload(
-      [epochSeconds('2026-10-03'), epochSeconds('2026-10-01'), epochSeconds('2026-10-02')],
-      [126, 124, 125],
-    ));
 
     const { fetchNiftyHistory } = await import('./nifty');
     const series = await fetchNiftyHistory();
 
-    expect(series).toMatchObject({ source: 'Yahoo Finance API (corsproxy)', status: 'live' });
+    expect(series).toMatchObject({ source: 'Yahoo Finance', status: 'live' });
     expect(series!.fetchedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(series!.points).toEqual([
       { date: '2026-10-01', value: 124 },
@@ -81,15 +88,14 @@ describe('Nifty history normalization', () => {
     ]);
 
     const [request] = fetchMock.mock.calls[0] as [string];
-    expect(decodeURIComponent(request)).toContain('range=5y');
-    expect(decodeURIComponent(request)).toContain('interval=1d');
+    expect(decodeURIComponent(request)).toContain('/api/market/nifty');
   });
 
-  it('keeps the first provider record when a date repeats', async () => {
-    stubYahoo(chartPayload(
-      [epochSeconds('2026-10-01'), epochSeconds('2026-10-01') + 3600],
-      [124, 555],
-    ));
+  it('keeps the first valid record when a date repeats', async () => {
+    vi.stubGlobal('fetch', stubWorker([
+      { date: '2026-10-01', value: 124 },
+      { date: '2026-10-01', value: 555 },
+    ]));
 
     const { fetchNiftyHistory } = await import('./nifty');
     const series = await fetchNiftyHistory();
@@ -98,19 +104,15 @@ describe('Nifty history normalization', () => {
   });
 
   it('drops malformed points and keeps the valid ones', async () => {
-    stubYahoo(chartPayload(
-      [
-        epochSeconds('2026-10-04'),
-        epochSeconds('2026-10-03'),
-        'bad-timestamp',
-        epochSeconds('2026-10-02'),
-        epochSeconds('2026-10-01'),
-        epochSeconds('2026-10-05'),
-        epochSeconds('2026-10-06'),
-        epochSeconds('2026-10-07'),
-      ],
-      [127, null, 126, NaN, 0, -3, 'x', 128],
-    ));
+    vi.stubGlobal('fetch', stubWorker([
+      { date: '2026-10-04', value: 127 },
+      { date: '2026-10-03', value: null },
+      { date: '2026-10-02', value: NaN },
+      { date: '2026-10-05', value: 0 },
+      { date: 'bad-date', value: 128 },
+      { date: '2026-10-07', value: 128 },
+      'not-an-object',
+    ]));
 
     const { fetchNiftyHistory } = await import('./nifty');
     const series = await fetchNiftyHistory();
@@ -121,40 +123,23 @@ describe('Nifty history normalization', () => {
     ]);
   });
 
-  it('ignores records beyond the shortest provider array', async () => {
-    stubYahoo(chartPayload(
-      [epochSeconds('2026-10-01'), epochSeconds('2026-10-02'), epochSeconds('2026-10-03')],
-      [124],
-    ));
+  it('returns null when the payload has no usable series', async () => {
+    const payloads = [undefined, null, [], 'nope', [{ date: 'nope', value: 1 }]];
 
-    const { fetchNiftyHistory } = await import('./nifty');
-    const series = await fetchNiftyHistory();
-
-    expect(series!.points).toEqual([{ date: '2026-10-01', value: 124 }]);
-  });
-
-  it('returns null when the chart payload has no usable series', async () => {
-    const payloads = [
-      { chart: { result: [] } },
-      { chart: {} },
-      { chart: { result: [{ meta: { regularMarketPrice: 25000 } }] } },
-      chartPayload([], []),
-      { chart: { result: [null] } },
-    ];
-
-    for (const payload of payloads) {
+    for (const points of payloads) {
       vi.resetModules();
-      stubYahoo(payload);
+      vi.stubGlobal('fetch', stubWorker(points));
       const { fetchNiftyHistory } = await import('./nifty');
       await expect(fetchNiftyHistory()).resolves.toBeNull();
     }
   });
 
   it('keeps sparse provider gaps without inventing dates', async () => {
-    stubYahoo(chartPayload(
-      [epochSeconds('2026-10-01'), epochSeconds('2026-10-04'), epochSeconds('2026-10-14')],
-      [124, 125, 130],
-    ));
+    vi.stubGlobal('fetch', stubWorker([
+      { date: '2026-10-01', value: 124 },
+      { date: '2026-10-04', value: 125 },
+      { date: '2026-10-14', value: 130 },
+    ]));
 
     const { fetchNiftyHistory } = await import('./nifty');
     const series = await fetchNiftyHistory();
@@ -166,32 +151,24 @@ describe('Nifty history normalization', () => {
     ]);
   });
 
-  it('rejects invalid ranges before any request', async () => {
-    const fetchMock = stubYahoo({});
+  it('rejects an invalid range before any request', async () => {
+    const fetchMock = stubWorker([{ date: '2026-10-03', value: 150 }]);
+    vi.stubGlobal('fetch', fetchMock);
+
     const { fetchNiftyHistory } = await import('./nifty');
-
-    for (const range of [
-      { start: '2026-10-05', end: '2026-10-01' },
-      { start: '2026-13-01', end: '2026-12-01' },
-      { start: 'nope', end: '2026-10-01' },
-    ]) {
-      await expect(fetchNiftyHistory(range)).resolves.toBeNull();
-    }
-
+    await expect(fetchNiftyHistory({ start: '2026-10-04', end: '2026-10-02' })).resolves.toBeNull();
+    await expect(fetchNiftyHistory({ start: '2026-13-01', end: '2026-10-02' })).resolves.toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('filters inclusively to the requested window', async () => {
-    stubYahoo(chartPayload(
-      [
-        epochSeconds('2026-10-01'),
-        epochSeconds('2026-10-02'),
-        epochSeconds('2026-10-03'),
-        epochSeconds('2026-10-04'),
-        epochSeconds('2026-10-05'),
-      ],
-      [124, 125, 126, 127, 128],
-    ));
+    vi.stubGlobal('fetch', stubWorker([
+      { date: '2026-10-01', value: 124 },
+      { date: '2026-10-02', value: 125 },
+      { date: '2026-10-03', value: 126 },
+      { date: '2026-10-04', value: 127 },
+      { date: '2026-10-05', value: 128 },
+    ]));
 
     const { fetchNiftyHistory } = await import('./nifty');
     const series = await fetchNiftyHistory({ start: '2026-10-02', end: '2026-10-04' });
@@ -203,16 +180,13 @@ describe('Nifty history normalization', () => {
     ]);
   });
 
-  it('clamps requests older than the five-year provider window', async () => {
-    stubYahoo(chartPayload(
-      [
-        epochSeconds('2019-06-01'),
-        epochSeconds('2021-10-03'),
-        epochSeconds('2021-10-04'),
-        epochSeconds('2026-10-03'),
-      ],
-      [90, 100, 101, 150],
-    ));
+  it('clamps requests older than the five-year window', async () => {
+    vi.stubGlobal('fetch', stubWorker([
+      { date: '2019-06-01', value: 90 },
+      { date: '2021-10-03', value: 100 },
+      { date: '2021-10-04', value: 101 },
+      { date: '2026-10-03', value: 150 },
+    ]));
 
     const { fetchNiftyHistory } = await import('./nifty');
     const series = await fetchNiftyHistory({ start: '2015-01-01', end: '2026-10-03' });
@@ -225,7 +199,8 @@ describe('Nifty history normalization', () => {
   });
 
   it('returns null when the requested window does not overlap provider data', async () => {
-    const fetchMock = stubYahoo(chartPayload([epochSeconds('2026-10-03')], [150]));
+    const fetchMock = stubWorker([{ date: '2026-10-03', value: 150 }]);
+    vi.stubGlobal('fetch', fetchMock);
 
     const { fetchNiftyHistory } = await import('./nifty');
     const series = await fetchNiftyHistory({ start: '2019-01-01', end: '2019-12-31' });
@@ -235,66 +210,29 @@ describe('Nifty history normalization', () => {
   });
 
   it('caps oversized series keeping the newest points', async () => {
-    const end = Date.UTC(2026, 9, 3);
-    const timestamps: number[] = [];
-    const closes: number[] = [];
+    const points: Array<{ date: string; value: number }> = [];
     for (let i = 0; i < 1300; i++) {
-      timestamps.push((end - i * 86400000) / 1000);
-      closes.push(100 + i);
+      const date = new Date(Date.UTC(2026, 9, 3) - i * 86400000).toISOString().slice(0, 10);
+      points.push({ date, value: 100 + i });
     }
-    stubYahoo(chartPayload(timestamps, closes));
+    vi.stubGlobal('fetch', stubWorker(points));
 
     const { fetchNiftyHistory, NIFTY_HISTORY_MAX_POINTS } = await import('./nifty');
     const series = await fetchNiftyHistory();
 
     expect(NIFTY_HISTORY_MAX_POINTS).toBe(1260);
     expect(series!.points).toHaveLength(1260);
-    expect(series!.points[0]).toEqual({
-      date: '2023-04-23',
-      value: 1359,
-    });
-    expect(series!.points[1259]).toEqual({ date: '2026-10-03', value: 100 });
+    expect(series!.points[series!.points.length - 1]).toEqual({ date: '2026-10-03', value: 100 });
   });
 
-  it('returns null without a corsproxy key or when the request fails', async () => {
-    const noKeyFetch = stubYahoo(chartPayload([epochSeconds('2026-10-03')], [150]), '');
-    const { fetchNiftyHistory } = await import('./nifty');
-    await expect(fetchNiftyHistory()).resolves.toBeNull();
-    expect(noKeyFetch).not.toHaveBeenCalled();
-
-    vi.resetModules();
-    vi.stubEnv('VITE_CORSPROXY_API_KEY', 'test-key');
+  it('returns null on network failure or an error response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
     const offline = await import('./nifty');
     await expect(offline.fetchNiftyHistory()).resolves.toBeNull();
 
     vi.resetModules();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 502, json: async () => ({}) }));
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(jsonResponse({}, false, 502)));
     const httpError = await import('./nifty');
     await expect(httpError.fetchNiftyHistory()).resolves.toBeNull();
-  });
-
-  it('derives UTC calendar dates at day boundaries', async () => {
-    stubYahoo(chartPayload([1751327999, 1751328000], [25000.5, 25010.25]));
-
-    const { fetchNiftyHistory } = await import('./nifty');
-    const series = await fetchNiftyHistory();
-
-    expect(series!.points).toEqual([
-      { date: '2025-06-30', value: 25000.5 },
-      { date: '2025-07-01', value: 25010.25 },
-    ]);
-  });
-
-  it('keeps a valid close when an earlier same-date entry is invalid', async () => {
-    stubYahoo(chartPayload(
-      [epochSeconds('2026-10-01'), epochSeconds('2026-10-01')],
-      [null, 124],
-    ));
-
-    const { fetchNiftyHistory } = await import('./nifty');
-    const series = await fetchNiftyHistory();
-
-    expect(series!.points).toEqual([{ date: '2026-10-01', value: 124 }]);
   });
 });

@@ -18,7 +18,6 @@ export const CONFIG = {
   // API Endpoints
   api: {
     mfapiBaseUrl: 'https://api.mfapi.in/mf',
-    yahooFinanceNifty: 'https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI',
   },
 
   // Cache TTLs in milliseconds

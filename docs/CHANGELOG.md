@@ -30,6 +30,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Scenario Comparison**: side-by-side FI projection of two scenarios in the calculators tab
 - **Agent-friendly development**: enhanced `AGENTS.md` with explicit PR/MR workflow, CI check guidance, and issue onboarding; added quick-reference validation table and agent-contributing guide to `docs/README.md`
 
+### Changed
+- **Client market calls now go to the Worker**: `nifty.ts`, `currency.ts` and `esop.ts`
+  call the Worker `/api/market/*` endpoints instead of `corsproxy.io`. The
+  `VITE_CORSPROXY_API_KEY` build variable (and the deploy-workflow secret), the
+  `corsproxy.io`/`query1.finance.yahoo.com` CSP `connect-src` entries, and the client
+  proxy-key guards are removed; caching, TTLs and graceful degradation are unchanged.
+
 ### Removed
 - **Advisor webhook integration**: the dashboard CFP-review widget and `src/modules/integrations/advisor-webhook.ts` are gone. It POSTed the user's email and exact portfolio figures to `https://api.fire-os.app`, an NXDOMAIN/unowned domain with no backend, exposing a registerable leak.
 

@@ -130,7 +130,7 @@ appear as `401` (key), `402/403` (quota/provider), `404` (model), or `429`
 | Area | Service | Notes |
 | --- | --- | --- |
 | Mutual fund NAV | `api.mfapi.in` | Cached for four hours; scheme codes live in `src/lib/config.ts`. |
-| Nifty and FX | Yahoo Finance via `corsproxy.io` | Cached; failures retain last known values where possible. |
+| Nifty, FX and ESOP quotes | Yahoo Finance via the Cloudflare Worker (`/api/market/*`) | Cached; no proxy key ships to the browser; failures retain last known values where possible. |
 | Portfolio sync | Firebase Auth + Firestore | Owner-scoped rules and offline browser cache. |
 | Assistant | Cloudflare Worker + OpenRouter | Secret stays server-side. |
 

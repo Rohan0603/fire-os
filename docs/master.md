@@ -185,20 +185,21 @@ Firestore's 1 MiB document ceiling.
 
 ## Data and calculation flows
 
-Market clients live in `src/modules/api/`. MFAPI NAV calls use a four-hour
-cache, in-flight deduplication, a 30s timeout and stale-cache fallback. Nifty
-uses Yahoo chart data through corsproxy.io (configured public proxy key), a
-one-hour cache, then manual entry. History adapters (`fetchNiftyHistory(range?)`,
+Market clients live in `src/modules/api/`. Mutual fund NAV calls MFAPI directly
+(four-hour cache, in-flight dedupe, 30s timeout, stale-cache fallback). Nifty,
+FX and ESOP quotes call the Worker `/api/market/*` endpoints, so the browser
+needs no public CORS proxy or compiled key. Nifty uses a
+one-hour client cache then manual entry; FX caches for 24h and treats
+same-currency conversion as identity; ESOP quotes cache for 15 minutes in memory
+and localStorage, map `EPA:`, `NSE:`, `BSE:` symbols to Yahoo suffixes, then
+convert to INR. History adapters (`fetchNiftyHistory(range?)`,
 `fetchNAVHistory(code, range?)`) normalize provider series to at most 1260 Nifty
 / 2520 NAV daily points and are exposed through `FeaturePorts.marketData`; the
 bounded cache hydrates from persisted `marketHistory` at startup and serves a
 series as `cache-fresh` inside the 24h TTL, returns provider results as `live`,
 and falls back to expired cache as `stale` only when the provider fails —
-provider failures never erase a valid cache. FX uses Yahoo Finance through corsproxy.io,
-validates ISO currency codes, and caches for 24h; same-currency conversion is
-identity. ESOP stock quotes are cached for 15 minutes in memory and
-localStorage, map `EPA:`, `NSE:`, `BSE:` symbols to Yahoo suffixes, then convert
-quote currencies to INR. Details and API contracts are in [backend](backend.md).
+provider failures never erase a valid cache. Details and endpoint contracts are
+in [Backend](backend.md).
 
 Core formulas and their code locations:
 
@@ -286,7 +287,7 @@ boundaries are in [AI reference](ai.md).
 ## Configuration and operational checks
 
 - Browser public config: `VITE_FIREBASE_*`, optional
-  `VITE_ASSISTANT_API_URL`, `VITE_CORSPROXY_API_KEY`; see `.env.example`.
+  `VITE_ASSISTANT_API_URL` (Assistant + market Worker base); see `.env.example`.
 - Worker secret: `OPENROUTER_API_KEY`; routing/limits in `worker/wrangler.toml`.
 - Local Worker dev: `npx wrangler dev --config worker/wrangler.toml` with
   `OPENROUTER_API_KEY` in `.dev.vars`.

@@ -4,6 +4,7 @@
  */
 import { getLogger } from '../../lib/logger';
 import { convertCurrency } from './currency';
+import { workerUrl } from './worker';
 import type { EsopHolding } from '../../types/state';
 
 const logger = getLogger();
@@ -77,47 +78,33 @@ function cacheStockQuote(yahooSymbol: string, quote: StockQuote): void {
 }
 
 async function requestStockQuote(yahooSymbol: string, symbol: string): Promise<StockQuote | null> {
-  const proxyKey = import.meta.env.VITE_CORSPROXY_API_KEY;
-  if (!proxyKey) {
-    logger.warn('Stock quote request skipped: VITE_CORSPROXY_API_KEY is not configured');
-    return null;
-  }
+  const url = workerUrl(`/api/market/quote?symbol=${encodeURIComponent(yahooSymbol)}`);
 
-  const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?interval=1d&range=1d`;
-  const endpoint = `https://corsproxy.io/?key=${encodeURIComponent(proxyKey)}&url=${encodeURIComponent(yahooUrl)}`;
-  console.log('[ESOP API] Stock quote request', { symbol, yahooSymbol });
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10_000);
   try {
-    const response = await fetch(endpoint, {
-      signal: controller.signal,
-    });
-    console.log('[ESOP API] Stock quote response', { symbol, status: response.status, ok: response.ok });
-    if (!response.ok) return null;
-
-    const data = await response.json() as {
-      chart?: { result?: Array<{ meta?: { regularMarketPrice?: unknown; currency?: unknown } } | null> };
-    };
-    const meta = data.chart?.result?.[0]?.meta;
-    if (
-      typeof meta?.regularMarketPrice !== 'number'
-      || !Number.isFinite(meta.regularMarketPrice)
-      || typeof meta.currency !== 'string'
-    ) {
-      logger.warn(`Stock ${symbol}: Yahoo quote returned invalid data`);
+    const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) {
+      logger.warn(`Stock ${symbol}: market endpoint returned HTTP ${response.status}`);
       return null;
     }
 
-    const quote = { price: meta.regularMarketPrice, currency: meta.currency };
+    const data = (await response.json()) as { price?: unknown; currency?: unknown };
+    if (
+      typeof data.price !== 'number'
+      || !Number.isFinite(data.price)
+      || typeof data.currency !== 'string'
+      || !data.currency
+    ) {
+      logger.warn(`Stock ${symbol}: market endpoint returned invalid data`);
+      return null;
+    }
+
+    const quote = { price: data.price, currency: data.currency };
     cacheStockQuote(yahooSymbol, quote);
     console.log('[ESOP API] Stock quote parsed', { symbol, quote });
     return quote;
   } catch (error) {
     logger.warn(`Stock ${symbol} quote request failed: ${error instanceof Error ? error.message : 'unknown error'}`);
     return null;
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
 

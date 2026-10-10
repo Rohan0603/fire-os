@@ -231,8 +231,9 @@ health renderers.
 
 Stores grant/shares, liquidation shares, vesting FMV, triggers and optional
 holdings by ticker, quantity and currency. `esopDetails.vestingSchedule` is
-persisted and validated but is no longer rendered or edited anywhere. Quotes use
-Yahoo Finance through corsproxy; FX converts to INR. Value = quantity × quote ×
+persisted and validated but is no longer rendered or edited anywhere. Quotes come
+from Yahoo Finance via the Worker `/api/market/quote` endpoint; FX converts to
+INR. Value = quantity × quote ×
 INR rate. There is no manual holding valuation path: a failed quote or missing
 FX rate renders as unavailable. Stock quote freshness is 15 minutes.
 
