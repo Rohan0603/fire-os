@@ -2,8 +2,15 @@
 
 Engineering follow-ups are conditional; start them only when their trigger is
 observed. Product ideas are candidates for discussion, not commitments.
-Personal FIRE workflow and broader-user needs have equal weight; validate each
-with actual use before promoting it to planned work.
+
+Product direction is prioritised in this order:
+
+1. **Broader-user needs** — build for people beyond the primary developer/user.
+2. **Personal FIRE workflow** — the maintainer's own workflow; promote a
+   candidate only when it also serves a broader user, or is cheap to keep.
+
+Everything below stays trigger/validation-based: nothing moves into planned
+work until real use (or the stated trigger) justifies it.
 
 ## Engineering & maintenance
 
@@ -69,22 +76,7 @@ Conditional work: start only when the stated trigger occurs.
   out until fund-level questions are actually observed — it widens what leaves
   the browser and needs Jim/Dwight sign-off.
 
-## Product candidates — personal FIRE workflow
-
-Ideas to evaluate against day-to-day use of the app:
-
-- [ ] **Make portfolio updates easier to verify after import.** Explore a clear
-  before/after summary for CAS imports and CSV/JSON restore, especially for
-  holdings that are replaced rather than appended.
-- [x] **Make data freshness actionable.** The dashboard trust panel now names
-  the stale NAV/FX sources and offers a "Refresh now" retry; the count also
-  catches persisted entries that carry no status yet. Manual value entry was
-  not built — no observed need yet.
-- [ ] **Improve scenario comparison.** Let users compare a small number of
-  saved FIRE assumptions/results side by side; first validate that repeated
-  comparisons are a real workflow.
-
-## Product candidates — broader-user needs
+## Product candidates — broader-user needs (current priority)
 
 Ideas to validate with people beyond the primary developer/user:
 
@@ -98,6 +90,22 @@ Ideas to validate with people beyond the primary developer/user:
 - [ ] **Make Assistant suggestions easier to assess.** Ensure each proposal
   shows the affected fields, resulting values, and relevant assumptions before
   confirmation; validate this with users who review suggested changes.
+
+## Product candidates — personal FIRE workflow (secondary)
+
+Ideas to evaluate against day-to-day use of the app. Promote one only when it
+also helps a broader user, or is cheap to keep:
+
+- [ ] **Make portfolio updates easier to verify after import.** Explore a clear
+  before/after summary for CAS imports and CSV/JSON restore, especially for
+  holdings that are replaced rather than appended.
+- [x] **Make data freshness actionable.** The dashboard trust panel now names
+  the stale NAV/FX sources and offers a "Refresh now" retry; the count also
+  catches persisted entries that carry no status yet. Manual value entry was
+  not built — no observed need yet.
+- [ ] **Improve scenario comparison.** Let users compare a small number of
+  saved FIRE assumptions/results side by side; first validate that repeated
+  comparisons are a real workflow.
 
 ## Completed improvements
 
