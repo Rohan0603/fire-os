@@ -64,7 +64,7 @@ export function CrashAlertBanner() {
         {`Nifty crashed ${alert.crashPercentage}%`}
       </p>
       <p className="text-sm text-(--color-foreground)">
-        {`Deploy ${formatCurrency(alert.deployAmount || 0, 0)} via Wint Wealth (Crash Protocol)`}
+        {`Deploy ${formatCurrency(alert.deployAmount || 0, 0)} (Crash Protocol)`}
       </p>
     </div>
   );

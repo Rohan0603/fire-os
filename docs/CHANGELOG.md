@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Personal-identifier guard** (`scripts/check-personal-identifiers.mjs`, `npm run test:privacy`):
+  fails the Quality workflow if the maintainer's personal identifiers, external-advisor
+  references, or the personal support email reappear in `src`, `worker`, `shared`,
+  `firestore.rules` or `firebase.json` (excluding `presets/` and test files).
 - **Shared UI kit** (`src/app/ui`): Button, Input, Card, Table, Tabs, Select and Dialog for
   migrated routes, plus a `cn` helper. Tabs/Select/Dialog wrap the Radix primitives already in
   `package.json`. Proven by computed-style assertions in `e2e/ui-kit.spec.ts`, because an

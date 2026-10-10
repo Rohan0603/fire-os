@@ -369,8 +369,8 @@ frame-ancestors none, nosniff, strict-origin referrer and no camera/microphone/
 geolocation. Google popup behavior depends on the COOP setting.
 
 Quality workflow on PR and main runs Node 22 / Java 21, npm ci, build, lint,
-Prettier check, unit tests, Worker tests, Firestore emulator tests and Chromium
-Playwright tests. Deployment workflow on main/manual installs root dependencies,
+Prettier check, unit tests, Worker tests, the personal-identifier guard, Firestore
+emulator tests and Chromium Playwright tests. Deployment workflow on main/manual installs root dependencies,
 Worker tests, builds with env, verifies route metadata, lint, format, unit/Worker/
 rules tests; deploys Firebase Hosting/rules/indexes, checks Cloudflare tokens,
 deploys Worker, then smoke-tests production routes. Details and scripts are in
