@@ -243,7 +243,7 @@ engine. Read [UI](ui.md) for tab-level logic and additional calculations.
   dependency and module CSS were removed); pure series/range/downsample logic
   lives in `chart-data.ts`, and the route refreshes NAVs/FX and benchmark
   history once on mount. Cashflow/data trust panels, goals,
-  and conditional SWP/expense/advisor widgets.
+  and conditional SWP and expense widgets.
 - **Planning Tools** (`src/modules/calculators/`): crash protocol, emergency
   runway, SIP pause, LTCG tax planner, SWP scheduler, allocation rebalancing and
   side-by-side scenario comparison.
@@ -398,7 +398,6 @@ unchanged. See [AI reference](ai.md#full-request-trace-from-chat-event-to-model-
 | Plan | State + watchdog/insurance/tax rules | Health band, actions, milestones/history | `modules/plan/` |
 | ESOP | Quote holdings + currency + exercise inputs | INR quote value, tax estimate, allocation proposal | `modules/esop/`, `api/esop.ts` |
 | Expense tracking | Dated expenses and SWP settings | Mean expense amount per record vs fixed target | `trackers/expense-tracker.ts` |
-| Advisor integration | User email, corpus and allocation | External review request URL | `integrations/advisor-webhook.ts` |
 | AI guide | Sanitized context and conversation | Reply and optional user-confirmed state proposal | [AI reference](ai.md) |
 
 ## Important state and terminology notes

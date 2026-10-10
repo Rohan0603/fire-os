@@ -21,7 +21,6 @@ import { BenchmarkCard, CompositionCard, FiGoalCard, NetWorthTrendCard } from '.
 import { KpiRow, PortfolioSummary } from './kpi-cards';
 import { CrashAlertBanner, DataTrustPanel } from './trust-panel';
 import {
-  AdvisorWidget,
   CashflowSummary,
   ExpenseTracker,
   SwpScheduleWidget,
@@ -49,7 +48,6 @@ export function Dashboard({
         <>
           <SwpScheduleWidget state={state} />
           <TaxOptimizationWidget state={state} />
-          <AdvisorWidget state={state} />
           <ExpenseTracker state={state} />
         </>
       ) : null}

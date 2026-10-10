@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Scenario Comparison**: side-by-side FI projection of two scenarios in the calculators tab
 - **Agent-friendly development**: enhanced `AGENTS.md` with explicit PR/MR workflow, CI check guidance, and issue onboarding; added quick-reference validation table and agent-contributing guide to `docs/README.md`
 
+### Removed
+- **Advisor webhook integration**: the dashboard CFP-review widget and `src/modules/integrations/advisor-webhook.ts` are gone. It POSTed the user's email and exact portfolio figures to `https://api.fire-os.app`, an NXDOMAIN/unowned domain with no backend, exposing a registerable leak.
+
 ### Fixed
 - **Legacy modules rendered light cards with invisible text in dark mode**: the legacy palette in
   `tokens.css` defined its dark half only under `html[data-theme="dark"]`, but the Tailwind palette

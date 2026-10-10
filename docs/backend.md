@@ -354,7 +354,7 @@ fetch in parallel for every holding and calculate quantity×price×rate.
 
 ### Other outbound calls
 
-Advisor review API call and its user gesture are detailed in [UI](ui.md). PDF.js
+PDF.js
 is served from local `public/pdfjs/` assets, not a CDN. Assistant requests are
 covered by [AI](ai.md).
 

@@ -100,8 +100,8 @@ rows) and fetches Nifty history in parallel, then re-renders on portfolio saves
 value/invested/P&L; FI progress; Nifty drawdown; cashflow summary; market-data
 freshness, sync mode, last-save time, profile completeness and liabilities;
 category composition pie (Recharts, HTML legend below the chart); FI target
-progress; Coorg goal; two analytics charts (below); and, when SWP enabled, SWP,
-tax, advisor-review and expense-tracker widgets. A market crash monitor can show
+progress; Coorg goal; two analytics charts (below); and, when SWP enabled, the
+SWP schedule, tax and expense-tracker widgets. A market crash monitor can show
 a severity banner (`crashAlertStore`), and the trust-panel sync, market-refresh
 and cloud-mode labels update live from the reactive status stores. Charts are
 static markup (`isAnimationActive={false}`) and honour
@@ -508,8 +508,7 @@ and drift round to one decimal. Recommendation rupees = abs(rounded drift)/100 �
 totalValue; display converts to lakh and rounds one decimal. Zero total value
 returns targets, zero current/drift and no actions. Action-engine denominator
 includes recognized funds plus custom holding value; passed target buckets only
-contain recognized categories. Dashboard advisor request instead passes net
-worth as denominator, so calculations can differ from Plan action suggestions.
+contain recognized categories.
 
 ### Scenario modeler
 
@@ -618,12 +617,6 @@ cover the withdrawal. A manual simulator awaits cloud persistence.
   grouped by month/date; `_startDate` is unused. Target ₹122,000; within ±10%
   inclusive? Source uses strict `abs(variance)<10`, where variance is rounded
   whole percent. Widget is only displayed when SWP is enabled.
-- **Advisor review:** dashboard builds corpus and allocation, posts email +
-  portfolio summary + timestamp to `https://api.fire-os.app/advisor/review`,
-  opens returned advisor URL. Dashboard uses account email or placeholder
-  `user@example.com`; this sends PII and financial summary externally after an
-  explicit button click. UI calls it only when SWP is enabled (widget itself is
-  conditional). This route is separate from Assistant and Firebase.
 
 ## Auth UI and formatting details
 

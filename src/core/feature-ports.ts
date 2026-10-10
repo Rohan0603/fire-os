@@ -12,7 +12,6 @@ import { totalNetWorth, sipStatus, fiProgress, floatIndicator, portfolioComposit
 import { calculateAllocationDrift } from '../modules/calculators/portfolio-rebalancing';
 import { calculateFIAge, calculateCoastFire } from '../modules/calculators/scenario-modeler';
 import { renderCashflowSummary } from '../modules/plan/cashflow-summary';
-import { renderAdvisorIntegrationWidget, registerAdvisorReview } from '../modules/integrations/advisor-webhook';
 import { renderExpenseTracker } from '../modules/trackers/expense-tracker';
 import { checkWatchdogRules } from '../modules/watchdog/fund-manager-alerts';
 import { createModal, closeModal } from '../modules/ui/Modal';
@@ -56,8 +55,6 @@ export interface FeatureCalculationPort {
 
 export interface FeatureWidgetPort {
   renderCashflowSummary: typeof renderCashflowSummary;
-  renderAdvisorIntegrationWidget: typeof renderAdvisorIntegrationWidget;
-  registerAdvisorReview: typeof registerAdvisorReview;
   renderExpenseTracker: typeof renderExpenseTracker;
 }
 
@@ -137,8 +134,6 @@ export function createFeaturePorts(): FeaturePorts {
     },
     widgets: {
       renderCashflowSummary,
-      renderAdvisorIntegrationWidget,
-      registerAdvisorReview,
       renderExpenseTracker,
     },
     marketData: {
