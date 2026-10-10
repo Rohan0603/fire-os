@@ -1,19 +1,43 @@
 /**
  * Toast Component - Toast notification system
  * Displays temporary notifications at bottom-right with auto-dismiss
+ *
+ * The imperative `showToast`/`dismissToast` API is the single source of truth
+ * and keeps its long-standing signature: 40 call sites go through the
+ * `showToast` feature port. Rendering is delegated to whichever consumer is
+ * mounted: the React `Toaster` in `src/app/ui` subscribes via
+ * `subscribeToasts()` and renders through Radix; until that happens toasts are
+ * rendered imperatively into `#toast-container`, so notifications fired before
+ * the React tree mounts (session bootstrap, early errors) are not lost.
  */
 
 export type ToastType = 'info' | 'success' | 'error' | 'warning';
 
+export interface ToastItem {
+  id: string;
+  message: string;
+  type: ToastType;
+  /** Auto-dismiss delay in ms; <= 0 keeps the toast until manually dismissed. */
+  duration: number;
+}
+
+type ToastListener = (items: ToastItem[]) => void;
+
+const listeners = new Set<ToastListener>();
+let toastItems: ToastItem[] = [];
+/** Auto-dismiss timers, kept in every rendering mode so dismiss clears them. */
+const timeouts = new Map<string, ReturnType<typeof setTimeout>>();
 let toastContainer: HTMLElement | null = null;
-const activeToasts: Map<string, { element: HTMLElement; timeout: number }> = new Map();
+/** DOM fallback instances; active only until a React Toaster subscribes. */
+const domElements = new Map<string, HTMLElement>();
 let toastCounter = 0;
+let domActive = true;
 
 /**
  * Initialize toast container (called once on app startup)
  */
 export function initToastContainer(): void {
-  if (toastContainer) return;
+  if (toastContainer || typeof document === 'undefined') return;
 
   toastContainer = document.createElement('div');
   toastContainer.id = 'toast-container';
@@ -42,17 +66,96 @@ export function showToast(
   duration: number = 3000,
   type: ToastType = 'info'
 ): string {
-  if (!toastContainer) {
-    initToastContainer();
+  const item: ToastItem = {
+    id: `toast-${toastCounter++}`,
+    message,
+    type,
+    duration,
+  };
+  toastItems = [...toastItems, item];
+
+  if (domActive) renderDomToast(item);
+  if (duration > 0) {
+    timeouts.set(item.id, setTimeout(() => dismissToast(item.id), duration));
+  }
+  emitToastChange();
+
+  return item.id;
+}
+
+/**
+ * Dismiss a specific toast by ID
+ * @param toastId Toast ID from showToast return
+ */
+export function dismissToast(toastId: string): void {
+  if (!toastItems.some((item) => item.id === toastId)) return;
+  toastItems = toastItems.filter((item) => item.id !== toastId);
+
+  const timeout = timeouts.get(toastId);
+  if (timeout !== undefined) {
+    clearTimeout(timeout);
+    timeouts.delete(toastId);
   }
 
-  const toastId = `toast-${toastCounter++}`;
+  if (domActive) {
+    const element = domElements.get(toastId);
+    if (element) {
+      // Animate out
+      element.style.animation = 'toastSlideOut 300ms ease';
+      setTimeout(() => {
+        element.remove();
+        domElements.delete(toastId);
+      }, 300);
+    }
+  }
+  emitToastChange();
+}
+
+/**
+ * Subscribe to the toast stream. The React `<Toaster>` calls this once on
+ * mount; it receives an array snapshot on every change and an immediate
+ * snapshot of the current toasts. While subscribed, the DOM fallback renderer
+ * is disabled and toasts render only through the subscriber.
+ *
+ * @returns An unsubscribe function; when the last subscriber leaves, pending
+ * toasts resume rendering through the DOM fallback.
+ */
+export function subscribeToasts(listener: ToastListener): () => void {
+  listeners.add(listener);
+  if (domActive) {
+    domActive = false;
+    // Hand rendered toasts over to the subscriber, which renders the snapshot.
+    for (const element of domElements.values()) element.remove();
+    domElements.clear();
+  }
+  listener(toastItems);
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0) {
+      domActive = true;
+      for (const item of toastItems) renderDomToast(item);
+    }
+  };
+}
+
+function emitToastChange(): void {
+  for (const listener of listeners) listener(toastItems);
+}
+
+/**
+ * Imperative DOM fallback, used only until a React Toaster subscribes. Mirrors
+ * the original `showToast` markup so the pre-React window behaves identically.
+ */
+function renderDomToast(item: ToastItem): void {
+  if (typeof document === 'undefined') return;
+  if (!toastContainer) initToastContainer();
+
   const toast = document.createElement('div');
-  toast.id = toastId;
+  toast.id = item.id;
   toast.setAttribute('role', 'status');
   toast.setAttribute('aria-live', 'polite');
 
-  const { bgColor, borderColor, icon } = getToastColors(type);
+  const { bgColor, borderColor, icon } = getToastColors(item.type);
 
   toast.style.cssText = `
     background: ${bgColor};
@@ -81,7 +184,7 @@ export function showToast(
 
   // Message
   const messageEl = document.createElement('span');
-  messageEl.textContent = message;
+  messageEl.textContent = item.message;
   messageEl.style.cssText = `
     flex: 1;
   `;
@@ -109,7 +212,7 @@ export function showToast(
   });
 
   closeBtn.addEventListener('click', () => {
-    dismissToast(toastId);
+    dismissToast(item.id);
   });
 
   toast.appendChild(iconEl);
@@ -117,43 +220,7 @@ export function showToast(
   toast.appendChild(closeBtn);
 
   toastContainer!.appendChild(toast);
-
-  // Auto-dismiss
-  let timeout: number;
-  if (duration > 0) {
-    timeout = window.setTimeout(() => {
-      dismissToast(toastId);
-    }, duration);
-  } else {
-    timeout = -1;
-  }
-
-  activeToasts.set(toastId, { element: toast, timeout });
-
-  return toastId;
-}
-
-/**
- * Dismiss a specific toast by ID
- * @param toastId Toast ID from showToast return
- */
-export function dismissToast(toastId: string): void {
-  const toastData = activeToasts.get(toastId);
-  if (!toastData) return;
-
-  const { element, timeout } = toastData;
-
-  // Clear timeout if set
-  if (timeout > 0) {
-    clearTimeout(timeout);
-  }
-
-  // Animate out
-  element.style.animation = 'toastSlideOut 300ms ease';
-  setTimeout(() => {
-    element.remove();
-    activeToasts.delete(toastId);
-  }, 300);
+  domElements.set(item.id, toast);
 }
 
 /**

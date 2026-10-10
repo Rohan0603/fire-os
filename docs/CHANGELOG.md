@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   migrated routes, plus a `cn` helper. Tabs/Select/Dialog wrap the Radix primitives already in
   `package.json`. Proven by computed-style assertions in `e2e/ui-kit.spec.ts`, because an
   unlayered legacy rule can beat a Tailwind utility while still appearing in the built CSS.
+- **Kit Toaster**: the kit's Radix `<Toaster>` now renders the imperative `showToast` stream
+  (`src/modules/ui/Toast.ts`) unchanged — the 40 `showToast` call sites keep their exact API,
+  including duration-based and sticky toasts. The legacy DOM renderer stays as a fallback for
+  toasts fired before React mounts; the first subscription hands rendering over to Radix.
 - **CSV Import**: preview a parsed portfolio CSV with row-level issues and confirm before applying
 - **Dashboard Charts**: interactive portfolio composition pie plus net-worth snapshot trend and Nifty benchmark performance and drawdown history views with range controls
 - **XIRR Period Returns**: `calculatePeriodReturn()` derives annualized returns from dated cash flows within an inclusive window; exported helper, not yet surfaced in the SIP status KPI

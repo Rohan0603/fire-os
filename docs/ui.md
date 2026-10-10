@@ -226,16 +226,17 @@ timestamp/freshness and three starter questions.
 ## Shared UI and formatting
 
 `src/modules/ui/Modal.ts` wraps native `<dialog>` behavior for shared callers;
-`Toast` exposes transient notifications (no React export yet). `lib/formatters.ts` provides
-Indian currency/number formatting. The dashboard charts are React components in
+`Toast.ts` exposes transient status notifications via the imperative `showToast`
+API, which the kit's Radix `<Toaster>` subscribes to and renders
+(`src/app/ui/Toast.tsx`). `lib/formatters.ts` provides Indian currency/number
+formatting. The dashboard charts are React components in
 `src/app/routes/dashboard/charts.tsx` built on **Recharts** (already a
 dependency); pure series derivation, range support and downsampling live in
 `src/modules/dashboard/chart-data.ts`. The legacy `chart.js` dependency and
 `src/modules/dashboard/styles.css` were removed with the migration.
-
-`src/modules/dashboard/chart-data.ts`. Accessibility uses native inputs/buttons, labels, dialog
-and live regions where implemented. Route pages are pre-rendered/verified by
-`scripts/routes.mjs`, `prerender-routes.mjs`, and route smoke scripts.
+Accessibility uses native inputs/buttons, labels, dialog and live regions where
+implemented. Route pages are pre-rendered/verified by `scripts/routes.mjs`,
+`prerender-routes.mjs`, and route smoke scripts.
 
 The shared date helpers in `src/lib/dates.ts` parse strictly as `YYYY-MM`
 (year and month) or `YYYY-MM-DD` (calendar date); any other arrangement —
@@ -628,6 +629,11 @@ comma grouping; non-finite becomes ₹0. `formatNumber()` uses Indian grouping;
 `formatPercentage()` expects fractional input and multiplies by 100. Date and
 time helpers return empty string for invalid input. Modal helper uses native
 `<dialog>.showModal()`, text content for title/button labels and caller-supplied
-HTML for modal body; backdrop click and close button close it. Toast uses
-role=status/aria-live polite, message textContent, four types and duration-based
-dismissal.
+HTML for modal body; backdrop click and close button close it. The imperative
+Toast API keeps `showToast(message, duration, type)` (four types, duration-based
+dismissal, sticky when duration is 0) and feeds the kit's Radix `<Toaster>`,
+which renders bottom-right with swipe-to-dismiss; Radix supplies the
+`aria-live` region. Until React mounts, toasts render through the legacy DOM
+fallback (`#toast-container`, role=status/aria-live polite), so nothing fired
+during session bootstrap is lost; the first `<Toaster>` subscription switches
+that off.
