@@ -160,13 +160,11 @@ describe('Market Worker endpoints', () => {
 
   it('proxies a stock quote and rejects an invalid symbol before fetching', async () => {
     installFakeCache();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(
-        jsonResponse({
-          chart: { result: [{ meta: { regularMarketPrice: 42.5, currency: 'EUR' } }] },
-        }),
-      );
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({
+        chart: { result: [{ meta: { regularMarketPrice: 42.5, currency: 'EUR' } }] },
+      }),
+    );
     vi.stubGlobal('fetch', fetchMock);
 
     const ok = await worker.fetch(marketRequest('/api/market/quote?symbol=MC.PA'), env);

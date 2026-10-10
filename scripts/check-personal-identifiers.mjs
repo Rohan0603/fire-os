@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* global console, process */
 // CI guard: fail the build if personal identifiers appear outside presets/ and
 // test files. This repository is public, so the maintainer's personal handles,
 // external-advisor references, and contact details must never ship in source.
