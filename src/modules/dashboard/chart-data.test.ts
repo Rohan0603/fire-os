@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 import type { HistoricalSeries } from '../../types/api';
 import {
   CHART_RANGES,
+  MAX_CHART_POINTS,
   buildBenchmarkSeries,
   buildDrawdownSeries,
   buildSnapshotSeries,
+  downsampleSeries,
   supportedRanges,
   windowFromRange,
+  type ChartSeriesPoint,
 } from './chart-data';
 
 function makeHistory(
@@ -21,6 +24,38 @@ function makeHistory(
     ...overrides,
   };
 }
+
+describe('downsampleSeries', () => {
+  const makePoints = (count: number): ChartSeriesPoint[] =>
+    Array.from({ length: count }, (_, i) => ({ date: `2026-01-${i + 1}`, value: i }));
+
+  it('returns a copy unchanged when the series already fits', () => {
+    const points = makePoints(10);
+
+    const result = downsampleSeries(points, 10);
+
+    expect(result).toEqual(points);
+    expect(result).not.toBe(points);
+  });
+
+  it('caps a long series at the ceiling while keeping the first and last point', () => {
+    const points = makePoints(2000);
+
+    const result = downsampleSeries(points);
+
+    expect(result).toHaveLength(MAX_CHART_POINTS);
+    expect(result[0]).toEqual(points[0]);
+    expect(result[result.length - 1]).toEqual(points[points.length - 1]);
+  });
+
+  it('never invents points: every sample comes from the input', () => {
+    const points = makePoints(1200);
+
+    const result = downsampleSeries(points, 100);
+
+    expect(result.every((point) => points.includes(point))).toBe(true);
+  });
+});
 
 describe('buildSnapshotSeries', () => {
   it('shapes empty snapshots into an empty recorded series with no invented points', () => {
