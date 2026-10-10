@@ -8,7 +8,6 @@ export interface DailyTaskDeps {
   persist(state: FireOSState): void;
   notify(message: string, duration: number, type: ToastType): void;
   executeMonthlyWithdrawal(state: FireOSState): Promise<void>;
-  renderDashboardIfVisible(): void;
 }
 
 /**
@@ -63,7 +62,6 @@ export function createDailyTaskRunner(deps: DailyTaskDeps): (state: FireOSState)
               .then(() => {
                 deps.persist(state);
                 deps.notify('✓ Automatic monthly SWP executed', 4000, 'success');
-                deps.renderDashboardIfVisible();
               })
               .catch((e) => {
                 console.error('[SWP Auto] Failed to execute withdrawal:', e);

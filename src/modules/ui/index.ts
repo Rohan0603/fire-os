@@ -23,7 +23,9 @@ export {
   showToast,
   dismissToast,
   initToastContainer,
+  subscribeToasts,
   type ToastType,
+  type ToastItem,
 } from './Toast';
 
 /**

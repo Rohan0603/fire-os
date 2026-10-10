@@ -209,6 +209,33 @@ export function buildBenchmarkSeries(
 }
 
 /**
+ * Rendered-point ceiling per chart series. The design constraint is <1000 SVG
+ * points per chart (O6); long-lived accounts can record far more snapshots than
+ * that, so the view is thinned before it reaches the chart.
+ */
+export const MAX_CHART_POINTS = 500;
+
+/**
+ * Thin a series to at most `maxPoints` evenly spaced samples. The first and
+ * last recorded points are always kept, so the drawn span stays truthful and
+ * nothing is interpolated — intermediate samples are simply omitted. Returns a
+ * copy when it already fits, so callers can treat the result as their own.
+ */
+export function downsampleSeries(
+  points: readonly ChartSeriesPoint[],
+  maxPoints: number = MAX_CHART_POINTS,
+): ChartSeriesPoint[] {
+  if (maxPoints <= 0 || points.length <= maxPoints) return points.slice();
+  // step > 1 here (length > maxPoints), so rounded indices strictly increase.
+  const step = (points.length - 1) / (maxPoints - 1);
+  const sampled: ChartSeriesPoint[] = [];
+  for (let i = 0; i < maxPoints; i += 1) {
+    sampled.push(points[Math.round(i * step)]);
+  }
+  return sampled;
+}
+
+/**
  * Derive a drawdown view (percent below the running maximum) from an already
  * shaped series. Dates and metadata are preserved exactly: this only
  * transforms the source series' own values, it never adds or shifts points.

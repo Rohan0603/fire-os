@@ -52,7 +52,9 @@ active route's `document.title` and description.
 
 `FeatureRegistry` still maps `profile`, `dashboard`, `calculators`, `insurance`,
 `plan`, `esop`, and `assistant` to module lifecycle functions, and still owns
-route content for every route that has not been ported. React Router navigates
+route content for every route that has not been ported. The migrated `dashboard`
+entry keeps a no-op `mount` so `resolveTabTarget` still resolves the id, while
+the React route owns its content. React Router navigates
 with `pushState`, which never fires `popstate`, so `src/app/legacy-bridge.ts`
 lets `main.ts` register its tab activator and the shell call it on each route
 change. A route marks progress with `data-migration-state`: while a route is a
@@ -68,13 +70,13 @@ auth screen is ported.
 
 `src/app/ui` is the shared component kit that migrated routes use instead of
 hand-rolled markup. It is deliberately small: Button, Input, Card, Table, Tabs,
-Select and Dialog, over a local `cn` helper rather than a class-merge
-dependency, because the kit composes fixed internal variant maps. Colours come
-from the `@theme` tokens in `src/styles/app.css` using Tailwind v4's
-`bg-(--color-x)` syntax; the v3 `bg-[--color-x]` shorthand compiles to nothing,
-and a token absent from `@theme` yields no utility at all even when it is
-defined elsewhere, which is how the `--color-on-*` and `--color-danger` bugs
-happened. Tabs, Select and Dialog wrap Radix primitives already in
+Select, Dialog and the Toaster, over a local `cn` helper rather than a
+class-merge dependency, because the kit composes fixed internal variant maps.
+Colours come from the `@theme` tokens in `src/styles/app.css` using Tailwind
+v4's `bg-(--color-x)` syntax; the v3 `bg-[--color-x]` shorthand compiles to
+nothing, and a token absent from `@theme` yields no utility at all even when it
+is defined elsewhere, which is how the `--color-on-*` and `--color-danger` bugs
+happened. Tabs, Select, Dialog and Toast wrap Radix primitives already in
 `package.json`, for focus trapping and keyboard semantics. Each component
 carries `cursor-pointer`, a visible focus ring and `motion-reduce:`
 transitions structurally, so a caller cannot forget a checklist item.
@@ -87,9 +89,13 @@ can therefore be present in the stylesheet and inert on screen.
 `e2e/ui-kit.spec.ts` covers this and was confirmed to fail when the trap is
 reintroduced. Tabs, Select and Dialog are not yet mounted by any route, so they
 are typechecked and built but not yet exercised in a browser; they get covered
-as the modules needing them are ported. Toast is still imperative
-(`src/modules/ui/Toast.ts`) because 40 call sites go through the `showToast`
-feature port; it joins the kit with that port.
+as the modules needing them are ported. Toast content still comes from the
+imperative `showToast` API in `src/modules/ui/Toast.ts` — 40 call sites go
+through the `showToast` feature port, so that API is unchanged — but rendering
+is delegated to the kit's `<Toaster>`, which subscribes to the stream and
+renders through Radix. The imperative DOM renderer remains as a fallback for
+toasts fired before the React tree mounts; subscribing hands the stream over
+and disables it.
 
 `FeatureContext` provides the shared mutable state, portfolio repository, and
 injected UI/calculation/widget/market-data ports.
@@ -150,16 +156,20 @@ never write.
 Reactive UI signals are vanilla Nanostores atoms in `src/core/stores.ts`:
 `portfolioSavedStore` (monotonic save invalidation), `syncStatusStore`
 (`SyncCoordinator` status: `idle`, `pending`, `syncing`, `offline`, `error`,
-`conflict`), `activeScopeStore` (active identity/UID) and
-`marketRefreshStatusStore` (`idle`, `refreshing`, `refreshed`, `stale`). They are
-ephemeral signals only — there is no `@nanostores/persistent` and no second copy
-of the portfolio: durable portfolio persistence remains in
+`conflict`), `activeScopeStore` (identity-neutral active scope, `local`/`cloud`),
+`marketRefreshStatusStore` (market-refresh cycle: `idle`, `refreshing`, `success`,
+`error`) and `crashAlertStore` (latest `CrashAlert | null`, read by the dashboard
+banner). They are ephemeral signals only — there is no `@nanostores/persistent`
+and no second copy of the portfolio: durable portfolio persistence remains in
 `PortfolioRepository`/`storage.ts` (identity-scoped localStorage) plus
-Firestore. `main.ts` subscribes the dashboard refresh to the save store and keeps
-its requestAnimationFrame coalescing; session teardown publishes the cleared
+Firestore. Migrated React routes subscribe to the save signal through
+`usePortfolioSaved()` in the React provider, replacing the imperative
+requestAnimationFrame repaint; session teardown publishes the cleared
 scope, disposes the coordinator (resetting status to `idle`), cancels the Nifty
 monitor and runs `resetScopeStatuses()` plus registered unsubscribes so a
-previous identity cannot push stale updates to the next one.
+previous identity cannot push stale updates to the next one. `resetScopeStatuses`
+clears sync, market and scope but not `crashAlertStore`, which the Nifty monitor
+owns.
 
 Authenticated synchronization uses an envelope (`schemaVersion`, `lastSavedAt`,
 client metadata, section clocks, persisted `data`) and merge helpers in
@@ -222,14 +232,17 @@ engine. Read [UI](ui.md) for tab-level logic and additional calculations.
   serialization with spreadsheet formula protection in
   `src/lib/portfolioCsv.ts`, parse/preview/merge-replace apply in
   `src/modules/profile/csv-import.ts`), PDF/CAS parsing and save.
-- **Dashboard** (`src/modules/dashboard/`): net worth, SIP P&L, FI progress,
+- **Dashboard** (React route `src/app/routes/dashboard/`; shared data helpers
+  `src/modules/dashboard/`): net worth, SIP P&L, FI progress,
   market drawdown, allocation visualization, and analytics charts over two
   distinct series — persisted daily net-worth snapshots (sparse, never
-  backfilled or interpolated) and fetched Nifty market history (benchmark
-  only, always labeled with provider, freshness and span). Plain `chart.js`
-  dependency; module-local lifecycle helpers replace each chart instance on
-  repaint and destroy them on unmount, with a no-op fallback when no 2D
-  canvas context exists; cashflow/data trust panels, goals,
+  backfilled or interpolated, downsampled above 500 points) and fetched Nifty
+  market history (benchmark only, always labeled with provider, freshness and
+  span). Charts are React
+  components on the existing **Recharts** dependency (the legacy `chart.js`
+  dependency and module CSS were removed); pure series/range/downsample logic
+  lives in `chart-data.ts`, and the route refreshes NAVs/FX and benchmark
+  history once on mount. Cashflow/data trust panels, goals,
   and conditional SWP/expense/advisor widgets.
 - **Planning Tools** (`src/modules/calculators/`): crash protocol, emergency
   runway, SIP pause, LTCG tax planner, SWP scheduler, allocation rebalancing and
@@ -242,7 +255,9 @@ engine. Read [UI](ui.md) for tab-level logic and additional calculations.
 - **ESOP Tools** (`src/modules/esop/`): vesting, triggers and quoted valuation.
 - **Assistant** (`src/modules/assistant/`): consent-aware chat, proposal review,
   reauthentication for sensitive changes, local audit and undo.
-- **Other shared UI** (`src/modules/ui/`): native dialog wrapper and toasts;
+- **Other shared UI** (`src/modules/ui/`): native dialog wrapper and the
+  imperative toast stream (`Toast.ts`), rendered by the kit `<Toaster>`
+  (`src/app/ui/Toast.tsx`) over Radix with a DOM fallback before React mounts;
   global responsive layout/theme tokens in `src/styles/`.
 
 All features persist the shared state; navigation does not imply a separate

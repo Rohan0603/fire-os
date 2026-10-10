@@ -22,7 +22,6 @@ import type { AppBootstrapResult } from './app/bootstrap';
 import { applyPersistedState, initializeState } from './types/state';
 import { appState } from './lib/appState';
 import { createFeatureContext } from './core/feature-context';
-import { portfolioSavedStore } from './core/stores';
 import { FeatureRegistry } from './app/feature-registry';
 import { PortfolioSession } from './app/portfolio-session';
 
@@ -42,7 +41,7 @@ import { initAPIModule } from './modules/api';
 import { monitorNiftyLevel } from './modules/api/nifty-monitor';
 
 // Static imports for tab modules and other deferred modules to prevent dynamic import warnings
-import { initDashboardModule, renderDashboard, fetchSIPNAVs, teardownDashboard, updateCrashAlert } from './modules/dashboard';
+import { fetchSIPNAVs, updateCrashAlert } from './modules/dashboard';
 import { initCalculatorsModule, renderCalculators } from './modules/calculators';
 import { initInsuranceModule, renderInsurance } from './modules/insurance';
 import { initPlanModule, renderPlan } from './modules/plan';
@@ -83,10 +82,6 @@ const checkDailyTasks = createDailyTaskRunner({
   persist: persistPortfolioState,
   notify: showToast,
   executeMonthlyWithdrawal,
-  renderDashboardIfVisible: () => {
-    const dashboardTab = document.querySelector('[data-tab="dashboard"]');
-    if (dashboardTab && dashboardTab.classList.contains('active')) renderDashboard();
-  },
 });
 const sessionController = new AuthSessionController({
   authCoordinator,
@@ -125,16 +120,9 @@ featureRegistry.register({
 featureRegistry.register({
   id: 'dashboard',
   label: 'Dashboard',
-  mount(container, context) {
-    if (!initializedFeatures.has('dashboard')) {
-      initDashboardModule(container.id, context);
-      initializedFeatures.add('dashboard');
-    }
-    return renderDashboard(context);
-  },
-  unmount() {
-    teardownDashboard();
-  },
+  // Migrated: React owns the route content and its `#dashboard` section, so the
+  // registry entry only keeps `resolveTabTarget` resolving the id.
+  mount() {},
 });
 featureRegistry.register({
   id: 'calculators',
@@ -252,7 +240,6 @@ function initApp() {
 
     sessionController.start();
     setupTabNavigation(featureRegistry, sessionController);
-    setupDashboardAutoRefresh();
     setupBackgroundNAVRefresh();
     setupOfflineNotification();
     setupTheme();
@@ -296,7 +283,6 @@ function renderApp() {
 
     <div class="tabs-container" id="legacy-tabs">
       <div id="profile" class="tab active"></div>
-      <div id="dashboard" class="tab"></div>
       <div id="calculators" class="tab"></div>
       <div id="insurance" class="tab"></div>
       <div id="plan" class="tab"></div>
@@ -308,25 +294,6 @@ function renderApp() {
   // Initialize and render auth screen
   initAuthModule('auth-screen');
   renderAuthScreen();
-}
-
-// Auto-refresh dashboard when state changes
-function setupDashboardAutoRefresh() {
-  let renderQueued = false;
-  const refreshDashboard = () => {
-    if (renderQueued) return;
-    renderQueued = true;
-    requestAnimationFrame(() => {
-      renderQueued = false;
-      const dashboardTab = document.querySelector('[data-tab="dashboard"]');
-      if (dashboardTab && dashboardTab.classList.contains('active')) {
-        void renderDashboard(featureContext);
-      }
-    });
-  };
-
-  const unsubscribe = portfolioSavedStore.subscribe(refreshDashboard);
-  window.addEventListener('pagehide', unsubscribe, { once: true });
 }
 
 // Start app

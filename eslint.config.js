@@ -9,7 +9,6 @@ export default tseslint.config(
       'coverage/**',
       'playwright-report/**',
       'test-results/**',
-      'public/chart.js/**',
       'public/pdfjs/**',
       // Installed agent tooling (ui-ux-pro-max), vendored by `uipro init`.
       // Not project source; ESLint does not read .gitignore.

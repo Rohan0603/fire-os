@@ -22,7 +22,6 @@ function createDeps(): DailyTaskDeps {
         linkedToSWP: true,
       });
     }),
-    renderDashboardIfVisible: vi.fn(),
   };
 }
 
@@ -100,7 +99,6 @@ describe('createDailyTaskRunner', () => {
     expect(state.expenses).toHaveLength(1);
     expect(deps.persist).toHaveBeenCalledTimes(2);
     expect(deps.notify).toHaveBeenCalledWith('✓ Automatic monthly SWP executed', 4000, 'success');
-    expect(deps.renderDashboardIfVisible).toHaveBeenCalledTimes(1);
 
     run(state);
     await flush();

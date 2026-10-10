@@ -8,6 +8,7 @@
  * work in DOM-less environments (tests, non-browser runtimes).
  */
 import { atom } from 'nanostores';
+import type { CrashAlert } from '../modules/api/nifty-monitor';
 import type { SyncStatus } from '../types/firebase';
 
 /**
@@ -38,6 +39,13 @@ export type MarketRefreshStatus = 'idle' | 'refreshing' | 'success' | 'error';
 export const activeScopeStore = atom<ActiveScopeStatus>('local');
 
 export const marketRefreshStatusStore = atom<MarketRefreshStatus>('idle');
+
+/**
+ * Latest market crash alert published by the Nifty monitor
+ * (`updateCrashAlert`). `null` = no active alert. The dashboard reads this
+ * atom for its banner instead of re-rendering imperative HTML.
+ */
+export const crashAlertStore = atom<CrashAlert | null>(null);
 
 /** Publish a save invalidation after the local write completes. */
 export function notifyPortfolioSaved(): void {

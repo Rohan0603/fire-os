@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   migrated routes, plus a `cn` helper. Tabs/Select/Dialog wrap the Radix primitives already in
   `package.json`. Proven by computed-style assertions in `e2e/ui-kit.spec.ts`, because an
   unlayered legacy rule can beat a Tailwind utility while still appearing in the built CSS.
+- **Kit Toaster**: the kit's Radix `<Toaster>` now renders the imperative `showToast` stream
+  (`src/modules/ui/Toast.ts`) unchanged — the 40 `showToast` call sites keep their exact API,
+  including duration-based and sticky toasts. The legacy DOM renderer stays as a fallback for
+  toasts fired before React mounts; the first subscription hands rendering over to Radix.
 - **CSV Import**: preview a parsed portfolio CSV with row-level issues and confirm before applying
 - **Dashboard Charts**: interactive portfolio composition pie plus net-worth snapshot trend and Nifty benchmark performance and drawdown history views with range controls
 - **XIRR Period Returns**: `calculatePeriodReturn()` derives annualized returns from dated cash flows within an inclusive window; exported helper, not yet surfaced in the SIP status KPI
@@ -65,6 +69,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   until it is migrated. The prerender-script retirement and the move to Cloudflare
   Workers are not part of this change.
 - **Reactive Status Stores**: sync, market-refresh, and cloud-mode labels update live from shared status stores
+- **Dashboard migrated to React** (`src/app/routes/dashboard/`): the dashboard route, KPI cards,
+  composition/trend/benchmark charts, data-trust panel and SWP/expense/advisor widgets are now
+  React components, and the route claims `#dashboard` with `data-migration-state="migrated"`.
+  Charts use the existing **Recharts** dependency; the legacy `chart.js` dependency,
+  `src/modules/dashboard/styles.css` and the imperative `renderDashboard`/`teardownDashboard`
+  wiring were removed. `src/modules/dashboard/` keeps only the shared data helpers
+  (`fetchSIPNAVs`, `refreshStaleData`, `staleSourceLabels`, `updateCrashAlert`), and
+  `FeatureRegistry` keeps a no-op `dashboard` mount so `resolveTabTarget` still resolves it.
+- **Dashboard route and kit Toaster ship together**: this change integrates the
+  React dashboard migration and the `<Toaster>` bridge over the imperative toast
+  stream (`src/modules/ui/Toast.ts` → `src/app/ui/Toast.tsx`). Both are validated
+  as one change (unit, worker, route-metadata and e2e), sharing the updated
+  `docs/master.md` and `docs/ui.md`.
 - Consolidated project, architecture, API, Assistant, deployment, and
   troubleshooting guidance into `docs/README.md`.
 - Removed duplicated and historical planning documents.

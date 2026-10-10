@@ -50,8 +50,9 @@ so an unset preference stays unset and the media query stays authoritative.
 Legacy layout/global styles remain in `src/styles/` with feature CSS under each
 module; they shrink as routes are ported.
 
-The `portfolioSavedStore` save signal (Nanostores, `src/core/stores.ts`)
-triggers the dashboard refresh, coalesced to an animation frame. The app root
+The `portfolioSavedStore` save signal (Nanostores, `src/core/stores.ts`) is
+subscribed through `usePortfolioSaved()` in `src/app/providers.tsx`, so a
+migrated route re-renders when a save invalidates its data. The app root
 and each React route sit inside an `ErrorBoundary`, so a failure in one route
 renders a retry fallback rather than blanking the app.
 
@@ -71,31 +72,39 @@ serialization uses PapaParse in both directions: export lives in
 `src/lib/portfolioCsv.ts`, import parsing/validation in
 `src/modules/profile/csv-import.ts`.
 
-### Dashboard — `src/modules/dashboard/`
+### Dashboard — `src/app/routes/dashboard/`
 
-The dashboard refreshes NAVs for positive-unit SIP holdings before computing
-KPIs. It shows net worth/assets/liabilities; SIP current value/invested/P&L;
-FI progress; Nifty drawdown; cashflow summary; market-data freshness, sync mode,
-last-save time, profile completeness and liabilities; category composition pie
-(plain `chart.js`, HTML legend below the canvas); FI target progress; Coorg
-goal; two analytics charts (below); and, when SWP enabled, SWP, tax,
-advisor-review and expense-tracker widgets. A market crash monitor can show a
-severity banner. Dashboard refreshes
-on state save while active and on theme change, and its trust-panel sync,
-market-refresh and cloud-mode labels update live from the reactive status
-stores (subscribed on render, unsubscribed by `teardownDashboard`). The
-composition chart instance is replaced on every repaint (previous instance
-destroyed before the markup is rebuilt) and destroyed by `teardownDashboard`;
-mounting no-ops when no canvas or 2D context is available, so tests and odd
-browsers still render the legend and labels.
+The dashboard is migrated: React owns the route (`DashboardRoute`), its
+`#dashboard` container and the `data-migration-state="migrated"` marker.
+`src/app/routes/dashboard/` splits into `index.tsx` (composition + one-shot
+market refresh), `kpi-cards.tsx`, `charts.tsx`, `trust-panel.tsx` and
+`widgets.tsx`. The non-UI behaviour it shares with the shell lives in
+`src/modules/dashboard/`: `fetchSIPNAVs`, `refreshStaleData`, `staleSourceLabels`
+and `updateCrashAlert`.
+
+On mount the route refreshes NAVs for positive-unit SIP holdings (plus stale FX
+rows) and fetches Nifty history in parallel, then re-renders on portfolio saves
+(`portfolioSavedStore` via `usePortfolioSaved`) and market-refresh transitions
+(`marketRefreshStatusStore`). It shows net worth/assets/liabilities; SIP current
+value/invested/P&L; FI progress; Nifty drawdown; cashflow summary; market-data
+freshness, sync mode, last-save time, profile completeness and liabilities;
+category composition pie (Recharts, HTML legend below the chart); FI target
+progress; Coorg goal; two analytics charts (below); and, when SWP enabled, SWP,
+tax, advisor-review and expense-tracker widgets. A market crash monitor can show
+a severity banner (`crashAlertStore`), and the trust-panel sync, market-refresh
+and cloud-mode labels update live from the reactive status stores. Charts are
+static markup (`isAnimationActive={false}`) and honour
+`prefers-reduced-motion`; an empty composition renders a "No holdings yet" state
+instead of an empty pie.
 
 Analytics charts plot two distinct real series. The **net-worth trend** card
 charts persisted daily snapshots only: points are the recorded
 `state.netWorthHistory` entries filtered by an inclusive date window from
 `src/lib/dates.ts` (both endpoints included) — sparse days stay sparse, with
-  no backfill, interpolation, or invented values; a `.chart-meta` provenance
+  no backfill, interpolation, or invented values; a provenance
   line names the source, point count and span, and notes that gaps are days
-  without a snapshot. Its range buttons (3M/6M/1Y/
+  without a snapshot. Series are downsampled above `MAX_CHART_POINTS` (500).
+  Its range buttons (3M/6M/1Y/
 3Y/5Y/All) are native, keyboard-focusable `<button>`s, disabled unless the
 snapshot span reaches within 15 days of that window start, so only supported
 ranges are selectable; an empty history renders an empty state without
@@ -110,11 +119,7 @@ user's portfolio return. Two views exist — performance (provider index level)
 and drawdown (percent below the running maximum of that same series, derived
 in `chart-data.ts` without adding points). Missing history renders an
 "unavailable" state with no chart and no range/view controls, and current
-value KPIs are computed independently of both series. All three Chart.js
-instances (pie, trend, benchmark) follow the same create/replace/destroy
-discipline: destroyed before every markup rebuild, on `teardownDashboard`,
-and recreated after repaint; range/view clicks rebuild only the affected
-chart in place instead of repainting the dashboard.
+value KPIs are computed independently of both series.
 
 Net worth rules: MF and SIP = units × matching cached NAV (MF requires explicit
 scheme code; SIP may use name matcher); FD, EPF, ESOP and bonds sum `amount`;
@@ -221,17 +226,17 @@ timestamp/freshness and three starter questions.
 ## Shared UI and formatting
 
 `src/modules/ui/Modal.ts` wraps native `<dialog>` behavior for shared callers;
-`Toast.ts` exposes transient status notifications. `lib/formatters.ts` provides
-Indian currency/number formatting. The dashboard charts (composition pie,
-net-worth trend, Nifty benchmark) use plain `chart.js` (no chart
-wrapper/framework) with their lifecycle owned by
-`src/modules/dashboard/index.ts` (`mountCompositionChart`,
-`mountNetWorthChart` and `mountBenchmarkChart` replace the previous instance
-on repaint; the matching `destroy*` helper runs before every markup rebuild
-and on unmount), with data shaping isolated in
-`src/modules/dashboard/chart-data.ts`. Accessibility uses native inputs/buttons, labels, dialog
-and live regions where implemented. Route pages are pre-rendered/verified by
-`scripts/routes.mjs`, `prerender-routes.mjs`, and route smoke scripts.
+`Toast.ts` exposes transient status notifications via the imperative `showToast`
+API, which the kit's Radix `<Toaster>` subscribes to and renders
+(`src/app/ui/Toast.tsx`). `lib/formatters.ts` provides Indian currency/number
+formatting. The dashboard charts are React components in
+`src/app/routes/dashboard/charts.tsx` built on **Recharts** (already a
+dependency); pure series derivation, range support and downsampling live in
+`src/modules/dashboard/chart-data.ts`. The legacy `chart.js` dependency and
+`src/modules/dashboard/styles.css` were removed with the migration.
+Accessibility uses native inputs/buttons, labels, dialog and live regions where
+implemented. Route pages are pre-rendered/verified by `scripts/routes.mjs`,
+`prerender-routes.mjs`, and route smoke scripts.
 
 The shared date helpers in `src/lib/dates.ts` parse strictly as `YYYY-MM`
 (year and month) or `YYYY-MM-DD` (calendar date); any other arrangement —
@@ -250,22 +255,24 @@ calculated call sites keep their own handling: months that fail their
 Modules save through `FeatureContext.portfolio`; storage validates data and
 keeps guest and UID scopes separate. Reactive signals are vanilla Nanostores
 atoms in `src/core/stores.ts`: `portfolioSavedStore` for save invalidation
-(dashboard subscribes with requestAnimationFrame coalescing),
+(subscribed by `usePortfolioSaved()` in the React provider),
 `syncStatusStore` for coordinator status (`idle`/`pending`/`syncing`/
 `offline`/`error`/`conflict`), `activeScopeStore` for the identity-neutral
-active scope (`local`/`cloud`) and `marketRefreshStatusStore` for market
-refresh cycles (`idle`/`refreshing`/`success`/`error`). Subscriptions return
-unsubscribe callbacks that teardown invokes.
+active scope (`local`/`cloud`), `marketRefreshStatusStore` for market
+refresh cycles (`idle`/`refreshing`/`success`/`error`) and `crashAlertStore`
+for the crash-alert banner (`CrashAlert | null`). Atom subscriptions return
+unsubscribe callbacks.
 
 Scope-awareness: `PortfolioSession.teardown()` finishes by calling
 `resetScopeStatuses()`, which clears sync status, market refresh status and
 the scope signal — so guest↔user and user↔user switches never leave stale
 status (including status published while the retiring scope's flush or
 disposal runs). The session also publishes the scope signal when a sync
-coordinator is attached. The dashboard's data-trust panel renders these
-signals (`sync-status-value`, `market-refresh-value`, `scope-mode-label`)
-and re-subscribes on every render without stacking callbacks;
-`teardownDashboard()` unsubscribes them.
+coordinator is attached. The dashboard's data-trust panel (`DataTrustPanel`)
+renders these signals (`sync-status-value`, `market-refresh-value`,
+`scope-mode-label`) and reads them through `useStore`, so React handles
+subscription and cleanup. `crashAlertStore` is not cleared by
+`resetScopeStatuses`; the Nifty monitor owns its value.
 
 Ownership is unchanged: these stores are ephemeral UI signals only — durable
 persistence stays in the portfolio repository/storage (identity-scoped
@@ -622,6 +629,11 @@ comma grouping; non-finite becomes ₹0. `formatNumber()` uses Indian grouping;
 `formatPercentage()` expects fractional input and multiplies by 100. Date and
 time helpers return empty string for invalid input. Modal helper uses native
 `<dialog>.showModal()`, text content for title/button labels and caller-supplied
-HTML for modal body; backdrop click and close button close it. Toast uses
-role=status/aria-live polite, message textContent, four types and duration-based
-dismissal.
+HTML for modal body; backdrop click and close button close it. The imperative
+Toast API keeps `showToast(message, duration, type)` (four types, duration-based
+dismissal, sticky when duration is 0) and feeds the kit's Radix `<Toaster>`,
+which renders bottom-right with swipe-to-dismiss; Radix supplies the
+`aria-live` region. Until React mounts, toasts render through the legacy DOM
+fallback (`#toast-container`, role=status/aria-live polite), so nothing fired
+during session bootstrap is lost; the first `<Toaster>` subscription switches
+that off.
