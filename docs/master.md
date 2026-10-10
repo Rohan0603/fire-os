@@ -116,7 +116,8 @@ allowlisted by `PERSISTED_STATE_KEYS`. Major sections: `profile`; MF and SIP
 fund maps; FD, EPF, ESOP, bonds, custom assets, liabilities and demat; NAV/Nifty/
 FX caches; benchmark tracker; Coorg goal; fund watchdog inputs; SWP and tax
 calendar; expenses; net-worth history; completed actions and milestones;
-insurance; ESOP detail/vesting; and `marketHistory`, a bounded local cache of
+insurance; ESOP detail/vesting; Assistant preferences (`assistant.sendExactFigures`,
+opt-in and false by default); and `marketHistory`, a bounded local cache of
 market series. `currentUser`, `_lastSavedAt`, and `_syncMetadata`
 are runtime-only. `persistedPortfolioSchema` (Valibot) and
 `isPersistedPortfolioData()` enforce exact key/nested shapes, types, finite
@@ -265,8 +266,10 @@ backend resource. See [UI reference](ui.md) for per-module behavior.
 
 ## Assistant boundary
 
-The browser builds the summary in `src/lib/assistant/sanitize.ts`, explicitly
-transmits exact totals only with the request's `sendExact` choice, and POSTs to
+The browser builds the summary in `src/lib/assistant/sanitize.ts`, transmits
+exact totals only when the user has opted in through the persisted
+`state.assistant.sendExactFigures` setting (false by default; the request's
+`sendExact` mirrors it), and POSTs to
 `/api/assistant/query`. The Worker validates the request and
 extracted-proposal envelopes with Valibot in `shared/assistant-policy.js`, applies
 the separate prompt regex policy, rate limits, forwards a system prompt and conversation to

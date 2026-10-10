@@ -159,6 +159,16 @@ export interface FireOSState {
 
   // ESOP Details
   esopDetails: EsopDetails;
+
+  // Assistant preferences
+  assistant: {
+    /**
+     * Opt-in to transmit exact portfolio figures (net worth, FI target,
+     * expenses, per-asset totals) to the Assistant. Defaults to false, so
+     * only range buckets are sent unless the user turns this on.
+     */
+    sendExactFigures: boolean;
+  };
 }
 
 /**
@@ -195,7 +205,7 @@ export const PERSISTED_STATE_KEYS = [
   'niftyHigh', 'niftyData', 'currencyRates', 'marketHistory', 'eurInr', 'eurInrData', 'alphaTrackerData',
   'coorgCorpus', 'coorgStartDate', 'coorgTarget', 'coorgMonthlyAmount',
   'watchdogRules', 'swpSchedule', 'taxCalendar', 'expenses', 'netWorthHistory',
-  'completedActions', 'achievedMilestones', 'insurance', 'esopDetails',
+  'completedActions', 'achievedMilestones', 'insurance', 'esopDetails', 'assistant',
 ] as const;
 
 const finiteNumberSchema = z.number();
@@ -289,6 +299,7 @@ const persistedPortfolioShape = {
     vestingSchedule: z.array(z.strictObject({ date: z.string(), shares: finiteNumberSchema })),
     triggers: z.strictObject({ marriage: z.boolean(), childBirth: z.boolean(), jobChange: z.boolean(), coorgConstruction: z.boolean() }),
   })),
+  assistant: exactOptional(z.strictObject({ sendExactFigures: z.boolean() })),
 };
 
 /** Exact allowlisted persisted shape; omitted sections remain valid for legacy data. */
@@ -467,6 +478,9 @@ export function initializeState(): FireOSState {
         coorgConstruction: false,
       },
     },
+
+    // Assistant preferences (opt-in; off by default)
+    assistant: { sendExactFigures: false },
   };
   return defineMarketHistory(state, {});
 }
@@ -503,6 +517,7 @@ export function normalizePersistedState(value: unknown): FireOSState | null {
       ...data.esopDetails,
       triggers: { ...defaults.esopDetails.triggers, ...data.esopDetails?.triggers },
     },
+    assistant: { ...defaults.assistant, ...data.assistant },
   };
   return defineMarketHistory(normalized, data.marketHistory ?? {});
 }
@@ -624,6 +639,7 @@ export function mergeState(existing: FireOSState, incoming: Partial<FireOSState>
         ...incoming.esopDetails?.triggers,
       },
     },
+    ...(incoming.assistant && { assistant: { ...existing.assistant, ...incoming.assistant } }),
     // Metadata is only set explicitly, never from incoming
     _lastSavedAt: incoming._lastSavedAt ?? existing._lastSavedAt,
   };

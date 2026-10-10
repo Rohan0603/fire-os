@@ -6,7 +6,7 @@
 Deep Chat UI
  -> consent-scoped client state
  -> optional fresh Nifty fetch
- -> buildContextSummary(state, sendExact=true)
+ -> buildContextSummary(state, sendExact)
  -> POST { question, contextSummary, messages, sendExact }
  -> Cloudflare Worker (via VITE_ASSISTANT_API_URL, dev and production)
  -> shared shape/prompt policy -> OpenRouter Chat Completions
@@ -30,9 +30,11 @@ messages are sent. Starter prompts submit through the same request handler.
 
 The UI attempts a fresh Nifty fetch before each question. A successful result is
 stored locally without cloud sync; failure is non-fatal and uses the existing
-cache. The “send exact” boolean is part of the request. Current UI calls
-`buildContextSummary(state, true)`, so exact aggregates are sent for these
-requests; default helper behavior is bucketed-only.
+cache. The “send exact” boolean is part of the request. It is driven by the
+persisted user setting `state.assistant.sendExactFigures`, which defaults to
+false, so the UI sends bucketed ranges only unless the user opts in from the
+Assistant panel ("Send exact figures"). `buildContextSummary` still accepts an
+explicit boolean and defaults to bucketed-only.
 
 ## Context construction and privacy
 
@@ -70,7 +72,7 @@ base URL it is same-origin. Browser timeout defaults to 30s. JSON body:
   "question": "latest user question",
   "contextSummary": {},
   "messages": [{"role":"user","content":"latest user question"}],
-  "sendExact": true
+  "sendExact": false
 }
 ```
 
@@ -174,11 +176,12 @@ proposal or privacy contract, update both proxy boundary tests and the UI flow.
    data overwrites state `niftyData` and `niftyHigh` and persists locally with
    cloud sync disabled. Network failure is ignored so request can use old
    persisted Nifty data.
-3. UI calls `buildContextSummary(state, true)`. Helper independently supports
-   false (default), but current UI opts into exact aggregates for each request.
-   It updates Nifty freshness label and calls browser `queryAssistant()` with
-   timeout 30s, JSON content type and no auth header. CORS/proxy endpoint is
-   from `VITE_ASSISTANT_API_URL`, or relative same-origin when unset.
+3. UI calls `buildContextSummary(state, state.assistant.sendExactFigures)`. The
+   setting is off by default; the helper independently supports an explicit
+   boolean and defaults to false. It updates Nifty freshness label and calls
+   browser `queryAssistant()` with timeout 30s, JSON content type and no auth
+   header. CORS/proxy endpoint is from `VITE_ASSISTANT_API_URL`, or relative
+   same-origin when unset.
 4. `validateAssistantRequest()` validates body and message alternation, exact
    last question match, boolean sendExact and serialized size. Every user turn
    is scanned by regex prompt policy. Provider receives context serialized as
@@ -217,9 +220,9 @@ key is `${scope}:fireOS:assistant:consent`, with scope `anonymous` or
 `user:{uid}`. Existing `suggestChanges` legacy true value is accepted as write
 consent. Data context is generated from appState and sent to configured backend
 when a question is asked, independent of write toggle. `sendExact` controls
-range vs exact aggregates within summary builder; current Chat handler passes
-true unconditionally, so today's UI currently always sends exact summary
-figures. This differs from route metadata wording that describes range-only; see
+range vs exact aggregates within summary builder; it is driven by the persisted
+`state.assistant.sendExactFigures` setting, which defaults to false, so today's
+UI sends range buckets only until the user opts in. See
 `scripts/routes.mjs` if adjusting UI behavior.
 
 Assistant audit key is `${activePortfolioStorageKey}:fireOS:assistant:audit`;

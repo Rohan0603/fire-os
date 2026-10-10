@@ -77,8 +77,21 @@ describe('buildContextSummary', () => {
     expect(ctx.netWorthRange).toBe('5–25L');
   });
 
-  it('derives annual expense figures from the stored monthly value', () => {
+  it('defaults to sending no exact figures until the user opts in', () => {
     const state = initializeState();
+    state.fd = { fd1: { amount: 750000, currency: 'INR' } };
+
+    // A fresh profile has the persisted setting off by default.
+    expect(state.assistant.sendExactFigures).toBe(false);
+
+    const ctx = buildContextSummary(state, state.assistant.sendExactFigures);
+    expect(ctx.sendExact).toBe(false);
+    expect(ctx.exact).toBeUndefined();
+    expect(JSON.stringify(ctx)).not.toContain('750000');
+    expect(ctx.netWorthRange).toBe('5–25L');
+  });
+
+  it('derives annual expense figures from the stored monthly value', () => {    const state = initializeState();
     state.profile.annualExpenses = 50000;
 
     const ctx = buildContextSummary(state, true);

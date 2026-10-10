@@ -22,6 +22,20 @@
   font-size: 0.78rem;
 }
 
+.assistant-privacy-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.assistant-exact-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
 .consent-label {
   display: block;
   margin-bottom: 0.25rem;

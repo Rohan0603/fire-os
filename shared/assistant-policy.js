@@ -74,6 +74,7 @@ export const PERSISTED_ALLOWLIST = Object.freeze([
   'achievedMilestones',
   'insurance',
   'esopDetails',
+  'assistant',
 ]);
 
 /** @returns {null | { status: number, error: string }} */
