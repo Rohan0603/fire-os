@@ -36,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CI e2e job could not pass**: `e2e/auth.spec.ts` asserts the configured auth path but the
   quality workflow never injected `VITE_FIREBASE_*`, so both auth tests failed on a clean
   checkout.
+- **Quality workflow read Firebase config from the wrong context**: the e2e job read
+  `VITE_FIREBASE_*` from `secrets.*`, but those values are repository variables, so they
+  resolved empty and the two auth tests failed. Now read from `vars.*` like deploy.yml, and
+  the unused `VITE_FIREBASE_DATABASE_URL` mapping is removed.
 - **Dark `--color-on-destructive` had no override**: the dark destructive is a lighter red, so
   inherited white text fell below 4.5:1. Latent until a danger button is mounted. Now covered by
   the design-system contrast spec.
