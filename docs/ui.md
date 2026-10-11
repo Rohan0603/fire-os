@@ -106,7 +106,7 @@ rows) and fetches Nifty history in parallel, then re-renders on portfolio saves
 value/invested/P&L; FI progress; Nifty drawdown; cashflow summary; market-data
 freshness, sync mode, last-save time, profile completeness and liabilities;
 category composition pie (Recharts, HTML legend below the chart); FI target
-progress; Coorg goal; two analytics charts (below); and, when SWP enabled, the
+progress; planning-goal cards; two analytics charts (below); and, when SWP enabled, the
 SWP schedule, tax and expense-tracker widgets. With no positive FI target set the
 FI progress KPI reports "No FI target set" and the FI Goal Progress card prompts
 to set a target instead of claiming "FI achieved". A market crash monitor can show
@@ -215,8 +215,9 @@ family of two or less, otherwise ₹50L.
 
 Action engine emits urgent watchdog alerts, urgent Nifty drawdown >10%, missing
 insurance data, monthly insurance gaps, allocation drift >5%, tax harvest after
-11 months/no initial harvest for age >25, April SIP step-up reminder, Coorg SIP
-start within six months, and annual harvest reminder from calendar year 2032.
+11 months/no initial harvest for age >25, April SIP step-up reminder, a SIP-prep
+action for each planning goal approaching its target date (within six months),
+and annual harvest reminder from calendar year 2032.
 FD maturity logic is commented out and does not run. Completed action IDs are
 persisted; current logic treats records under 30 days old as completed, then
 resets them. List sorts incomplete before complete, then urgent/this-month/
@@ -229,9 +230,14 @@ health renderers.
 
 ### ESOP Tools — `src/modules/esop/`
 
-Stores grant/shares, liquidation shares, vesting FMV, triggers and optional
-holdings by ticker, quantity and currency. `esopDetails.vestingSchedule` is
-persisted and validated but is no longer rendered or edited anywhere. Quotes come
+Stores grant/shares, liquidation shares, vesting FMV, general liquidation rules
+and optional holdings by ticker, quantity and currency. `liquidationRules` (an
+id-keyed list of `{id, kind, label, active}` rules with an optional
+`goalId`/`allocateAmount` pair for goal-linked rules) replaces the old fixed
+four-boolean `esopDetails.triggers` shape; the dashboard renders one toggle card
+per rule and goal allocations deploy sequentially from remaining corpus.
+`esopDetails.vestingSchedule` is persisted and validated but is no longer
+rendered or edited anywhere. Quotes come
 from Yahoo Finance via the Worker `/api/market/quote` endpoint; FX converts to
 INR. Value = quantity × quote ×
 INR rate. There is no manual holding valuation path: a failed quote or missing
@@ -610,8 +616,9 @@ cover the withdrawal. A manual simulator awaits cloud persistence.
   SIP+MF current value and custom assets in denominator but custom amounts do
   not map to a target bucket. Harvest reminder uses elapsed days /30 >11; no
   record + profile age>25 adds initial reminder. April action encourages ≥10%
-  SIP raise. Coorg action is when date is 0–6 months away. Calendar ≥2032 adds
-  annual harvest action. FD-maturity rule is commented out.
+  SIP raise. One goal-SIP action per planning goal fires when its target date is
+  0–6 months away. Calendar ≥2032 adds annual harvest action. FD-maturity rule
+  is commented out.
 - **Completed actions:** records ISO completedAt by action ID; computed as
   completed when less than 30 days old (including future timestamps); IDs often
   encode month/year to recur. Checkbox updates `completedActions` then rerenders
@@ -621,19 +628,22 @@ cover the withdrawal. A manual simulator awaits cloud persistence.
   duplicate. History shows at most six latest stored snapshots. Trend is last
   minus first shown value; bar height relative to maximum displayed; dates and
   values are presentation-only.
-- **Coorg:** default target ₹2Cr, SIP start 2031-01, monthly amount ₹10k. Progress
-  is current corpus/target (not capped in data; UI bar caps at 100). Remaining
-  target can be negative. Status is target reached, in progress if current date
-  ≥ SIP start month, otherwise planning. It does not project SIP future value.
+- **Planning goals:** the dashboard renders one progress card per `goals` entry
+  (status planning / in progress / target reached). The personal preset ships a
+  single home goal (target ₹2Cr, start 2031-01, monthly ₹10k, corpus ₹24L); the
+  API supports many goals. Progress is current corpus/target (not capped in
+  data; UI bar caps at 100). Remaining target can be negative. It does not
+  project SIP future value.
 - **Watchdog:** PPFCF AUM > configured limit => high; Nippon Growth blocked >14
   days => medium; Small Cap blocked >60 => high; either manager exit => critical.
   It returns text guidance only; it does not alter investments or fetch manager
   status/AUM itself.
 - **Expense tracker:** adds/display persisted expenses from dashboard modal.
   Metric named monthlyAverage is rounded totalAmount / expense-record count, not
-  grouped by month/date; `_startDate` is unused. Target ₹122,000; within ±10%
-  inclusive? Source uses strict `abs(variance)<10`, where variance is rounded
-  whole percent. Widget is only displayed when SWP is enabled.
+  grouped by month/date; `_startDate` is unused. It is data-only — the former
+  hardcoded ₹122,000 target row and its on/under-target status were removed
+  with the owner's personal SWP assumption. Widget is only displayed when SWP
+  is enabled.
 
 ## Auth UI and formatting details
 

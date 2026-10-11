@@ -8,16 +8,13 @@ export interface Expense {
 interface ExpenseRate {
   monthlyAverage: number;
   totalMonths: number;
-  validation: {
-    isOnTarget: boolean; // Should be ₹122K/month at FI
-    variance: number; // % difference from target
-  };
 }
 
 export function addExpense(expenses: Expense[], newExpense: Expense): Expense[] {
   return [...expenses, newExpense];
 }
 
+/** Average of the user's own recorded expenses; no hardcoded target. */
 export function calculateExpenseRate(
   expenses: Expense[],
   _startDate: string
@@ -26,25 +23,15 @@ export function calculateExpenseRate(
     return {
       monthlyAverage: 0,
       totalMonths: 0,
-      validation: { isOnTarget: false, variance: 0 },
     };
   }
 
   const totalAmount = expenses.reduce((sum, e) => sum + e.amount, 0);
   const monthlyAverage = Math.round(totalAmount / expenses.length);
 
-  const target = 122000; // ₹122K/month at FI
-  const variance = parseFloat(
-    (((monthlyAverage - target) / target) * 100).toFixed(0)
-  );
-
   return {
     monthlyAverage,
     totalMonths: expenses.length,
-    validation: {
-      isOnTarget: Math.abs(variance) < 10, // Within 10% is OK
-      variance,
-    },
   };
 }
 
@@ -55,17 +42,10 @@ export function renderExpenseTracker(state: any): string {
     state.swpSchedule?.startDate || new Date().toISOString().split("T")[0]
   );
 
-  const status =
-    rate.validation.isOnTarget
-      ? "✅ On Target"
-      : `⚠️ ${rate.validation.variance > 0 ? "Over" : "Under"} target by ${Math.abs(rate.validation.variance)}%`;
-
   const contentHtml = expenses.length === 0
     ? "<p style='margin-bottom: 1.5rem; color: var(--text-secondary);'>No expenses tracked yet.</p>"
     : `
       <p>Monthly Average: ₹${Math.round(rate.monthlyAverage / 1000)}K</p>
-      <p>Target: ₹122K (3% SWR)</p>
-      <p>${status}</p>
       <p>Total SWP withdrawals: ${rate.totalMonths} months</p>
     `;
 

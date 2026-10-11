@@ -118,16 +118,6 @@ export function ExpenseTracker({ state }: { state: FireOSState }) {
       ) : (
         <div className="flex flex-col gap-1">
           <StatRow label="Monthly Average" value={formatCurrency(rate.monthlyAverage, 0)} />
-          <StatRow label="Target" value={formatCurrency(122000, 0)} />
-          <StatRow
-            label="Status"
-            value={
-              rate.validation.isOnTarget
-                ? 'On target'
-                : `${rate.validation.variance > 0 ? 'Over' : 'Under'} target by ${Math.abs(rate.validation.variance)}%`
-            }
-            valueClass={rate.validation.isOnTarget ? 'text-(--color-accent)' : 'text-(--color-warning)'}
-          />
           <StatRow label="Months tracked" value={String(rate.totalMonths)} />
         </div>
       )}

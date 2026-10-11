@@ -61,10 +61,7 @@ export const PERSISTED_ALLOWLIST = Object.freeze([
   'eurInr',
   'eurInrData',
   'alphaTrackerData',
-  'coorgCorpus',
-  'coorgStartDate',
-  'coorgTarget',
-  'coorgMonthlyAmount',
+  'goals',
   'watchdogRules',
   'swpSchedule',
   'taxCalendar',
@@ -74,6 +71,7 @@ export const PERSISTED_ALLOWLIST = Object.freeze([
   'achievedMilestones',
   'insurance',
   'esopDetails',
+  'liquidationRules',
   'assistant',
 ]);
 

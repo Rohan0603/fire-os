@@ -18,7 +18,7 @@ export interface SyncMetadata {
   isDirty: boolean; // Whether local state differs from server
 }
 
-export type SchemaVersion = 'fireOS_v2' | 'fireOS_v3' | 'fireOS_v4';
+export type SchemaVersion = 'fireOS_v2' | 'fireOS_v3' | 'fireOS_v4' | 'fireOS_v5';
 
 export interface ClientMetadata {
   clientId?: string;
@@ -53,10 +53,7 @@ export interface PortfolioData {
   /** @deprecated Legacy EUR/INR data accepted during migration. */
   eurInrData?: CurrencyRateData;
   alphaTrackerData?: FireOSState['alphaTrackerData'];
-  coorgCorpus?: number;
-  coorgStartDate?: string;
-  coorgTarget?: number;
-  coorgMonthlyAmount?: number;
+  goals?: FireOSState['goals'];
   watchdogRules?: FireOSState['watchdogRules'];
   swpSchedule?: FireOSState['swpSchedule'];
   taxCalendar?: FireOSState['taxCalendar'];
@@ -66,6 +63,7 @@ export interface PortfolioData {
   achievedMilestones?: FireOSState['achievedMilestones'];
   insurance?: FireOSState['insurance'];
   esopDetails?: FireOSState['esopDetails'];
+  liquidationRules?: FireOSState['liquidationRules'];
 }
 
 /** Fields persisted in Firestore; auth and runtime synchronization state stay local. */
@@ -122,10 +120,10 @@ function isIsoTimestamp(value: unknown): value is string {
 
 const persistedFields = new Set<keyof PortfolioData | 'assistant'>([
   'profile', 'mf', 'sip', 'fd', 'epf', 'esop', 'bonds', 'otherHoldings', 'liabilities', 'demat', 'nav',
-  'niftyHigh', 'niftyData', 'currencyRates', 'eurInr', 'eurInrData', 'alphaTrackerData',
-  'coorgCorpus', 'coorgStartDate', 'coorgTarget', 'coorgMonthlyAmount',
+  'niftyHigh', 'niftyData', 'currencyRates', 'eurInr', 'eurInrData',   'alphaTrackerData',
+  'goals',
   'watchdogRules', 'swpSchedule', 'taxCalendar', 'expenses', 'netWorthHistory',
-  'completedActions', 'achievedMilestones', 'insurance', 'esopDetails', 'assistant',
+  'completedActions', 'achievedMilestones', 'insurance', 'esopDetails', 'liquidationRules', 'assistant',
 ]);
 
 function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
@@ -145,7 +143,7 @@ function isClientMetadata(value: unknown): boolean {
 /** Runtime guard for Firestore and imported envelope data. */
 export function isPortfolioEnvelope(value: unknown): value is PortfolioEnvelope {
   if (!isRecord(value)) return false;
-  if (value.schemaVersion !== 'fireOS_v2' && value.schemaVersion !== 'fireOS_v3' && value.schemaVersion !== 'fireOS_v4') return false;
+  if (value.schemaVersion !== 'fireOS_v2' && value.schemaVersion !== 'fireOS_v3' && value.schemaVersion !== 'fireOS_v4' && value.schemaVersion !== 'fireOS_v5') return false;
   if (!isIsoTimestamp(value.lastSavedAt) || !isRecord(value.data)) return false;
 
   const data = value.data;

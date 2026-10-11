@@ -295,7 +295,7 @@ function attachCalculatorHandlers(context: FeatureContext) {
     }
 
     if (!D.swpSchedule) {
-      D.swpSchedule = { enabled: false, startDate: '', monthlyAmount: 122000, rate: 3, autoExecute: false };
+      D.swpSchedule = { enabled: false, startDate: '', monthlyAmount: 0, rate: 3, autoExecute: false };
     }
 
     D.swpSchedule.enabled = enabled;
@@ -432,7 +432,7 @@ function calculateSIPPause() {
 }
 
 function renderSWPScheduler(): string {
-  const swp = D.swpSchedule || { enabled: false, startDate: '', monthlyAmount: 122000, rate: 3 };
+  const swp = D.swpSchedule || { enabled: false, startDate: '', monthlyAmount: 0, rate: 3 };
   return `
     <div class="calc-card">
       <h3>SWP Scheduler</h3>
@@ -447,7 +447,7 @@ function renderSWPScheduler(): string {
 
       <div class="calc-input-group margin-bottom-1-5">
         <label for="swp-amount">Monthly Withdrawal Amount (₹)</label>
-        <input type="number" id="swp-amount" value="${swp.monthlyAmount || 122000}">
+        <input type="number" id="swp-amount" value="${swp.monthlyAmount ?? 0}">
       </div>
 
       <div class="calc-input-group margin-bottom-1-5">

@@ -8,6 +8,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **General planning goals**: the fixed `coorg*` goal scalars are replaced by a
+  persisted `goals: Goal[]` model (`src/types/state.ts`, `goalSchema`) with a
+  dashboard progress card per goal and per-goal SIP-prep actions. The personal
+  preset (`src/presets/personal-plan.ts`) keeps the original home-goal numbers as
+  a single goal.
+- **General ESOP liquidation rules**: the four fixed `esopDetails.triggers`
+  booleans are replaced by a persisted `liquidationRules: LiquidationRule[]`
+  list — one toggle card per rule, plus `allocateAmount` goal allocations that
+  deploy sequentially from the remaining corpus.
+- **Persisted-state migration** (`src/lib/portfolioMigrations.ts`): legacy
+  payloads (v2–v4) rewrite `coorg*`/`triggers` into the `goals`/`liquidationRules`
+  shape at every read boundary (local storage, JSON backup restore, Firestore
+  envelope load/snapshot); idempotent, liberal in / strict out. Writes now use
+  envelope schema `fireOS_v5`; reads still accept v2–v5.
 - **Assistant Worker authentication**: `POST /api/assistant/query` now requires a
   verified Firebase ID token sent as `Authorization: Bearer`. The Worker checks
   RS256 signature against Google's JWKS, issuer/audience for
@@ -52,6 +66,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   proxy-key guards are removed; caching, TTLs and graceful degradation are unchanged.
 
 ### Removed
+- **Owner-specific values from configuration and UI**: dead `CONFIG` fields
+  (watchdog limits, scheme codes including `122639`, FI/SWP goal defaults,
+  crash protocol) are deleted; the personal ₹122,000 SWP expense target and its
+  on/under-target status rows are removed from the expense tracker (both the
+  React widget and the imperative renderer); the SWP `monthlyAmount` default and
+  the FI-target placeholder example no longer carry the owner's ₹122K/₹5.5Cr
+  figures; the personal-identifier guard re-enforces `122000` and `55000000`.
+  Fund names/allocation and the LTCG/milestone constants remain as live feature
+  identifiers — see the sweep report for the p-config-fix commit.
 - **Advisor webhook integration**: the dashboard CFP-review widget and `src/modules/integrations/advisor-webhook.ts` are gone. It POSTed the user's email and exact portfolio figures to `https://api.fire-os.app`, an NXDOMAIN/unowned domain with no backend, exposing a registerable leak.
 
 ### Fixed

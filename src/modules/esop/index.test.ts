@@ -6,9 +6,8 @@ import { initEsopModule } from './index';
 
 const NODE_IDS = [
   'trigger-marriage',
-  'trigger-child',
-  'trigger-job',
-  'trigger-coorg',
+  'trigger-childBirth',
+  'trigger-jobChange',
   'calc-shares',
   'calc-fmv',
   'calc-price',

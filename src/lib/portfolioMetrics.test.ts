@@ -181,9 +181,22 @@ function sizedPortfolio(scale: number): FireOSState {
       date: `202${6 + Math.floor(i / 12)}-${String((i % 12) + 1).padStart(2, '0')}-01`,
       shares: 100,
     })),
-    triggers: { marriage: false, childBirth: false, jobChange: false, coorgConstruction: false },
   };
-  state.coorgCorpus = 2_400_000;
+  state.goals = [
+    {
+      id: 'goal-sample',
+      name: 'Sample Home',
+      kind: 'home',
+      targetToday: 10_000_000,
+      targetDate: '2030-06',
+      inflation: 'cpi',
+      linkedAssetIds: [],
+      currentAmount: 1_200_000,
+      monthlyContribution: 8_000,
+      priority: 1,
+      riskBucket: 'medium',
+    },
+  ];
   return state;
 }
 
@@ -193,7 +206,7 @@ function measureLikeProduction(state: FireOSState) {
   const { mf, ...stateData } = data;
   void _entryUpdatedAt;
   // Mirrors savePortfolio()'s state document construction in modules/api/firestore.ts.
-  const stateDocument = { ...envelopeWithoutDynamicMetadata, schemaVersion: 'fireOS_v4', data: stateData };
+  const stateDocument = { ...envelopeWithoutDynamicMetadata, schemaVersion: 'fireOS_v5', data: stateData };
   const metrics = measurePortfolioWrite(stateDocument, mf ?? {}, SAVED_AT);
   const { currentUser: _user, _syncMetadata: _meta, _lastSavedAt: _saved, ...persisted } = state;
   void _user;

@@ -60,8 +60,11 @@ latest envelope, debounces writes (1s), retries transient errors up to three
 times with exponential delays starting at 500ms, pauses offline, flushes on
 reconnect, and publishes status changes to `syncStatusStore`. Section
 clocks/entry timestamps
-support merge decisions. The state envelope uses schema `fireOS_v4` for writes;
-rules accept v2/v3/v4.
+support merge decisions. The state envelope uses schema `fireOS_v5` for writes;
+rules accept v2/v3/v4/v5. Reads migrate older payloads (legacy `coorg*` goal
+fields and `esopDetails.triggers`) into the current `goals`/`liquidationRules`
+shape before validation via `migratePortfolioEnvelope()` in
+`src/lib/portfolioMigrations.ts`.
 
 ## Firestore data contract
 
@@ -279,8 +282,9 @@ stops applying results after identity changes.
 section clocks for `profile`, `holdings`, `planning`, `insurance`, `esop`, and
 `cache`. It compares each section's fields to prior envelope JSON: changed
 section gets current `now`; unchanged keeps previous clock or receives `now`.
-The builder returns schema `fireOS_v3`; `savePortfolio()` writes v4. Metadata
-includes client id/version/platform and backup format marker.
+The `planning` section carries `goals`; the `esop` section carries `esopDetails`
+and `liquidationRules`. The builder returns schema `fireOS_v5`; `savePortfolio()`
+writes v5. Metadata includes client id/version/platform and backup format marker.
 
 `mergeEnvelopes(local, remote)` starts from cloned remote data, then chooses a
 whole section by sectionUpdatedAt timestamp. Newer clock wins. Missing clocks
@@ -324,7 +328,7 @@ write succeeded.
 ## Firestore save/read details and rules boundary
 
 On save, code removes dynamic `entryUpdatedAt` from state document envelope,
-removes `data.mf`, writes schemaVersion `fireOS_v4` and remaining data in one
+removes `data.mf`, writes schemaVersion `fireOS_v5` and remaining data in one
 batch. Metrics measure state doc plus MF entries, but the warning fires on
 `stateDocumentBytes` alone above 750KB. It then
 fetches existing MF documents, deletes IDs missing from current map, sets each
@@ -339,7 +343,7 @@ when state envelope is available.
 Rules require authenticated `request.auth.uid == path uid`; state envelope keys
 are limited to schemaVersion, lastSavedAt, client, serverMetadata, data,
 sectionUpdatedAt, entryUpdatedAt, migration, format. Supported schema strings
-are fireOS_v2/v3/v4. Owner may delete canonical doc and child holdings. Rules
+are fireOS_v2/v3/v4/v5. Owner may delete canonical doc and child holdings. Rules
 validate top-level envelope and selected nested structures, bounds and
 allowlisted keys independently of Assistant Zod validation. Client
 `isPersistedPortfolioData()` does stricter nested

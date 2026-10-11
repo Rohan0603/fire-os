@@ -1,6 +1,9 @@
 /**
  * Global Configuration Module
- * Centralizes all static endpoints, limits, cache TTLs, and goal parameters
+ * Centralizes the static endpoints, cache TTLs, Firebase settings, and the
+ * rebalancing allocation used by `portfolio-rebalancing.ts`. Dead fields are
+ * gone: watchdog limits, scheme codes, FI/SWP goal defaults, and crash
+ * protocol carried owner-specific values and had no consumers.
  */
 
 export const CONFIG = {
@@ -27,51 +30,15 @@ export const CONFIG = {
     currencyRate: 24 * 60 * 60 * 1000, // 24 hours
   },
 
-  // Target Allocations (%)
+  // Consumed by `src/modules/calculators/portfolio-rebalancing.ts` (destructures
+  // both fields). Kept only because that consumer exists; the allocation
+  // percentages remain personal-plan debt pending a fund-layer generalization
+  // (see the p-config-fix sweep report).
   targetAllocation: {
     PPFCF: 40,
     NipponGrowth: 30,
     NipponSmallCap: 20,
     Gold: 10,
   } as Record<string, number>,
-
-  // Rebalancing Threshold (%)
   driftThreshold: 5,
-
-  // Watchdog Default Limits
-  watchdog: {
-    ppfcfAumLimit: 175000000000,           // ₹1.75L Cr
-    nipponGrowthBlockThreshold: 14,        // 14 days
-    nipponSmallCapBlockThreshold: 60,      // 60 days
-  },
-
-  // Goal Defaults
-  goals: {
-    fiTarget: 55000000,                    // ₹5.5Cr
-    coorgTarget: 20000000,                 // ₹2Cr
-    coorgSipAmount: 10000,                 // ₹10K/month
-    swpMonthlyAmount: 122000,              // ₹122K/month
-  },
-
-  // Scheme Codes
-  schemes: {
-    ppfcf: '122639',
-    nipponGrowth: '118668',
-    nipponSmallCap: '118778',
-    goldEtf: '135106',
-  },
-
-  // Crash Protocol Parameters
-  crashProtocol: {
-    drawdowns: {
-      medium: 10,    // 10%
-      high: 15,      // 15%
-      critical: 25,  // 25%
-    },
-    deployments: {
-      mediumPercent: 10,     // 10% of Bonds
-      highPercent: 15,       // 15% of Bonds
-      criticalPercent: 25,   // 25% of Bonds
-    },
-  },
 };

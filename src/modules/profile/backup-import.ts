@@ -1,5 +1,6 @@
 
 import type { FeatureContext } from '../../core/feature-context';
+import { migratePersistedData } from '../../lib/portfolioMigrations';
 import { normalizePersistedState, persistedPortfolioSchema, type FireOSState } from '../../types/state';
 
 const runtimeStateKeys = new Set(['currentUser', '_lastSavedAt', '_syncMetadata']);
@@ -15,8 +16,8 @@ export function parsePortfolioBackup(text: string): { data: Partial<FireOSState>
     return { data: null, issues: ['Backup must contain a JSON object.'] };
   }
 
-  const persisted = Object.fromEntries(
-    Object.entries(parsed).filter(([key]) => !runtimeStateKeys.has(key)),
+  const persisted = migratePersistedData(
+    Object.fromEntries(Object.entries(parsed).filter(([key]) => !runtimeStateKeys.has(key))),
   );
   const result = persistedPortfolioSchema.safeParse(persisted);
   if (!result.success) {

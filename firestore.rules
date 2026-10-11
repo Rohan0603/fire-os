@@ -138,9 +138,9 @@ service cloud.firestore {
 
     function validEsopDetails(value) {
       return value is map
-        && value.keys().hasOnly(['shares', 'holdings', 'grantPrice', 'liquidationShares', 'vestingFmv', 'currentPrice', 'slabRate', 'vestingSchedule', 'triggers'])
-        && value.keys().hasAll(['shares', 'grantPrice', 'vestingSchedule', 'triggers'])
-        && value.size() <= 9
+        && value.keys().hasOnly(['shares', 'holdings', 'grantPrice', 'liquidationShares', 'vestingFmv', 'currentPrice', 'slabRate', 'vestingSchedule'])
+        && value.keys().hasAll(['shares', 'grantPrice', 'vestingSchedule'])
+        && value.size() <= 8
         && value.shares is number
         && (!('holdings' in value) || (value.holdings is list && value.holdings.size() <= 20))
         && value.grantPrice is number
@@ -148,14 +148,7 @@ service cloud.firestore {
         && (!('vestingFmv' in value) || value.vestingFmv is number)
         && (!('currentPrice' in value) || value.currentPrice is number)
         && (!('slabRate' in value) || value.slabRate is number)
-        && isBoundedList(value.vestingSchedule, 200)
-        && value.triggers is map
-        && value.triggers.keys().hasOnly(['marriage', 'childBirth', 'jobChange', 'coorgConstruction'])
-        && value.triggers.keys().hasAll(['marriage', 'childBirth', 'jobChange', 'coorgConstruction'])
-        && value.triggers.marriage is bool
-        && value.triggers.childBirth is bool
-        && value.triggers.jobChange is bool
-        && value.triggers.coorgConstruction is bool;
+        && isBoundedList(value.vestingSchedule, 200);
     }
 
     function validMfEntry(value) {
@@ -210,10 +203,9 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'profile', 'sip', 'fd', 'epf', 'esop', 'bonds', 'otherHoldings', 'liabilities', 'demat',
           'nav', 'niftyHigh', 'niftyData', 'currencyRates', 'eurInr', 'eurInrData',
-          'alphaTrackerData', 'coorgCorpus', 'coorgStartDate', 'coorgTarget',
-          'coorgMonthlyAmount', 'watchdogRules', 'swpSchedule', 'taxCalendar',
+          'alphaTrackerData', 'goals', 'watchdogRules', 'swpSchedule', 'taxCalendar',
           'expenses', 'netWorthHistory', 'completedActions', 'achievedMilestones',
-          'insurance', 'esopDetails', 'assistant'
+          'insurance', 'esopDetails', 'liquidationRules', 'assistant'
         ])
         && data.size() <= 40
         && (!('profile' in data) || data.profile is map)
@@ -221,6 +213,8 @@ service cloud.firestore {
         && (!('currencyRates' in data) || isBoundedMap(data.currencyRates, 200))
         && (!('liabilities' in data) || isBoundedMap(data.liabilities, 50))
         && (!('otherHoldings' in data) || isBoundedMap(data.otherHoldings, 200))
+        && (!('goals' in data) || isBoundedList(data.goals, 50))
+        && (!('liquidationRules' in data) || isBoundedList(data.liquidationRules, 50))
         && (!('achievedMilestones' in data) || isBoundedList(data.achievedMilestones, 500))
         && (!('insurance' in data) || data.insurance is map);
     }
@@ -278,7 +272,7 @@ service cloud.firestore {
       ])
       && request.resource.data.keys().hasAll(['schemaVersion', 'lastSavedAt', 'data'])
       && request.resource.data.schemaVersion is string
-      && request.resource.data.schemaVersion in ['fireOS_v2', 'fireOS_v3', 'fireOS_v4']
+      && request.resource.data.schemaVersion in ['fireOS_v2', 'fireOS_v3', 'fireOS_v4', 'fireOS_v5']
       && isIso(request.resource.data.lastSavedAt)
       && request.resource.data.data is map
       && validPersistedData()

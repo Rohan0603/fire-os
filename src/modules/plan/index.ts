@@ -16,6 +16,23 @@ let D = activeContext.state;
 const ASSUMED_ANNUAL_RETURN = 0.17;
 const ASSUMED_SIP_STEP_UP = 0.1;
 
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => {
+    switch (character) {
+      case '&':
+        return '&amp;';
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      case '"':
+        return '&quot;';
+      default:
+        return '&#39;';
+    }
+  });
+}
+
 export function initPlanModule(id: string = 'plan', context: FeatureContext = activeContext) {
   containerId = id;
   activeContext = context;
@@ -46,9 +63,29 @@ export function renderPlan(context: FeatureContext = activeContext) {
     annualStepUp: ASSUMED_SIP_STEP_UP,
   });
 
-  const coorgCorpus = D.coorgCorpus || 0;
-  const coorgTarget = D.coorgTarget || 20_000_000;
-  const coorgProgressPct = coorgTarget > 0 ? Math.min((coorgCorpus / coorgTarget) * 100, 100) : 0;
+  const goalCards = (D.goals ?? [])
+    .map((goal) => {
+      const pct = goal.targetToday > 0 ? Math.min((goal.currentAmount / goal.targetToday) * 100, 100) : 0;
+      return `
+          <section class="plan-card">
+            <h2 class="plan-card-title">${escapeHtml(goal.name)}</h2>
+            <div class="plan-kpi-row">
+              <div class="plan-kpi">
+                <span class="plan-kpi-label">Target</span>
+                <span class="plan-kpi-value">${formatCurrency(goal.targetToday, 0)}</span>
+              </div>
+              <div class="plan-kpi">
+                <span class="plan-kpi-label">Progress</span>
+                <span class="plan-kpi-value">${pct.toFixed(0)}%</span>
+              </div>
+            </div>
+            <div class="plan-progress-bar">
+              <div class="plan-progress-fill" style="width:${pct.toFixed(0)}%"></div>
+            </div>
+          </section>
+        `;
+    })
+    .join('');
 
   const fiProjectionNote =
     baseScenario.unreachable || baseScenario.monthsToFI === null || baseScenario.fiAge === null
@@ -104,22 +141,7 @@ export function renderPlan(context: FeatureContext = activeContext) {
             ${goalIsDefault ? `<p class="plan-assumptions plan-assumptions--hint">Goal is the default ${formatCurrency(fiTarget, 0)} — set your own in Profile.</p>` : ''}
           </section>
           
-          <section class="plan-card plan-coorg-card">
-            <h2 class="plan-card-title">Coorg Home</h2>
-            <div class="plan-kpi-row">
-              <div class="plan-kpi">
-                <span class="plan-kpi-label">Target</span>
-                <span class="plan-kpi-value">${formatCurrency(coorgTarget, 0)}</span>
-              </div>
-              <div class="plan-kpi">
-                <span class="plan-kpi-label">Progress</span>
-                <span class="plan-kpi-value">${coorgProgressPct.toFixed(0)}%</span>
-              </div>
-            </div>
-            <div class="plan-progress-bar plan-progress-bar--coorg">
-              <div class="plan-progress-fill plan-progress-fill--coorg" style="width:${coorgProgressPct.toFixed(0)}%"></div>
-            </div>
-          </section>
+          ${goalCards}
         </div>
       </div>
     </div>
