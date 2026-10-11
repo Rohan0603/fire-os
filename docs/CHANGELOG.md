@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Goal Wizard**: new `/goals` route (React component) for creating, editing, deleting and reordering financial planning goals. The wizard renders the `Goal` type from `src/types/state.ts` — name, kind, target amount, target date, monthly contribution, priority and risk bucket — and persists goals directly onto `appState.goals`. Uses the shared UI kit (`Button`, `Input`, `Card`, `Select`).
 - **Select options prop**: `src/app/ui/Select.tsx` now accepts a pre-computed `options` array in addition to `children`, so consumers can pass option lists declaratively instead of wrapping `SelectItem` elements by hand.
+- **SWP Scheduler UI**: enhanced SWP Scheduler with fund bucket selection, redemption plan table, and monthly withdrawal configuration. Users can now configure monthly withdrawal amount, start date, fund redemption order, and view a summary of projected redemptions.
 - **General planning goals**: the fixed `coorg*` goal scalars are replaced by a
   persisted `goals: Goal[]` model (`src/types/state.ts`, `goalSchema`) with a
   dashboard progress card per goal and per-goal SIP-prep actions. The personal
