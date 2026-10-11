@@ -35,8 +35,12 @@ import {
   undoLastSavedPortfolioChange,
 } from '../../lib/storage';
 import { recordPortfolioSnapshot } from '../../lib/snapshot-history';
+import { CONFIG } from '../../lib/config';
+import { getOptionalAuth } from '../../lib/firebase';
 import { showToast, createModal, closeModal } from '../ui';
 import './styles.css';
+
+const SIGN_IN_MESSAGE = 'Please sign in to use the assistant.';
 
 type DeepChatMessage = { role?: string; text?: string };
 type DeepChatResponse = { text?: string; error?: string };
@@ -65,6 +69,21 @@ const MAX_CONVERSATION_MESSAGES = 12;
 
 function getScope(): string {
   return consentScope(activeContext?.state.currentUser?.uid ?? null);
+}
+
+/**
+ * Current user's Firebase ID token, from the same auth the session controller uses.
+ * Null when signed out (guest or guest-only deployment), in which case the assistant
+ * must not fire an unauthenticated request.
+ */
+async function currentIdToken(): Promise<string | null> {
+  const user = getOptionalAuth(CONFIG.firebaseConfig)?.currentUser;
+  if (!user) return null;
+  try {
+    return await user.getIdToken();
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -233,6 +252,14 @@ async function handleDeepChatRequest(
   inFlight = true;
 
   try {
+    // Signed-out users get a prompt instead of an unauthenticated request; the
+    // Worker would reject it with 401 anyway.
+    const idToken = await currentIdToken();
+    if (!idToken) {
+      reportAssistantError(signals, SIGN_IN_MESSAGE);
+      return;
+    }
+
     // Refresh Nifty on demand, retain the last persisted value if the fetch fails,
     // and save successful data locally so later assistant requests can reuse it.
     try {
@@ -259,6 +286,7 @@ async function handleDeepChatRequest(
     const data = await queryAssistant(question, contextSummary, {
       sendExact: contextSummary.sendExact,
       messages: requestMessages,
+      idToken,
     });
 
     const reply = data.reply || 'No reply received.';
@@ -269,17 +297,26 @@ async function handleDeepChatRequest(
   } catch (err) {
     const message =
       err instanceof AssistantRequestError
-        ? err.message
+        ? err.status === 401
+          ? SIGN_IN_MESSAGE
+          : err.message
         : err instanceof DOMException && err.name === 'AbortError'
           ? 'Request timed out.'
           : 'Could not reach the assistant service.';
-    signals.onResponse({ error: message });
-    const attachments = document.querySelector('.assistant-attachments') as HTMLElement | null;
-    if (attachments) appendMessage(attachments, 'assistant-error', message);
-    showToast(message, 5000, 'error');
+    reportAssistantError(signals, message);
   } finally {
     inFlight = false;
   }
+}
+
+function reportAssistantError(
+  signals: { onResponse: (response: DeepChatResponse) => void },
+  message: string
+): void {
+  signals.onResponse({ error: message });
+  const attachments = document.querySelector('.assistant-attachments') as HTMLElement | null;
+  if (attachments) appendMessage(attachments, 'assistant-error', message);
+  showToast(message, 5000, 'error');
 }
 
 function updateMarketFreshness(state: FeatureContext['state']): void {

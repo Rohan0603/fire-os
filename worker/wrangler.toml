@@ -8,6 +8,8 @@ compatibility_date = "2026-03-01"
 # added when hosting moves off Firebase (see docs/CHANGELOG.md).
 ALLOWED_ORIGIN = "https://fire-os-dd6d6.firebaseapp.com,https://fire-os-dd6d6.web.app,http://localhost:5173,http://127.0.0.1:5173"
 OPENROUTER_HTTP_REFERER = "https://fire-os-dd6d6.web.app"
+# Public Firebase project id; the Worker verifies ID-token issuer/audience against it.
+FIREBASE_PROJECT_ID = "fire-os-dd6d6"
 
 [secrets]
 required = ["OPENROUTER_API_KEY"]

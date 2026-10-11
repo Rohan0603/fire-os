@@ -69,6 +69,7 @@
     "date-fns": "^4.4.0",
     "deep-chat": "^2.5.1",
     "firebase": "^11.0.0",
+    "jose": "^6.2.12",
     "nanostores": "^1.5.4",
     "papaparse": "^5.7.0",
     "react": "^19.3.0",

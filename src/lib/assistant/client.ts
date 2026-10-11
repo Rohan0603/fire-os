@@ -42,6 +42,8 @@ export async function queryAssistant(
     sendExact?: boolean;
     timeoutMs?: number;
     messages?: AssistantConversationMessage[];
+    /** Firebase ID token. The Worker rejects the request without a valid one. */
+    idToken?: string;
   } = {}
 ): Promise<AssistantQueryResponse> {
   const controller = new AbortController();
@@ -49,7 +51,10 @@ export async function queryAssistant(
   try {
     const resp = await fetch(assistantQueryUrl(), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.idToken ? { Authorization: `Bearer ${options.idToken}` } : {}),
+      },
       body: JSON.stringify({
         question,
         contextSummary,

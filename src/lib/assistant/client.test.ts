@@ -33,6 +33,21 @@ describe('queryAssistant client', () => {
     expect(body.messages).toEqual([{ role: 'user', content: 'How am I doing?' }]);
     expect(init.method).toBe('POST');
     expect(init.headers['Content-Type']).toBe('application/json');
+    expect(init.headers.Authorization).toBeUndefined();
+  });
+
+  it('sends the Firebase ID token as a bearer credential when provided', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ reply: 'ok' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await queryAssistant('hi', {}, { idToken: 'abc.def.ghi' });
+
+    const init = fetchMock.mock.calls[0][1];
+    expect(init.headers.Authorization).toBe('Bearer abc.def.ghi');
   });
 
   it('sends prior conversation turns with the latest question', async () => {
