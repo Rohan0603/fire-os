@@ -4,13 +4,18 @@
 // test files. This repository is public, so the maintainer's personal handles,
 // external-advisor references, and contact details must never ship in source.
 //
-// Narrowing note: the suggested pattern also listed identifiers that are
-// unavoidably present in shipped product modules today — fund names (ppfcf,
-// nippon) and owner-scoped amounts / milestone years (122000, 55000000,
-// 125000, 2031, 2032). Those are baked into the default state/config modules,
-// not accidental leaks. The identifiers above are intentionally NOT enforced
-// here so this guard can gate everything else. Excluded paths follow the
-// brief: anything under a `presets/` directory and *.test.* / *.spec.* files.
+// Narrowing note: the suggested pattern also listed fund names (ppfcf, nippon)
+// and further figures (125000, 2031, 2032). These are NOT enforced: they are
+// live feature identifiers in shipped modules today — the fund-tracking /
+// watchdog layer keys public mutual funds by name, 125000 is the statutory LTCG
+// exemption limit, and 2031/2032 are product milestone years (ESOP 5-year
+// holding rule, annual harvest year). Enforcing them would fail the guard on
+// used features; they are recorded debt pending a feature-generalization pass
+// (see the sweep report for the p-config-fix commit). This is a documented
+// deferral, not a laundering rule: any identifier that IS enforced here must be
+// removed from source when it reappears, never re-narrowed to make the check
+// pass. Excluded paths follow the brief: anything under a `presets/` directory
+// and *.test.* / *.spec.* files.
 //
 // HARD RULE for `presets/`: it may contain ONLY generic, non-identifying
 // sample data (fictional names, round illustrative amounts, placeholder
@@ -31,6 +36,8 @@ const DENY = [
   'socgen',
   'ponnanna06032001', // maintainer's personal contact email
   'user@example', // placeholder that must never ship as a real value
+  '122000', // owner's former FI/SWP monthly withdrawal amount (removed)
+  '55000000', // owner's former ₹5.5Cr FI target (removed)
 ];
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'test-results', 'presets']);

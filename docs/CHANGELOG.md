@@ -52,6 +52,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   proxy-key guards are removed; caching, TTLs and graceful degradation are unchanged.
 
 ### Removed
+- **Owner-specific values from configuration and UI**: dead `CONFIG` fields
+  (watchdog limits, scheme codes including `122639`, FI/SWP goal defaults,
+  crash protocol) are deleted; the personal ₹122,000 SWP expense target and its
+  on/under-target status rows are removed from the expense tracker (both the
+  React widget and the imperative renderer); the SWP `monthlyAmount` default and
+  the FI-target placeholder example no longer carry the owner's ₹122K/₹5.5Cr
+  figures; the personal-identifier guard re-enforces `122000` and `55000000`.
+  Fund names/allocation and the LTCG/milestone constants remain as live feature
+  identifiers — see the sweep report for the p-config-fix commit.
 - **Advisor webhook integration**: the dashboard CFP-review widget and `src/modules/integrations/advisor-webhook.ts` are gone. It POSTed the user's email and exact portfolio figures to `https://api.fire-os.app`, an NXDOMAIN/unowned domain with no backend, exposing a registerable leak.
 
 ### Fixed

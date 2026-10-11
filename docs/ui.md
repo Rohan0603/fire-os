@@ -640,9 +640,10 @@ cover the withdrawal. A manual simulator awaits cloud persistence.
   status/AUM itself.
 - **Expense tracker:** adds/display persisted expenses from dashboard modal.
   Metric named monthlyAverage is rounded totalAmount / expense-record count, not
-  grouped by month/date; `_startDate` is unused. Target ₹122,000; within ±10%
-  inclusive? Source uses strict `abs(variance)<10`, where variance is rounded
-  whole percent. Widget is only displayed when SWP is enabled.
+  grouped by month/date; `_startDate` is unused. It is data-only — the former
+  hardcoded ₹122,000 target row and its on/under-target status were removed
+  with the owner's personal SWP assumption. Widget is only displayed when SWP
+  is enabled.
 
 ## Auth UI and formatting details
 

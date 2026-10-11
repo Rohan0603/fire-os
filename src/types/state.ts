@@ -489,7 +489,7 @@ export function initializeState(): FireOSState {
      swpSchedule: {
        enabled: false,
        startDate: '',
-       monthlyAmount: 122000,
+       monthlyAmount: 0,
        rate: 0.03,
        autoExecute: false,
      },

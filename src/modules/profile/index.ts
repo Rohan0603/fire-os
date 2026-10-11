@@ -73,7 +73,7 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
           </div>
           <div class="form-group">
             <label for="fi-target">FI Target (₹)</label>
-            <input type="number" id="fi-target" placeholder="e.g., 550000000 for ₹5.5Cr" value="${D.profile.fiTarget || ''}">
+            <input type="number" id="fi-target" placeholder="e.g., 30000000 (₹3Cr)" value="${D.profile.fiTarget || ''}">
           </div>
           <div class="form-group">
             <label for="monthly-income">Monthly Income (₹)</label>
