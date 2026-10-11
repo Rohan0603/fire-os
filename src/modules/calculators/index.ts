@@ -20,6 +20,23 @@ export function initCalculatorsModule(containerId: string, context: FeatureConte
   if (!container) return;
   renderCalculators(container, context);
   autoFetchNiftyData();
+  // Add crash fund source selector handler
+  setupCrashFundSelector();
+}
+
+/** Set up change listener for crash fund source dropdown. */
+function setupCrashFundSelector(): void {
+  const select = document.getElementById('crash-portfolio-select') as HTMLSelectElement | null;
+  if (!select) return;
+  select.addEventListener('change', (e) => {
+    const idx = (e.target as HTMLSelectElement).selectedIndex;
+    if (idx > 0) {
+      const option = select.options[idx];
+      const selectedValue = parseInt(option.value, 10);
+      // TODO: integrate with crash protocol calculation using selected asset
+      activeContext?.ports.ui.showToast(`Crash fund selected: ${option.text}`, 2000, 'info');
+    }
+  });
 }
 
 // Auto-fetch Nifty data on init
@@ -81,9 +98,32 @@ export function renderCalculators(container: HTMLElement, context: FeatureContex
 }
 
 function renderCrashProtocol(): string {
+  // Build portfolio dropdown options: bonds, SIP, MF, other holdings, demat
+  const options: { label: string; value: number }[] = [];
+  for (const [key, bond] of Object.entries(D.bonds || {})) {
+    options.push({ label: `Bond: ${key} (₹${(bond.amount || 0).toLocaleString('en-IN')})`, value: bond.amount || 0 });
+  }
+  for (const [key, sip] of Object.entries(D.sip || {})) {
+    const nav = sip.schemeCode ? D.nav[sip.schemeCode]?.nav ?? 0 : 0;
+    const value = (sip.units || 0) * nav;
+    if (value > 0) options.push({ label: `SIP: ${sip.name || key} (₹${value.toLocaleString('en-IN')})`, value });
+  }
+  for (const [key, mf] of Object.entries(D.mf || {})) {
+    const nav = mf.schemeCode ? D.nav[mf.schemeCode]?.nav ?? 0 : 0;
+    const value = (mf.units || 0) * nav;
+    if (value > 0) options.push({ label: `MF: ${mf.name || key} (₹${value.toLocaleString('en-IN')})`, value });
+  }
+  for (const [key, other] of Object.entries(D.otherHoldings || {})) {
+    if (other.amount > 0) options.push({ label: `Other: ${other.name || key} (₹${(other.amount || 0).toLocaleString('en-IN')})`, value: other.amount || 0 });
+  }
+  for (const [key, demat] of Object.entries(D.demat || {})) {
+    const value = demat.currentValue || 0;
+    if (value > 0) options.push({ label: `Demat: ${demat.name || key} (₹${value.toLocaleString('en-IN')})`, value });
+  }
+
   const totalBonds = Object.values(D.bonds || {}).reduce((sum, b) => sum + b.amount, 0);
   const defaultCrashFund = totalBonds;
-  
+
   // Amounts to deploy based on the crash fund
   const deploy10 = defaultCrashFund * 0.10;
   const deploy15 = defaultCrashFund * 0.15;
@@ -95,8 +135,12 @@ function renderCrashProtocol(): string {
       <p class="calc-info">How much to deploy if market crashes?</p>
 
       <div class="calc-input-group">
-        <label>Crash Fund (₹) - Bonds Default</label>
-        <input type="number" id="crash-portfolio" value="${defaultCrashFund}">
+        <label for="crash-portfolio-select">Crash Fund Source (₹)</label>
+        <select id="crash-portfolio-select" class="form-select">
+          <option value="">-- Select portfolio asset --</option>
+          ${options.map((o, i) => `<option value="${i}" ${i === 0 ? 'selected' : ''}>${o.label}</option>`).join('')}
+        </select>
+        <input type="number" id="crash-portfolio" value="${defaultCrashFund}" style="display:none" readonly>
       </div>
 
       <div class="crash-scenarios">
