@@ -17,6 +17,7 @@ const SECTION_FIELDS: Record<PortfolioSection, Array<keyof PersistedPortfolioDat
   holdings: ['mf', 'fd', 'epf', 'sip', 'esop', 'bonds', 'otherHoldings', 'demat'],
   planning: [
     'goals',
+    'fundBuckets',
     'watchdogRules', 'swpSchedule', 'taxCalendar', 'expenses',
     'netWorthHistory', 'completedActions', 'achievedMilestones',
   ],

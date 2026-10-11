@@ -6,7 +6,6 @@
 
 import type { FireOSState } from '../../types/state';
 import { addMonths, differenceInCalendarMonths, isValid, parse } from 'date-fns';
-import { getFundSchemeCode } from '../../lib/fundMatcher';
 import { calculateXirr, type CashFlow } from '../../lib/calculations';
 
 /**
@@ -90,8 +89,8 @@ export function totalNetWorth(state: FireOSState): TotalNetWorthKPI {
 
   // SIP holdings: units × current NAV from cache
   const sip = Object.entries(state.sip).reduce((sum, [, fund]) => {
-    // Try to get scheme code: from fund.schemeCode or from fundMatcher
-    const navCacheKey = fund.schemeCode || getFundSchemeCode(fund.name);
+    // Try to get scheme code: from fund.schemeCode
+    const navCacheKey = fund.schemeCode;
     const nav = navCacheKey ? state.nav[navCacheKey]?.nav ?? 0 : 0;
     return sum + (fund.units * nav || 0);
   }, 0);
@@ -155,8 +154,8 @@ export function sipStatus(state: FireOSState): SIPStatusKPI {
   let xirrSum = 0;
 
   Object.entries(state.sip).forEach(([key, fund]) => {
-    // Try to get scheme code: from fund.schemeCode or from fundMatcher
-    const navCacheKey = fund.schemeCode || getFundSchemeCode(fund.name);
+    // Try to get scheme code: from fund.schemeCode
+    const navCacheKey = fund.schemeCode;
     const nav = navCacheKey ? state.nav[navCacheKey]?.nav ?? 0 : 0;
 
     // Calculate invested: use costBasis if provided, else calculate from monthlyAmount × months elapsed

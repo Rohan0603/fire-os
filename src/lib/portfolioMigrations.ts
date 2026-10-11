@@ -8,9 +8,16 @@
  * any old payload into the new shape so reads stay liberal while writes stay
  * strict; it is idempotent, so it is safe to run on already-current data.
  *
- * This module is intentionally shape-agnostic (plain records, no imports from
- * `state.ts`) to avoid an import cycle with the state module that consumes it.
+ * It also assigns a generic `bucketId` to holdings that predate the fund-bucket
+ * model, and drops the legacy owner-keyed `watchdogRules` object (it had no UI
+ * and only ever held defaults) so the generic rules array can take its place.
+ *
+ * This module is intentionally shape-agnostic (plain records; its one import is
+ * the pure classifier, which imports only types) to avoid an import cycle with
+ * the state module that consumes it.
  */
+
+import { classifyFundName } from './fundMatcher';
 
 const LEGACY_COORG_KEYS = ['coorgCorpus', 'coorgStartDate', 'coorgTarget', 'coorgMonthlyAmount'] as const;
 
@@ -75,6 +82,19 @@ function rulesFromLegacyTriggers(triggers: Json, goal: Json | null): Json[] {
   return rules;
 }
 
+/** Assign a generic default bucket to any holding that predates the bucket model. */
+function assignBuckets(map: unknown): unknown {
+  if (!isRecord(map)) return map;
+  const next: Json = { ...map };
+  for (const key of Object.keys(next)) {
+    const fund = next[key];
+    if (isRecord(fund) && !('bucketId' in fund)) {
+      next[key] = { ...fund, bucketId: classifyFundName(stringValue(fund.name) ?? '') };
+    }
+  }
+  return next;
+}
+
 /**
  * Rewrite a persisted data payload into the current shape. Returns the input
  * unchanged when it is not a record; otherwise returns a shallow copy with the
@@ -99,6 +119,14 @@ export function migratePersistedData(value: unknown): unknown {
     delete esopCopy.triggers;
     data.esopDetails = esopCopy;
   }
+
+  // Fund buckets: give every holding an explicit bucket once, so classification
+  // never depends on a fund name at read time.
+  if ('sip' in data) data.sip = assignBuckets(data.sip);
+  if ('mf' in data) data.mf = assignBuckets(data.mf);
+
+  // The legacy owner-keyed watchdog object is replaced by a generic rules array.
+  if (isRecord(data.watchdogRules)) delete data.watchdogRules;
 
   return data;
 }

@@ -27,7 +27,7 @@ export function renderTax(container?: HTMLElement, context: FeatureContext = act
     D.taxCalendar = {
       lastLTCGHarvestDate: '',
       lastHarvestedAmount: 0,
-      harvestTarget: 125000,
+      harvestTarget: 0,
     };
   }
   const plan = calculateLTCGHarvestPlan(D);
@@ -62,8 +62,8 @@ export function renderTax(container?: HTMLElement, context: FeatureContext = act
           </div>
           <div class="metric-card">
             <div class="metric-label">Remaining Exemption Limit</div>
-            <div class="metric-value">${formatCurrency(plan.remainingLimit)}</div>
-            <div class="metric-subtext">Out of 1.25L annual limit</div>
+            <div class="metric-value" id="ltcg-remaining-limit">${formatCurrency(plan.remainingLimit)}</div>
+            <div class="metric-subtext" id="ltcg-limit-subtext">Out of ${formatCurrency(D.taxCalendar.harvestTarget)} annual limit</div>
           </div>
           <div class="metric-card">
             <div class="metric-label">Recommended Harvest</div>
@@ -113,6 +113,13 @@ export function renderTax(container?: HTMLElement, context: FeatureContext = act
             <button id="record-harvest-btn" class="btn btn-primary">Record Harvest</button>
           ` : ''}
           <button id="reset-harvest-btn" class="btn btn-secondary">Reset Harvest</button>
+        </div>
+
+        <div class="tracker-form" style="margin-top: 1rem;">
+          <div class="form-group">
+            <label for="ltcg-harvest-target">Annual LTCG Harvest Target (INR)</label>
+            <input type="number" id="ltcg-harvest-target" value="${D.taxCalendar.harvestTarget ?? 0}" class="tax-input" placeholder="e.g. 100000">
+          </div>
         </div>
       </div>
 
@@ -246,6 +253,26 @@ export function renderTax(container?: HTMLElement, context: FeatureContext = act
 
       context.portfolio.save(D);
       context.ports.ui.showToast('Tax harvest reset successfully');
+      renderTax(targetContainer, context);
+    });
+  }
+
+  const harvestTargetInput = targetContainer.querySelector('#ltcg-harvest-target') as HTMLInputElement;
+  if (harvestTargetInput) {
+    harvestTargetInput.addEventListener('input', (e) => {
+      const target = e.target as HTMLInputElement;
+      const val = Math.max(0, parseFloat(target.value) || 0);
+      D.taxCalendar.harvestTarget = val;
+
+      // Live-update the remaining-limit card without re-rendering (keeps focus).
+      const remaining = Math.max(0, val - (D.taxCalendar.lastHarvestedAmount || 0));
+      const remainingEl = targetContainer.querySelector('#ltcg-remaining-limit');
+      if (remainingEl) remainingEl.textContent = formatCurrency(remaining);
+      const subtextEl = targetContainer.querySelector('#ltcg-limit-subtext');
+      if (subtextEl) subtextEl.textContent = `Out of ${formatCurrency(val)} annual limit`;
+    });
+    harvestTargetInput.addEventListener('change', () => {
+      context.portfolio.save(D);
       renderTax(targetContainer, context);
     });
   }

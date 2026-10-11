@@ -169,20 +169,20 @@ remaining only when already achieved. Drawdown is max(0, `(high-level)/high`).
 - **SIP Pause:** defaults to current total monthly SIP, six months and 12% annual
   return. UI estimate is missed contributions = monthly × months; lost growth
   approximation = missed × (annual % / 12 / 100) × 12; total is their sum.
-- **Tax planner:** `src/modules/calculators/tax/ltcg-planner.ts` approximates
-  long-term eligible SIP units as total units × (invested amount attributable
-  to months beyond 12 / total invested). Uses cached NAV; positive gains are
-  ranked descending. Allowance is max(0, ₹125,000 − lastHarvestedAmount),
-  irrespective of the stored `harvestTarget`; recommendations allocate eligible
-  gain up to that amount and convert allocated gain fraction to units/value.
+   - **Tax planner:** `src/modules/calculators/tax/ltcg-planner.ts` approximates
+      long-term eligible SIP units as total units × (invested amount attributable
+      to months beyond 12 / total invested). Uses cached NAV; positive gains are
+      ranked descending. Allowance is max(0, `taxCalendar.harvestTarget` − lastHarvestedAmount),
+      recommendations allocate eligible
+      gain up to that amount and convert allocated gain fraction to units/value.
 - **SWP scheduler:** stores enabled, start month, monthly amount and rate field
-  (rate is not used by execution). Manual simulation and daily auto-run reduce
-  units in PPFCF → Nippon Growth → Nippon SmallCap → Gold order. Matching uses
-  names/scheme codes; category units aggregate SIP and MF; value determines
-  needed units rounded up for the initial redemption plan, then actual units
-  are deducted SIP-first and MF-second. Records an SWP expense for today's
-  **UTC** date (note: the LTCG record below uses the local calendar date). This is
-  simulated state mutation, not a broker redemption.
+      (rate is not used by execution). Manual simulation and daily auto-run reduce
+      units in `DEFAULT_FUND_BUCKETS` order (large-cap → mid-cap → small-cap → gold → other). Matching uses
+      names/scheme codes; category units aggregate SIP and MF; value determines
+      needed units rounded up for the initial redemption plan, then actual units
+      are deducted SIP-first and MF-second. Records an SWP expense for today's
+      **UTC** date (note: the LTCG record below uses the local calendar date). This is
+      simulated state mutation, not a broker redemption.
 
 Other exported calculation primitives in `src/lib/calculations.ts`: SIP future
 value with monthly rate and zero-rate handling; simple SIP cost basis; XIRR via
@@ -521,13 +521,7 @@ refer to other constants; this control flow is authoritative.
 
 ### Allocation drift
 
-Targets from config: PPFCF 40%, NipponGrowth 30%, NipponSmallCap 20%, Gold 10%;
-drift trigger is strictly greater than 5 percentage points. Current percentages
-and drift round to one decimal. Recommendation rupees = abs(rounded drift)/100 ×
-totalValue; display converts to lakh and rounds one decimal. Zero total value
-returns targets, zero current/drift and no actions. Action-engine denominator
-includes recognized funds plus custom holding value; passed target buckets only
-contain recognized categories.
+Targets from user-owned `fundBuckets` (each bucket has a targetPercent); drift trigger is strictly greater than 5 percentage points. Current percentages and drift round to one decimal. Recommendation rupees = abs(rounded drift)/100 × totalValue; display converts to lakh and rounds one decimal. Zero total value returns targets, zero current/drift and no actions. Action-engine denominator includes recognized funds plus custom holding value; passed target buckets only contain recognized categories.
 
 ### Scenario modeler
 
@@ -610,15 +604,15 @@ cover the withdrawal. A manual simulator awaits cloud persistence.
   term and health covers are zero; otherwise yellow for gaps. Savings missing
   income is red. Overall uses worst color. Watchdog specifics are below.
 - **Action rules:** watch funds via stored user-maintained inputs; high alerts
-  produce actions. Drawdown >10 creates month-keyed action. Insurance missing
-  if both covers zero; if some cover exists, gaps use max(10×annual income,1Cr)
-  and health ₹20L for family ≤2, else ₹50L. Allocation collects recognized
-  SIP+MF current value and custom assets in denominator but custom amounts do
-  not map to a target bucket. Harvest reminder uses elapsed days /30 >11; no
-  record + profile age>25 adds initial reminder. April action encourages ≥10%
-  SIP raise. One goal-SIP action per planning goal fires when its target date is
-  0–6 months away. Calendar ≥2032 adds annual harvest action. FD-maturity rule
-  is commented out.
+      produce actions. Drawdown >10 creates month-keyed action. Insurance missing
+      if both covers zero; if some cover exists, gaps use max(10×annual income,1Cr)
+      and health ₹20L for family ≤2, else ₹50L. Allocation collects recognized
+      SIP+MF current value and custom assets in denominator but custom amounts do
+      not map to a target bucket. Harvest reminder uses elapsed days /30 >11; no
+      record + profile age>25 adds initial reminder. April action encourages ≥10%
+      SIP raise. One goal-SIP action per planning goal fires when its target date is
+      0–6 months away. Calendar year-based harvest reminder adds annual harvest action. FD-maturity rule
+      is commented out.
 - **Completed actions:** records ISO completedAt by action ID; computed as
   completed when less than 30 days old (including future timestamps); IDs often
   encode month/year to recur. Checkbox updates `completedActions` then rerenders
@@ -634,16 +628,12 @@ cover the withdrawal. A manual simulator awaits cloud persistence.
   API supports many goals. Progress is current corpus/target (not capped in
   data; UI bar caps at 100). Remaining target can be negative. It does not
   project SIP future value.
-- **Watchdog:** PPFCF AUM > configured limit => high; Nippon Growth blocked >14
-  days => medium; Small Cap blocked >60 => high; either manager exit => critical.
-  It returns text guidance only; it does not alter investments or fetch manager
-  status/AUM itself.
+- **Watchdog:** generic fund thresholds based on user-owned `fundBuckets`; a configured limit per bucket produces alerts; thresholds are controlled via `watchdogRules`. It returns text guidance only; it does not alter investments or fetch manager status/AUM itself.
 - **Expense tracker:** adds/display persisted expenses from dashboard modal.
-  Metric named monthlyAverage is rounded totalAmount / expense-record count, not
-  grouped by month/date; `_startDate` is unused. It is data-only — the former
-  hardcoded ₹122,000 target row and its on/under-target status were removed
-  with the owner's personal SWP assumption. Widget is only displayed when SWP
-  is enabled.
+      Metric named monthlyAverage is rounded totalAmount / expense-record count, not
+      grouped by month/date; `_startDate` is unused. It is data-only — the former
+      hardcoded target row and its on/under-target status were removed with the
+      owner's personal SWP assumption. Widget is only displayed when SWP is enabled.
 
 ## Auth UI and formatting details
 

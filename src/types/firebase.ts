@@ -54,6 +54,7 @@ export interface PortfolioData {
   eurInrData?: CurrencyRateData;
   alphaTrackerData?: FireOSState['alphaTrackerData'];
   goals?: FireOSState['goals'];
+  fundBuckets?: FireOSState['fundBuckets'];
   watchdogRules?: FireOSState['watchdogRules'];
   swpSchedule?: FireOSState['swpSchedule'];
   taxCalendar?: FireOSState['taxCalendar'];
@@ -122,6 +123,7 @@ const persistedFields = new Set<keyof PortfolioData | 'assistant'>([
   'profile', 'mf', 'sip', 'fd', 'epf', 'esop', 'bonds', 'otherHoldings', 'liabilities', 'demat', 'nav',
   'niftyHigh', 'niftyData', 'currencyRates', 'eurInr', 'eurInrData',   'alphaTrackerData',
   'goals',
+  'fundBuckets',
   'watchdogRules', 'swpSchedule', 'taxCalendar', 'expenses', 'netWorthHistory',
   'completedActions', 'achievedMilestones', 'insurance', 'esopDetails', 'liquidationRules', 'assistant',
 ]);

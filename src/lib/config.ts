@@ -1,9 +1,9 @@
 /**
  * Global Configuration Module
- * Centralizes the static endpoints, cache TTLs, Firebase settings, and the
- * rebalancing allocation used by `portfolio-rebalancing.ts`. Dead fields are
- * gone: watchdog limits, scheme codes, FI/SWP goal defaults, and crash
- * protocol carried owner-specific values and had no consumers.
+ * Centralizes the static endpoints, cache TTLs, and Firebase settings. Dead
+ * fields are gone: watchdog limits, scheme codes, FI/SWP goal defaults, crash
+ * protocol, and the rebalancing allocation (now user-owned fund buckets) all
+ * carried owner-specific values and had no place here.
  */
 
 export const CONFIG = {
@@ -29,16 +29,5 @@ export const CONFIG = {
     nifty: 60 * 60 * 1000,          // 1 hour
     currencyRate: 24 * 60 * 60 * 1000, // 24 hours
   },
-
-  // Consumed by `src/modules/calculators/portfolio-rebalancing.ts` (destructures
-  // both fields). Kept only because that consumer exists; the allocation
-  // percentages remain personal-plan debt pending a fund-layer generalization
-  // (see the p-config-fix sweep report).
-  targetAllocation: {
-    PPFCF: 40,
-    NipponGrowth: 30,
-    NipponSmallCap: 20,
-    Gold: 10,
-  } as Record<string, number>,
-  driftThreshold: 5,
 };
+

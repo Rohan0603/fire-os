@@ -1,6 +1,6 @@
 import type { FireOSState } from '../../types/state';
 import { checkWatchdogRules, floatIndicator, calculateAllocationDrift } from '../../core/feature-ports';
-import { getFundSchemeCode } from '../../lib/fundMatcher';
+import { resolveFundBucket, bucketTargets, DEFAULT_FUND_BUCKETS } from '../../lib/fundMatcher';
 
 export interface ActionItem {
   id: string;              // Unique key for checkbox persistence
@@ -16,6 +16,8 @@ export function generateActionItems(state: FireOSState): ActionItem[] {
   const now = new Date();
   const currentMonth = now.getMonth(); // 0 = Jan, 3 = Apr
   const currentYear = now.getFullYear();
+  const harvestTarget = state.taxCalendar?.harvestTarget ?? 0;
+  const harvestLabel = harvestTarget > 0 ? `₹${harvestTarget.toLocaleString('en-IN')}` : '';
 
   // Helper to add actions
   const addAction = (item: Omit<ActionItem, 'completed'>) => {
@@ -33,15 +35,8 @@ export function generateActionItems(state: FireOSState): ActionItem[] {
   };
 
   // 1. Watchdog alerts (urgent)
-  const alerts = checkWatchdogRules({
-    ppfcfAum: state.watchdogRules?.currentAum?.PPFCF || 0,
-    ppfcfAumLimit: state.watchdogRules?.ppfcfAumLimit || 175000000000,
-    nipponGrowthBlockedDays: state.watchdogRules?.blockedDays?.NipponGrowth || 0,
-    nipponSmallCapBlockedDays: state.watchdogRules?.blockedDays?.NipponSmallCap || 0,
-    ppfcfManagerExit: state.watchdogRules?.managerExits?.PPFCF || false,
-    nipponSmallCapManagerExit: state.watchdogRules?.managerExits?.NipponSmallCap || false,
-  });
-  
+  const alerts = checkWatchdogRules(state.watchdogRules ?? []);
+
   alerts.forEach(alert => {
     addAction({
       id: `watchdog-${alert.fund}-${alert.type}`,
@@ -95,22 +90,17 @@ export function generateActionItems(state: FireOSState): ActionItem[] {
   }
 
   // 5. Portfolio drift > 5% (this-month)
-  const holdings: Record<string, number> = {
-    PPFCF: 0,
-    NipponGrowth: 0,
-    NipponSmallCap: 0,
-    Gold: 0,
-  };
+  const buckets = state.fundBuckets?.length ? state.fundBuckets : DEFAULT_FUND_BUCKETS;
+  const holdings: Record<string, number> = {};
+  for (const bucket of buckets) holdings[bucket.id] = 0;
 
-  const processFund = (fund: any) => {
-    const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
+  const processFund = (fund: { name: string; bucketId?: string; schemeCode?: string; units: number }) => {
+    const schemeCode = fund.schemeCode || '';
     const nav = schemeCode ? state.nav[schemeCode]?.nav ?? 0 : 0;
     const value = fund.units * nav;
     if (value > 0) {
-      if (schemeCode === '122639') holdings.PPFCF += value;
-      else if (schemeCode === '118668') holdings.NipponGrowth += value;
-      else if (schemeCode === '118778') holdings.NipponSmallCap += value;
-      else if (schemeCode === '135106') holdings.Gold += value;
+      const bucketId = resolveFundBucket({ name: fund.name }, buckets);
+      holdings[bucketId] = (holdings[bucketId] ?? 0) + value;
     }
   };
 
@@ -121,11 +111,11 @@ export function generateActionItems(state: FireOSState): ActionItem[] {
     Object.values(state.mf).forEach(processFund);
   }
 
-  const targetFundValue = holdings.PPFCF + holdings.NipponGrowth + holdings.NipponSmallCap + holdings.Gold;
+  const targetFundValue = Object.values(holdings).reduce((sum, value) => sum + value, 0);
   const otherHoldingsValue = Object.values(state.otherHoldings || {})
     .reduce((sum, holding) => sum + (holding.amount || 0), 0);
   const totalValue = targetFundValue + otherHoldingsValue;
-  const drift = calculateAllocationDrift(holdings, totalValue);
+  const drift = calculateAllocationDrift(holdings, totalValue, bucketTargets(buckets));
   if (drift.recommendations.length > 0) {
     addAction({
       id: `portfolio-drift-${currentYear}-${currentMonth}`,
@@ -138,7 +128,7 @@ export function generateActionItems(state: FireOSState): ActionItem[] {
 
   // 6. Tax harvest overdue (>11 months since last) (this-month)
   const lastHarvestStr = state.taxCalendar?.lastLTCGHarvestDate;
-  if (lastHarvestStr) {
+  if (harvestTarget > 0 && lastHarvestStr) {
     const lastHarvest = new Date(lastHarvestStr);
     const monthsSince = (now.getTime() - lastHarvest.getTime()) / (1000 * 3600 * 24 * 30);
     if (monthsSince > 11) {
@@ -147,17 +137,17 @@ export function generateActionItems(state: FireOSState): ActionItem[] {
         priority: 'this-month',
         category: 'tax',
         title: 'Harvest LTCG Tax Free Exemption',
-        description: 'It has been >11 months since your last LTCG harvest. Harvest up to ₹1.25L tax-free.',
+        description: `It has been >11 months since your last LTCG harvest. Harvest up to ${harvestLabel} tax-free.`,
       });
     }
-  } else if (state.profile.age > 25) {
+  } else if (harvestTarget > 0 && state.profile.age > 25) {
      // If no harvest recorded, remind to do it.
      addAction({
         id: `tax-harvest-initial`,
         priority: 'this-month',
         category: 'tax',
         title: 'Plan First LTCG Harvest',
-        description: 'You haven\'t recorded any LTCG harvests. Use the tax planner to harvest up to ₹1.25L tax-free.',
+        description: `You haven't recorded any LTCG harvests. Use the tax planner to harvest up to ${harvestLabel} tax-free.`,
       });
   }
 
@@ -208,15 +198,14 @@ export function generateActionItems(state: FireOSState): ActionItem[] {
     }
   }
 
-  // 10. LTCG harvest year approaching (year >= 2032) (future)
-  // Reusing tax planner logic, but if year >= 2032
-  if (currentYear >= 2032) {
+  // 10. Fiscal year end approaching (Feb/Mar): annual LTCG harvest (future)
+  if (harvestTarget > 0 && (currentMonth === 1 || currentMonth === 2)) {
     addAction({
       id: `future-harvest-${currentYear}`,
       priority: 'future',
       category: 'tax',
       title: 'Annual LTCG Harvest',
-      description: 'Plan your annual LTCG harvest. The ₹1.25L exemption resets every fiscal year.',
+      description: `Plan your annual LTCG harvest before the fiscal year ends. The ${harvestLabel} exemption resets every fiscal year.`,
     });
   }
 

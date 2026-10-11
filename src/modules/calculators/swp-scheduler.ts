@@ -1,4 +1,5 @@
 import { addMonths, isValid, parseISO } from 'date-fns';
+import { resolveFundBucket, DEFAULT_FUND_BUCKETS } from '../../lib/fundMatcher';
 
 interface Holding {
   units: number;
@@ -6,36 +7,37 @@ interface Holding {
 }
 
 interface Holdings {
-  [fundName: string]: Holding;
+  [bucketId: string]: Holding;
 }
 
 interface RedemptionPlan {
-  [fundName: string]: number; // Units to redeem
+  [bucketId: string]: number; // Units to redeem
 }
 
+/**
+ * FIFO redemption across buckets, in the given order (defaults to `holdings`
+ * key order). Buckets absent from `holdings` are skipped.
+ */
 export function calculateFIFORedemption(
   holdings: Holdings,
-  withdrawalAmount: number
+  withdrawalAmount: number,
+  fundOrder?: string[],
 ): RedemptionPlan {
-  const redemption: RedemptionPlan = {
-    PPFCF: 0,
-    NipponGrowth: 0,
-    NipponSmallCap: 0,
-    Gold: 0,
-  };
+  const order = fundOrder ?? Object.keys(holdings);
+  const redemption: RedemptionPlan = {};
 
   let remaining = withdrawalAmount;
-  const fundOrder = ["PPFCF", "NipponGrowth", "NipponSmallCap", "Gold"];
 
-  for (const fund of fundOrder) {
-    if (remaining <= 0) break;
+  for (const fund of order) {
+    redemption[fund] = 0;
+    if (remaining <= 0) continue;
 
     const holding = holdings[fund];
     if (!holding) continue;
 
     const fundValue = holding.units * holding.nav;
 
-    if (fundValue >= remaining) {
+    if (holding.nav > 0 && fundValue >= remaining) {
       // Partial redemption from this fund
       redemption[fund] = Math.ceil(remaining / holding.nav);
       remaining = 0;
@@ -51,7 +53,7 @@ export function calculateFIFORedemption(
 
 export function generateSWPSchedule(
   state: any,
-  fiTriggerDate: string // When corpus hits ₹5.5Cr
+  fiTriggerDate: string // When corpus hits the FI target
 ): void {
   // Enable SWP and set start date
   state.swpSchedule.enabled = true;
@@ -78,28 +80,20 @@ export async function executeMonthlyWithdrawal(state: any): Promise<{ actualAmou
     return { actualAmount: 0 };
   }
 
-  // Gather current holdings with NAV from mf and sip
-  const holdings: Record<string, { units: number; nav: number }> = {
-    PPFCF: { units: 0, nav: 0 },
-    NipponGrowth: { units: 0, nav: 0 },
-    NipponSmallCap: { units: 0, nav: 0 },
-    Gold: { units: 0, nav: 0 },
-  };
+  const buckets = state.fundBuckets?.length ? state.fundBuckets : DEFAULT_FUND_BUCKETS;
+  const fundOrder = buckets.map((bucket: { id: string }) => bucket.id);
+
+  // Gather current holdings with NAV from mf and sip, grouped by bucket.
+  const holdings: Record<string, { units: number; nav: number }> = {};
+  for (const bucketId of fundOrder) holdings[bucketId] = { units: 0, nav: 0 };
 
   const processFund = (fund: any) => {
-    const name = fund.name || '';
-    let category = '';
-    if (name.includes('Parag') || fund.schemeCode === '122639') category = 'PPFCF';
-    else if (name.includes('GROWTH') || name.includes('Growth') || fund.schemeCode === '118668') category = 'NipponGrowth';
-    else if (name.includes('SMALL') || name.includes('Small') || fund.schemeCode === '118778') category = 'NipponSmallCap';
-    else if (name.includes('Gold') || fund.schemeCode === '135106') category = 'Gold';
-
-    if (category) {
-      const schemeCode = fund.schemeCode || (category === 'PPFCF' ? '122639' : category === 'NipponGrowth' ? '118668' : category === 'NipponSmallCap' ? '118778' : '135106');
-      const nav = state.nav[schemeCode]?.nav ?? 0;
-      holdings[category].units += fund.units || 0;
-      holdings[category].nav = nav;
-    }
+    const bucketId = resolveFundBucket(fund, buckets);
+    const bucket = (holdings[bucketId] ??= { units: 0, nav: 0 });
+    const schemeCode = fund.schemeCode || '';
+    const nav = schemeCode ? state.nav[schemeCode]?.nav ?? 0 : 0;
+    bucket.units += fund.units || 0;
+    if (nav > 0) bucket.nav = nav;
   };
 
   if (state.sip) Object.values(state.sip).forEach(processFund);
@@ -107,58 +101,36 @@ export async function executeMonthlyWithdrawal(state: any): Promise<{ actualAmou
 
   const redemption = calculateFIFORedemption(
     holdings,
-    state.swpSchedule.monthlyAmount
+    state.swpSchedule.monthlyAmount,
+    fundOrder,
   );
 
   // Execute FIFO redemptions and update state.sip / state.mf
-  for (const [fundName, unitsToRedeem] of Object.entries(redemption)) {
+  const redeemFrom = (funds: Record<string, any> | undefined, bucketId: string, units: number): number => {
+    if (!funds) return units;
+    let remaining = units;
+    for (const key of Object.keys(funds)) {
+      if (remaining <= 0) break;
+      const fund = funds[key];
+      if (resolveFundBucket(fund, buckets) !== bucketId || !(fund.units > 0)) continue;
+      const deduct = Math.min(fund.units, remaining);
+      fund.units -= deduct;
+      remaining -= deduct;
+    }
+    return remaining;
+  };
+
+  for (const [bucketId, unitsToRedeem] of Object.entries(redemption)) {
     if (unitsToRedeem > 0) {
-      let remainingToRedeem = unitsToRedeem;
-      
-      if (state.sip) {
-        for (const key of Object.keys(state.sip)) {
-          const fund = state.sip[key];
-          const name = fund.name || '';
-          let match = false;
-          if (fundName === 'PPFCF' && (name.includes('Parag') || fund.schemeCode === '122639')) match = true;
-          else if (fundName === 'NipponGrowth' && (name.includes('GROWTH') || name.includes('Growth') || fund.schemeCode === '118668')) match = true;
-          else if (fundName === 'NipponSmallCap' && (name.includes('SMALL') || name.includes('Small') || fund.schemeCode === '118778')) match = true;
-          else if (fundName === 'Gold' && (name.includes('Gold') || fund.schemeCode === '135106')) match = true;
-
-          if (match && fund.units > 0) {
-            const deduct = Math.min(fund.units, remainingToRedeem);
-            fund.units -= deduct;
-            remainingToRedeem -= deduct;
-            if (remainingToRedeem <= 0) break;
-          }
-        }
-      }
-
-      if (remainingToRedeem > 0 && state.mf) {
-        for (const key of Object.keys(state.mf)) {
-          const fund = state.mf[key];
-          const name = fund.name || '';
-          let match = false;
-          if (fundName === 'PPFCF' && (name.includes('Parag') || fund.schemeCode === '122639')) match = true;
-          else if (fundName === 'NipponGrowth' && (name.includes('GROWTH') || name.includes('Growth') || fund.schemeCode === '118668')) match = true;
-          else if (fundName === 'NipponSmallCap' && (name.includes('SMALL') || name.includes('Small') || fund.schemeCode === '118778')) match = true;
-          else if (fundName === 'Gold' && (name.includes('Gold') || fund.schemeCode === '135106')) match = true;
-
-          if (match && fund.units > 0) {
-            const deduct = Math.min(fund.units, remainingToRedeem);
-            fund.units -= deduct;
-            remainingToRedeem -= deduct;
-            if (remainingToRedeem <= 0) break;
-          }
-        }
-      }
+      const remaining = redeemFrom(state.sip, bucketId, unitsToRedeem);
+      if (remaining > 0) redeemFrom(state.mf, bucketId, remaining);
     }
   }
 
-  // Compute actual redeemed amount: sum over funds of (unitsRedeemed * nav)
+  // Compute actual redeemed amount: sum over buckets of (unitsRedeemed * nav)
   let actualAmount = 0;
-  for (const [fundName, unitsRedeemed] of Object.entries(redemption)) {
-    const nav = holdings[fundName]?.nav ?? 0;
+  for (const [bucketId, unitsRedeemed] of Object.entries(redemption)) {
+    const nav = holdings[bucketId]?.nav ?? 0;
     actualAmount += unitsRedeemed * nav;
   }
 
@@ -175,5 +147,3 @@ export async function executeMonthlyWithdrawal(state: any): Promise<{ actualAmou
 
   return { actualAmount };
 }
-
-

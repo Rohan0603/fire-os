@@ -1,5 +1,6 @@
 import { createFeatureContext, type FeatureContext } from '../../core/feature-context';
 import type { EsopValuation } from '../api/esop';
+import { DEFAULT_FUND_BUCKETS } from '../../lib/fundMatcher';
 import './styles.css';
 
 let moduleContainerId: string = 'esop';
@@ -99,8 +100,16 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
 
   // 2. Trigger Monitor Calculations (general liquidation rules)
   const currentYear = new Date().getFullYear();
-  const yearsRemaining = Math.max(0, 2031 - currentYear);
-  const rule5YearFired = currentYear >= 2031;
+  // LTCG holding-period milestone: configured years measured from the earliest
+  // vesting date (default 5 years).
+  const holdingPeriodYears = D.esopDetails.holdingPeriodYears ?? 5;
+  const vestingYears = (D.esopDetails.vestingSchedule ?? [])
+    .map((item) => Number(String(item.date).slice(0, 4)))
+    .filter((year) => Number.isFinite(year));
+  const startYear = vestingYears.length ? Math.min(...vestingYears) : currentYear;
+  const milestoneYear = startYear + holdingPeriodYears;
+  const yearsRemaining = Math.max(0, milestoneYear - currentYear);
+  const rule5YearFired = currentYear >= milestoneYear;
 
   const rules = D.liquidationRules ?? [];
   const activeRules = rules.filter((rule) => rule.active);
@@ -164,7 +173,7 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
           <div class="alert-content">
             <h3>Active Liquidation Trigger Event(s) Detected</h3>
             <ul class="active-triggers-list">
-              ${rule5YearFired ? '<li><strong>5-Year Holding Period Rule:</strong> 2031 milestone reached (Auto-Alert). Reduce single-stock concentration.</li>' : ''}
+              ${rule5YearFired ? `<li><strong>${holdingPeriodYears}-Year Holding Period Rule:</strong> ${milestoneYear} milestone reached (Auto-Alert). Reduce single-stock concentration.</li>` : ''}
               ${activeRules.map((rule) => `<li>${ruleMessage(rule)}</li>`).join('')}
             </ul>
             <div class="alert-recommendation">
@@ -223,12 +232,12 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
           <div class="triggers-grid">
             <div class="trigger-item ${rule5YearFired ? 'fired' : ''}">
               <div class="trigger-header">
-                <span class="trigger-title">5-Year Holding Rule</span>
+                <span class="trigger-title">${holdingPeriodYears}-Year Holding Rule</span>
                 <span class="trigger-badge ${rule5YearFired ? 'active' : ''}">
                   ${rule5YearFired ? 'Auto-Alert' : `${yearsRemaining}y remaining`}
                 </span>
               </div>
-              <p class="trigger-desc">Triggers auto-alert in 2031 to review single-stock concentration.</p>
+              <p class="trigger-desc">Triggers auto-alert in ${milestoneYear} to review single-stock concentration.</p>
             </div>
 
             ${rules.map((rule) => `
@@ -461,10 +470,17 @@ function calculateTaxAndDeployment() {
     remainder -= amount;
   }
 
-  const ppfcfAlloc = remainder * 0.40;
-  const nipponGrowthAlloc = remainder * 0.30;
-  const nipponSmallCapAlloc = remainder * 0.20;
-  const goldEtfAlloc = remainder * 0.10;
+  // Split the remaining proceeds across the user's fund buckets, proportional to
+  // their configured target percentages (equal split when none are set).
+  const buckets = D.fundBuckets?.length ? D.fundBuckets : DEFAULT_FUND_BUCKETS;
+  const targetSum = buckets.reduce((sum, bucket) => sum + (bucket.targetPercent || 0), 0);
+  const weightOf = (bucket: (typeof buckets)[number]) =>
+    targetSum > 0 ? bucket.targetPercent / targetSum : 1 / buckets.length;
+  const bucketAllocations = buckets.map((bucket) => ({
+    label: bucket.label,
+    percent: Math.round(weightOf(bucket) * 1000) / 10,
+    amount: remainder * weightOf(bucket),
+  }));
 
   return {
     gross,
@@ -472,10 +488,7 @@ function calculateTaxAndDeployment() {
     ltcgTax,
     netRealized,
     goalAllocations,
-    ppfcfAlloc,
-    nipponGrowthAlloc,
-    nipponSmallCapAlloc,
-    goldEtfAlloc
+    bucketAllocations,
   };
 }
 
@@ -508,36 +521,20 @@ function updateCalculationUI() {
       )
       .join('');
     
-    html += `
-      <div class="deploy-item">
-        <div class="deploy-info">
-          <span class="deploy-name">📈 PPFCF (Parag Parikh Flexi Cap Fund) - 40%</span>
-          <span class="deploy-desc">Core equity allocation for compounding.</span>
+    html += results.bucketAllocations
+      .map(
+        (allocation) => `
+        <div class="deploy-item">
+          <div class="deploy-info">
+            <span class="deploy-name">${allocation.label} - ${allocation.percent}%</span>
+            <span class="deploy-desc">Diversified allocation into your ${allocation.label} bucket.</span>
+          </div>
+          <span class="deploy-value">${formatRupeesAndLakhs(allocation.amount)}</span>
         </div>
-        <span class="deploy-value">${formatRupeesAndLakhs(results.ppfcfAlloc)}</span>
-      </div>
-      <div class="deploy-item">
-        <div class="deploy-info">
-          <span class="deploy-name">🏢 Nippon Growth Fund - 30%</span>
-          <span class="deploy-desc">Large & mid-cap growth exposure.</span>
-        </div>
-        <span class="deploy-value">${formatRupeesAndLakhs(results.nipponGrowthAlloc)}</span>
-      </div>
-      <div class="deploy-item">
-        <div class="deploy-info">
-          <span class="deploy-name">🚀 Nippon India Small Cap Fund - 20%</span>
-          <span class="deploy-desc">High-growth small cap exposure.</span>
-        </div>
-        <span class="deploy-value">${formatRupeesAndLakhs(results.nipponSmallCapAlloc)}</span>
-      </div>
-      <div class="deploy-item">
-        <div class="deploy-info">
-          <span class="deploy-name">🪙 Gold ETF - 10%</span>
-          <span class="deploy-desc">Safe-haven hedge.</span>
-        </div>
-        <span class="deploy-value">${formatRupeesAndLakhs(results.goldEtfAlloc)}</span>
-      </div>
-    `;
+      `,
+      )
+      .join('');
+
     deployContainer.innerHTML = html;
   }
 }

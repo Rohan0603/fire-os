@@ -1,6 +1,5 @@
 import Papa from 'papaparse';
 import type { FireOSState } from '../types/state';
-import { getFundSchemeCode } from './fundMatcher';
 
 type CsvValue = string | number | undefined;
 
@@ -16,7 +15,7 @@ export function buildPortfolioCsv(state: FireOSState): string {
 
   for (const [category, funds] of [['Mutual fund', state.mf], ['SIP', state.sip]] as const) {
     for (const fund of Object.values(funds)) {
-      const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
+      const schemeCode = fund.schemeCode;
       const nav = schemeCode ? state.nav[schemeCode]?.nav : undefined;
       rows.push([category, fund.name, fund.units, fund.monthlyAmount, fund.costBasis, nav === undefined ? '' : fund.units * nav, 'INR']);
     }

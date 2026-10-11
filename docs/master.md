@@ -219,20 +219,20 @@ Core formulas and their code locations:
 | FI progress | Net worth / user-entered FI target; achieved => 0 years remaining, otherwise unknown. With no positive target set, progress is 0% and years remaining stays unknown (never a false "achieved") | `src/modules/dashboard/kpis.ts` |
 | SIP future value | `P × (((1+r)^n − 1)/r)` with monthly rate; zero-rate fallback `P × n` | `src/lib/calculations.ts` |
 | XIRR | `xirr` package (Newton-Raphson) solves annualized return on dated cash flows; invalid dates/non-finite amounts are dropped (null when fewer than two valid flows remain), null when a sign is missing, and any package error (same-day flows, nonconvergence) or non-finite result converts to null | `src/lib/calculations.ts` |
-| Allocation drift | Current bucket percentage minus target (40/30/20/10); recommend when absolute rounded drift >5 percentage points | `src/modules/calculators/portfolio-rebalancing.ts` |
+| Allocation drift | Current bucket percentage minus target (user-owned `fundBuckets.targetPercent`); recommend when absolute rounded drift >5 percentage points. Targets are user-configured per-bucket, default `0` (no recommendations when all targets 0). | `src/modules/calculators/portfolio-rebalancing.ts` |
 | FIRE-age scenario | Monthly compounding from annual CAGR, add SIP monthly, annual step-up default 10%; simulation caps at 1,000 months (~83 years) and returns `unreachable: true` with null age/months when the goal is not reached in that horizon | `src/modules/calculators/scenario-modeler.ts` |
 | Coast FIRE | Required today = target / `(1+return)^years`; coast age solves compound growth without contributions | `src/modules/calculators/scenario-modeler.ts` |
-| LTCG harvest | Estimated long-term units from SIP months older than 12; gains allocated up to hard-coded ₹125,000 remaining yearly allowance | `src/modules/calculators/tax/ltcg-planner.ts` |
+| LTCG harvest | Estimated long-term units from SIP months older than 12; gains allocated up to the configured yearly allowance `taxCalendar.harvestTarget` (default 0) less last year's harvest. | `src/modules/calculators/tax/ltcg-planner.ts` |
 | Emergency runway | Selected liquid assets / monthly expenses; UI floors to whole months | `src/modules/calculators/index.ts`, `src/lib/calculations.ts` |
-| SWP | Monthly amount redeemed by fixed fund order PPFCF, Growth, SmallCap, Gold; records expense and reduces units | `src/modules/calculators/swp-scheduler.ts` |
+| SWP | Monthly amount redeemed across user-owned fund buckets in `DEFAULT_FUND_BUCKETS` order; records expense and reduces units | `src/modules/calculators/swp-scheduler.ts` |
 | Insurance gap | Term target = max(annual income × 10, ₹1Cr); health target ₹20L for family ≤2 else ₹50L | `src/modules/plan/action-engine.ts`, `health-status.ts` |
 | Savings rate | (annual income − profile annualExpenses × 12) / annual income; `annualExpenses` is stored monthly (legacy key name), red <15%, yellow <30% | `src/modules/plan/health-status.ts` |
 | Profile age | date-fns strict `YYYY-MM-DD` parse; age from the UTC calendar day of today with the anniversary taken in today's year; null on malformed/impossible/future DOB or years 0000–0099 | `src/types/portfolio.ts` |
 
 These are app calculation semantics, including simplifications and defaults;
 they do not imply external trade execution. SWP modifies simulated portfolio
-units only. The “tax-free” harvest allowance is hard-coded and not a tax-rule
-engine. Read [UI](ui.md) for tab-level logic and additional calculations.
+units only. The tax-free harvest allowance is configurable per user (`taxCalendar.harvestTarget`),
+with a default of 0 when not set. Read [UI](ui.md) for tab-level logic and additional calculations.
 
 ## User-facing feature map
 

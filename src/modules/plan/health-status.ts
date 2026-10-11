@@ -67,14 +67,7 @@ export function assessHealth(state: FireOSState): HealthAssessment {
 
   let portfolioStatus: 'green' | 'yellow' | 'red' = 'green';
   let portfolioDetail = 'No active watchdog alerts.';
-  const alerts = checkWatchdogRules({
-    ppfcfAum: state.watchdogRules?.currentAum?.PPFCF || 0,
-    ppfcfAumLimit: state.watchdogRules?.ppfcfAumLimit || 175000000000,
-    nipponGrowthBlockedDays: state.watchdogRules?.blockedDays?.NipponGrowth || 0,
-    nipponSmallCapBlockedDays: state.watchdogRules?.blockedDays?.NipponSmallCap || 0,
-    ppfcfManagerExit: state.watchdogRules?.managerExits?.PPFCF || false,
-    nipponSmallCapManagerExit: state.watchdogRules?.managerExits?.NipponSmallCap || false,
-  });
+  const alerts = checkWatchdogRules(state.watchdogRules ?? []);
 
   if (alerts.length > 0) {
     const hasCritical = alerts.some(a => a.severity === 'critical');
