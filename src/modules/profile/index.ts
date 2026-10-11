@@ -13,9 +13,10 @@ import { undoLastSavedPortfolioChange } from '../../lib/storage';
 import { profileCompletenessPercent as calculateProfileCompleteness } from '../../lib/completeness';
 import { buildPortfolioCsv } from '../../lib/portfolioCsv';
 import type { EsopHolding } from '../../types/state';
-import { parsePortfolioBackup, restorePortfolioBackup } from './backup-import';
+import { restorePortfolioBackup } from './backup-import';
 import { applyPortfolioCsvImport, parsePortfolioCsv, type CsvImportMode, type CsvImportPreview } from './csv-import';
 import { buildImportSummary, captureStateSnapshot, showImportSummary } from './import-summary';
+import { planCasImport } from './cas-import';
 import './styles.css';
 
 const DEBOUNCE_MS = 500;
@@ -1214,6 +1215,11 @@ async function handlePDFImport(event: Event) {
     const result = await parseCASPDF(file);
     const soaHoldings = result.holdings.filter(h => h.type === 'soa');
 
+    // Plan the merge before mutating anything so the preview can show exactly
+    // what will change. Existing SIPs keep their monthlyAmount / startDate /
+    // costBasis; demat ISINs are preserved.
+    const plan = planCasImport({ sip: D.sip, demat: D.demat }, result);
+
     const modal = document.getElementById('pdf-confirmation');
     const preview = document.getElementById('pdf-preview');
     if (modal && preview) {
@@ -1232,8 +1238,19 @@ async function handlePDFImport(event: Event) {
           html += `<p>📊 ${h.schemeName}: ${Math.round(h.balanceUnits)} units | Current: ₹${Math.round(h.marketValue).toLocaleString('en-IN')}</p>`;
         });
       }
+      html += '<h5>What will change</h5>';
+      html += `<p><strong>${plan.added.length}</strong> new SIP${plan.added.length === 1 ? '' : 's'}, ` +
+        `<strong>${plan.updated.length}</strong> updated (units only — your monthly amount, start date and cost basis are kept), ` +
+        `<strong>${plan.untouched.length}</strong> unchanged.</p>`;
+      if (plan.added.length) {
+        html += `<p class="form-hint">New: ${plan.added.map(s => s).join(', ')}</p>`;
+      }
+      if (plan.updated.length) {
+        html += `<p class="form-hint">Updated: ${plan.updated.map(s => s).join(', ')}</p>`;
+      }
       preview.innerHTML = html;
       (window as any)._pendingCASImport = result;
+      (window as any)._pendingCASPlan = plan;
       modal.style.display = 'flex';
     }
   } catch (e) {
@@ -1245,47 +1262,20 @@ async function handlePDFImport(event: Event) {
 /**
  * Confirm PDF import and update state
  */
-function confirmPDFImport() {
+async function confirmPDFImport() {
   const result: CASParseResult | null = (window as any)._pendingCASImport;
-  if (!result) return;
+  const plan = (window as any)._pendingCASPlan;
+  if (!result || !plan) return;
 
-  // Snapshot before the destructive clear so the summary can compare.
   const before = captureStateSnapshot(D);
 
-  // Clear existing SIPs before importing to avoid duplicates
-  D.sip = {};
-
-  let nextSipSlot = 1;
-  result.holdings
-    .filter(h => h.type === 'soa')
-    .forEach((h) => {
-      const sipKey = `sip${nextSipSlot}`;
-      D.sip[sipKey] = {
-        name: h.schemeName,
-        units: h.balanceUnits,
-        startDate: h.navDate ? h.navDate.substring(0, 7) : new Date().toISOString().substring(0, 7),
-        monthlyAmount: 0,
-        ...(h.investedValue > 0 ? { costBasis: h.investedValue } : {}),
-      };
-      nextSipSlot++;
-    });
-
-  // Clear existing demat before importing to match CAS exactly
-  D.demat = {};
-
-  result.holdings
-    .filter(h => h.type === 'demat' && h.balanceUnits > 0)
-    .forEach(h => {
-      const key = h.identifier
-        ? h.identifier.replace(/\W+/g, '_')
-        : h.schemeName.replace(/\W+/g, '_').toLowerCase().substring(0, 20);
-      D.demat[key] = {
-        isin: '',
-        name: h.schemeName,
-        quantity: h.balanceUnits,
-        currentValue: h.marketValue,
-      };
-    });
+  // Apply the merge through the same save path used by CSV/JSON imports.
+  await applyPortfolioCsvImport(
+    { sip: plan.sip, demat: plan.demat },
+    activeContext,
+    'merge',
+    true,
+  );
 
   const modal = document.getElementById('pdf-confirmation');
   if (modal) modal.style.display = 'none';
@@ -1294,7 +1284,7 @@ function confirmPDFImport() {
   const container = document.getElementById('profile');
   if (container) renderProfile(container);
   showImportSummary(summary);
-  activeContext.ports.ui.showToast('✓ CAS imported (click Save to sync to cloud)', 4000, 'info');
+  activeContext.ports.ui.showToast('✓ CAS imported', 4000, 'info');
 }
 
 /**
@@ -1304,6 +1294,7 @@ function cancelPDFImport() {
   const modal = document.getElementById('pdf-confirmation');
   if (modal) modal.style.display = 'none';
   (window as any)._pendingCASImport = null;
+  (window as any)._pendingCASPlan = null;
 }
 
 
