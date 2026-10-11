@@ -233,8 +233,8 @@ describe('portfolio Firestore rules', () => {
       ...validEnvelope,
       data: {
         goals: [{
-          id: 'goal-home', name: 'Home', kind: 'home', targetToday: 20000000,
-          targetDate: '2031-01', inflation: 'cpi', linkedAssetIds: [], currentAmount: 0,
+          id: 'goal-sample', name: 'Sample Home', kind: 'home', targetToday: 10000000,
+          targetDate: '2030-06', inflation: 'cpi', linkedAssetIds: [], currentAmount: 0,
           priority: 1, riskBucket: 'medium',
         }],
         liquidationRules: [{ id: 'marriage', kind: 'marriage', label: 'Marriage Plan', active: false }],

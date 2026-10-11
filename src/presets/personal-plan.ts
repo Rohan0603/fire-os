@@ -1,11 +1,15 @@
 /**
- * Personal plan preset (not shipped in the general app).
+ * Example plan preset (generic, non-identifying sample data only).
  *
- * This directory is excluded from `scripts/check-personal-identifiers.mjs`, so a
- * deployment can keep its own goal names, amounts, and milestones here without
- * leaking them into the default state/config modules. Wire a preset in per
- * deployment (apply `goals` and `liquidationRules` onto the loaded state); the
- * app itself only reads the general state shape.
+ * `presets/` is excluded from `scripts/check-personal-identifiers.mjs` on the
+ * understanding that it holds only generic sample templates — like this one —
+ * that demonstrate the `goals` / `liquidationRules` shape. Every value here is
+ * fictitious: round illustrative amounts, a placeholder date, and generic
+ * labels. Real personal plans belong in the user's own imported account state;
+ * they must never be committed to this public repository, even inside
+ * `presets/`. Wire a preset in per deployment (apply `goals` and
+ * `liquidationRules` onto the loaded state); the app itself only reads the
+ * general state shape.
  */
 
 import type { Goal, LiquidationRule } from '../types/state';
@@ -18,15 +22,15 @@ export interface PersonalPlanPreset {
 export const personalPlanPreset: PersonalPlanPreset = {
   goals: [
     {
-      id: 'goal-home',
-      name: 'Coorg Home',
+      id: 'goal-sample',
+      name: 'Sample Home',
       kind: 'home',
-      targetToday: 20000000,
-      targetDate: '2031-01',
+      targetToday: 10000000,
+      targetDate: '2030-06',
       inflation: 'cpi',
       linkedAssetIds: [],
       currentAmount: 0,
-      monthlyContribution: 10000,
+      monthlyContribution: 5000,
       priority: 1,
       riskBucket: 'medium',
     },
@@ -36,13 +40,13 @@ export const personalPlanPreset: PersonalPlanPreset = {
     { id: 'childBirth', kind: 'childBirth', label: 'Child Birth', active: false },
     { id: 'jobChange', kind: 'jobChange', label: 'Employment Change', active: false },
     {
-      id: 'goal-home',
+      id: 'goal-sample',
       kind: 'goal',
-      label: 'Coorg Construction',
+      label: 'Sample Goal Allocation',
       active: false,
-      goalId: 'goal-home',
-      allocateAmount: 500000,
-      note: 'Allocate up to ₹5L of ESOP proceeds to the home goal.',
+      goalId: 'goal-sample',
+      allocateAmount: 200000,
+      note: 'Allocate up to 200000 of ESOP proceeds to the sample goal.',
     },
   ],
 };

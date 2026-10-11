@@ -4,15 +4,16 @@ import { buildEnvelopeFromState } from './merge';
 import { initializeState, normalizePersistedState, persistedPortfolioSchema } from '../types/state';
 import { isPortfolioEnvelope } from '../types/firebase';
 
+/* Fictional fixture values: the legacy contract shape, not anyone's real plan. */
 const legacyV4Envelope = {
   schemaVersion: 'fireOS_v4',
   lastSavedAt: '2026-01-01T00:00:00.000Z',
   data: {
     profile: { name: 'Ada', age: 35, annualExpenses: 80000, fiTarget: 24000000, monthlyIncome: 150000 },
-    coorgCorpus: 2400000,
-    coorgStartDate: '2031-01',
-    coorgTarget: 20000000,
-    coorgMonthlyAmount: 10000,
+    coorgCorpus: 1500000,
+    coorgStartDate: '2030-06',
+    coorgTarget: 10000000,
+    coorgMonthlyAmount: 8000,
     esopDetails: {
       shares: 100,
       grantPrice: 10,
@@ -32,10 +33,10 @@ describe('persisted data migrations', () => {
       id: 'goal-home',
       name: 'Home',
       kind: 'home',
-      targetToday: 20000000,
-      targetDate: '2031-01',
-      currentAmount: 2400000,
-      monthlyContribution: 10000,
+      targetToday: 10000000,
+      targetDate: '2030-06',
+      currentAmount: 1500000,
+      monthlyContribution: 8000,
     });
     expect(migrated.data.esopDetails.triggers).toBeUndefined();
     expect(migrated.data.liquidationRules.find((rule: any) => rule.kind === 'childBirth').active).toBe(true);
@@ -54,7 +55,7 @@ describe('persisted data migrations', () => {
   it('loads legacy local payloads into the new shape through normalizePersistedState', () => {
     const state = normalizePersistedState({ ...legacyV4Envelope.data });
     expect(state?.goals).toHaveLength(1);
-    expect(state?.goals[0].currentAmount).toBe(2400000);
+    expect(state?.goals[0].currentAmount).toBe(1500000);
     expect(state?.liquidationRules.some((rule) => rule.kind === 'goal' && rule.active)).toBe(true);
   });
 

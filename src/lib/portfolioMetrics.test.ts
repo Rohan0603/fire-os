@@ -184,15 +184,15 @@ function sizedPortfolio(scale: number): FireOSState {
   };
   state.goals = [
     {
-      id: 'goal-home',
-      name: 'Home',
+      id: 'goal-sample',
+      name: 'Sample Home',
       kind: 'home',
-      targetToday: 20_000_000,
-      targetDate: '2031-01',
+      targetToday: 10_000_000,
+      targetDate: '2030-06',
       inflation: 'cpi',
       linkedAssetIds: [],
-      currentAmount: 2_400_000,
-      monthlyContribution: 10_000,
+      currentAmount: 1_200_000,
+      monthlyContribution: 8_000,
       priority: 1,
       riskBucket: 'medium',
     },

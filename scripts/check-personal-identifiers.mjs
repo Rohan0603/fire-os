@@ -6,13 +6,19 @@
 //
 // Narrowing note: the suggested pattern also listed identifiers that are
 // unavoidably present in shipped product modules today — fund names (ppfcf,
-// nippon) and the owner's personal amounts / milestone years (122000, 55000000,
+// nippon) and owner-scoped amounts / milestone years (122000, 55000000,
 // 125000, 2031, 2032). Those are baked into the default state/config modules,
-// not accidental leaks. Personal plan specifics (goal names, amounts) live in a
-// `presets/` module; wire them in per deployment instead of the defaults. The
-// identifiers above are intentionally NOT enforced here so this guard can gate
-// everything else. Excluded paths follow the brief: anything under a `presets/`
-// directory and *.test.* / *.spec.* files.
+// not accidental leaks. The identifiers above are intentionally NOT enforced
+// here so this guard can gate everything else. Excluded paths follow the
+// brief: anything under a `presets/` directory and *.test.* / *.spec.* files.
+//
+// HARD RULE for `presets/`: it may contain ONLY generic, non-identifying
+// sample data (fictional names, round illustrative amounts, placeholder
+// dates). This repository is public, and the skip exists so deployment forks
+// can locally template their own presets — never to hide real data. Real user
+// plans belong in the user's own account data, never in source control. If you
+// need a personal preset, keep it local/untracked or template it from generic
+// examples; do not commit it under presets/.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 

@@ -14,7 +14,11 @@
 
 const LEGACY_COORG_KEYS = ['coorgCorpus', 'coorgStartDate', 'coorgTarget', 'coorgMonthlyAmount'] as const;
 
-/** Allocation cap the old Coorg trigger applied to the migrated goal rule. */
+/**
+ * Default allocation cap applied when migrating a legacy goal trigger. The old
+ * `coorgConstruction` boolean carried no amount, so this generic fallback fills
+ * the gap; it is a product default, not user data.
+ */
 const LEGACY_GOAL_ALLOCATION = 500000;
 
 type Json = Record<string, unknown>;
