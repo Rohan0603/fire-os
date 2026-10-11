@@ -51,6 +51,12 @@ export const ROUTE_META: RouteMeta[] = [
     description: 'Retirement milestones, monthly cashflow and overall plan health.',
   },
   {
+    path: '/goals',
+    id: 'goals',
+    title: 'Goals — FIRE OS',
+    description: 'Create and manage your financial planning goals (FI, home, children’s education, wedding, etc.).',
+  },
+  {
     path: '/esop',
     id: 'esop',
     title: 'ESOP — FIRE OS',

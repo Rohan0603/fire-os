@@ -17,9 +17,12 @@ export interface SelectProps {
   /** Accessible name. Prefer a visible label wired to `Select.Label`. */
   'aria-label'?: string;
   placeholder?: string;
-  children: ReactNode;
+  children?: ReactNode;
   className?: string;
   disabled?: boolean;
+  /** Pre-computed option items. When provided, children is ignored and these
+   *  options are rendered as SelectItems in order. Each option has `value` and `label`. */
+  options?: { value: string; label: string }[];
 }
 
 export function Select({
@@ -27,6 +30,7 @@ export function Select({
   className,
   placeholder = 'Select…',
   disabled,
+  options,
   ...rest
 }: SelectProps) {
   return (
@@ -53,7 +57,17 @@ export function Select({
             'border border-(--color-border) bg-(--color-surface) shadow-lg',
           )}
         >
-          <RadixSelect.Viewport className="p-1">{children}</RadixSelect.Viewport>
+          <RadixSelect.Viewport className="p-1">
+            {options ? (
+              options.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))
+            ) : (
+              children
+            )}
+          </RadixSelect.Viewport>
         </RadixSelect.Content>
       </RadixSelect.Portal>
     </RadixSelect.Root>

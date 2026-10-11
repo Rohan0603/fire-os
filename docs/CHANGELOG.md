@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Goal Wizard**: new `/goals` route (React component) for creating, editing, deleting and reordering financial planning goals. The wizard renders the `Goal` type from `src/types/state.ts` — name, kind, target amount, target date, monthly contribution, priority and risk bucket — and persists goals directly onto `appState.goals`. Uses the shared UI kit (`Button`, `Input`, `Card`, `Select`).
+- **Select options prop**: `src/app/ui/Select.tsx` now accepts a pre-computed `options` array in addition to `children`, so consumers can pass option lists declaratively instead of wrapping `SelectItem` elements by hand.
 - **General planning goals**: the fixed `coorg*` goal scalars are replaced by a
   persisted `goals: Goal[]` model (`src/types/state.ts`, `goalSchema`) with a
   dashboard progress card per goal and per-goal SIP-prep actions. The personal
