@@ -16,12 +16,12 @@ const SECTION_FIELDS: Record<PortfolioSection, Array<keyof PersistedPortfolioDat
   profile: ['profile'],
   holdings: ['mf', 'fd', 'epf', 'sip', 'esop', 'bonds', 'otherHoldings', 'demat'],
   planning: [
-    'coorgCorpus', 'coorgStartDate', 'coorgTarget', 'coorgMonthlyAmount',
+    'goals',
     'watchdogRules', 'swpSchedule', 'taxCalendar', 'expenses',
     'netWorthHistory', 'completedActions', 'achievedMilestones',
   ],
   insurance: ['insurance'],
-  esop: ['esopDetails'],
+  esop: ['esopDetails', 'liquidationRules'],
   cache: ['nav', 'niftyHigh', 'niftyData', 'currencyRates', 'alphaTrackerData'],
 };
 
@@ -150,7 +150,7 @@ export function buildEnvelopeFromState(
   });
 
   return {
-    schemaVersion: 'fireOS_v3',
+    schemaVersion: 'fireOS_v5',
     lastSavedAt: now,
     client,
     data,

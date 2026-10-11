@@ -48,8 +48,6 @@ export const CONFIG = {
   // Goal Defaults
   goals: {
     fiTarget: 55000000,                    // ₹5.5Cr
-    coorgTarget: 20000000,                 // ₹2Cr
-    coorgSipAmount: 10000,                 // ₹10K/month
     swpMonthlyAmount: 122000,              // ₹122K/month
   },
 

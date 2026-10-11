@@ -76,10 +76,6 @@
   min-width: 2px;
 }
 
-.plan-progress-fill--coorg {
-  background: var(--card-bg);
-}
-
 .plan-progress-note {
   font-size: var(--font-size-sm);
   color: var(--text-secondary);

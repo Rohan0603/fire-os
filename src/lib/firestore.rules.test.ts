@@ -54,7 +54,7 @@ describe('portfolio Firestore rules', () => {
     void _entryUpdatedAt;
     await assertSucceeds(setDoc(doc(db, 'users/owner-default-state/portfolio/state'), {
       ...envelopeWithoutDynamicMetadata,
-      schemaVersion: 'fireOS_v4',
+      schemaVersion: 'fireOS_v5',
       data: stateData,
     }));
   });
@@ -224,6 +224,25 @@ describe('portfolio Firestore rules', () => {
     await assertFails(setDoc(doc(db, 'users/owner-other-holdings/portfolio/state'), {
       ...validEnvelope,
       data: { otherHoldings: oversized },
+    }));
+  });
+
+  it('allows general goals and liquidation rules and denies the legacy triggers shape', async () => {
+    const db = testEnvironment.authenticatedContext('owner-goals').firestore();
+    await assertSucceeds(setDoc(doc(db, 'users/owner-goals/portfolio/state'), {
+      ...validEnvelope,
+      data: {
+        goals: [{
+          id: 'goal-home', name: 'Home', kind: 'home', targetToday: 20000000,
+          targetDate: '2031-01', inflation: 'cpi', linkedAssetIds: [], currentAmount: 0,
+          priority: 1, riskBucket: 'medium',
+        }],
+        liquidationRules: [{ id: 'marriage', kind: 'marriage', label: 'Marriage Plan', active: false }],
+      },
+    }));
+    await assertFails(setDoc(doc(db, 'users/owner-goals/portfolio/state'), {
+      ...validEnvelope,
+      data: { esopDetails: { shares: 1, grantPrice: 1, vestingSchedule: [], triggers: { marriage: false } } },
     }));
   });
 

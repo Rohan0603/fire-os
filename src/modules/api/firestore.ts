@@ -13,6 +13,7 @@ import {
 import type { FirebaseOptions } from 'firebase/app';
 import { isPortfolioEnvelope } from '../../types/firebase';
 import type { PortfolioEnvelope } from '../../types/firebase';
+import { migratePortfolioEnvelope } from '../../lib/portfolioMigrations';
 import { getFirebaseServices } from '../../lib/firebase';
 import { measurePortfolioWrite } from '../../lib/portfolioMetrics';
 import type { SIPFund } from '../../types/portfolio';
@@ -97,10 +98,11 @@ export async function loadPortfolio(uid: string): Promise<PortfolioEnvelope | nu
   const snapshot = await getDoc(portfolioRef(initializedServices.db, uid));
   if (!snapshot.exists()) return null;
   const data = snapshot.data();
-  if (!isPortfolioEnvelope(data)) {
+  const migrated = migratePortfolioEnvelope(data);
+  if (!isPortfolioEnvelope(migrated)) {
     throw new Error('Firestore portfolio document has an invalid envelope');
   }
-  return attachMfEntries(data, await readMfEntries(initializedServices.db, uid));
+  return attachMfEntries(migrated, await readMfEntries(initializedServices.db, uid));
 }
 
 export async function savePortfolio(uid: string, envelope: PortfolioEnvelope): Promise<void> {
@@ -112,7 +114,7 @@ export async function savePortfolio(uid: string, envelope: PortfolioEnvelope): P
   const stateBatch = writeBatch(initializedServices.db);
   const stateDocument = {
     ...envelopeWithoutDynamicMetadata,
-    schemaVersion: 'fireOS_v4',
+    schemaVersion: 'fireOS_v5',
     data: stateData,
   };
   const metrics = measurePortfolioWrite(stateDocument, mf ?? {}, envelope.lastSavedAt);
@@ -160,7 +162,7 @@ export function onPortfolioChange(
     portfolioRef(initializedServices.db, uid),
     (snapshot) => {
       if (!snapshot.exists()) return;
-      const data = snapshot.data();
+      const data = migratePortfolioEnvelope(snapshot.data());
       if (isPortfolioEnvelope(data)) {
         stateEnvelope = data;
         emit();

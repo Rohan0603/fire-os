@@ -97,22 +97,49 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
   const { netWorth } = context.ports.calculations.totalNetWorth(D);
   const percentNetWorth = netWorth > 0 ? (grossInr / netWorth) * 100 : 0;
 
-  // 2. Trigger Monitor Calculations
+  // 2. Trigger Monitor Calculations (general liquidation rules)
   const currentYear = new Date().getFullYear();
   const yearsRemaining = Math.max(0, 2031 - currentYear);
   const rule5YearFired = currentYear >= 2031;
-  const marriageFired = D.esopDetails.triggers.marriage;
-  const childFired = D.esopDetails.triggers.childBirth;
-  const jobFired = D.esopDetails.triggers.jobChange;
-  const coorgFired = D.esopDetails.triggers.coorgConstruction;
 
-  const anyTriggerFired = rule5YearFired || marriageFired || childFired || jobFired || coorgFired;
+  const rules = D.liquidationRules ?? [];
+  const activeRules = rules.filter((rule) => rule.active);
+  const jobFired = activeRules.some((rule) => rule.kind === 'jobChange');
+  const goalFired = activeRules.find((rule) => rule.kind === 'goal');
+  const anyTriggerFired = rule5YearFired || activeRules.length > 0;
 
-  // Check if Coorg Goal is active
-  const isCoorgGoalActive = D.coorgTarget > 0;
-  const coorgStatusText = isCoorgGoalActive 
-            ? `Coorg Goal Active: ₹${(D.coorgCorpus / 100000).toFixed(0)}L saved towards ₹${(D.coorgTarget / 10000000).toFixed(0)}Cr target`
-    : 'Coorg Construction Scheduled';
+  const ruleMessage = (rule: typeof rules[number]): string => {
+    switch (rule.kind) {
+      case 'marriage':
+        return '<strong>Marriage Goal:</strong> Triggered. Liquidate shares to meet upcoming expenses.';
+      case 'childBirth':
+        return '<strong>Child Birth:</strong> Triggered. Realize funds for family expansion needs.';
+      case 'jobChange':
+        return '<strong>Employment Change:</strong> Triggered. Vested options may need to be exercised or liquidated within the post-employment window to avoid forfeiture.';
+      case 'goal':
+        return `<strong>${rule.label}:</strong> Triggered. Allocate${rule.allocateAmount ? ` up to ${formatRupeesAndLakhs(rule.allocateAmount)}` : ' proceeds'} to the ${rule.label} goal.`;
+      default:
+        return `<strong>${rule.label}:</strong> Triggered.`;
+    }
+  };
+
+  const ruleDescription = (rule: typeof rules[number]): string => {
+    if (rule.note) return rule.note;
+    switch (rule.kind) {
+      case 'marriage':
+        return 'Toggle when wedding timeline is finalized.';
+      case 'childBirth':
+        return 'Toggle to align liquidation with family goals.';
+      case 'jobChange':
+        return 'Toggle upon submitting resignation.';
+      case 'goal':
+        return `Funds the ${rule.label} goal.`;
+      case 'holdingPeriod':
+        return 'Toggle when the holding period milestone is reached.';
+      default:
+        return 'Custom liquidation rule.';
+    }
+  };
 
   // Construct UI HTML
   let html = `
@@ -138,17 +165,14 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
             <h3>Active Liquidation Trigger Event(s) Detected</h3>
             <ul class="active-triggers-list">
               ${rule5YearFired ? '<li><strong>5-Year Holding Period Rule:</strong> 2031 milestone reached (Auto-Alert). Reduce single-stock concentration.</li>' : ''}
-              ${marriageFired ? '<li><strong>Marriage Goal:</strong> Triggered. Liquidate shares to meet upcoming expenses.</li>' : ''}
-              ${childFired ? '<li><strong>Child Birth:</strong> Triggered. Realize funds for family expansion needs.</li>' : ''}
-              ${jobFired ? '<li><strong>Employment Change:</strong> Triggered. Vested options may need to be exercised or liquidated within the post-employment window to avoid forfeiture.</li>' : ''}
-              ${coorgFired ? `<li><strong>Coorg Construction:</strong> Triggered. Allocate up to ₹5.00L to Coorg construction goal.</li>` : ''}
+              ${activeRules.map((rule) => `<li>${ruleMessage(rule)}</li>`).join('')}
             </ul>
             <div class="alert-recommendation">
               <strong>Recommended Strategy:</strong> 
               ${jobFired 
                 ? 'Review vested shares immediately or within 90 days of exit. Account for applicable India tax on exercise FMV, and deploy net proceeds according to the plan.'
-                : coorgFired 
-                  ? 'Proceed with liquidating vested shares up to ₹5.00L for the Coorg construction fund. Invest any surplus in the diversified mutual funds.'
+                : goalFired 
+                  ? `Proceed with liquidating vested shares to fund the ${goalFired.label} goal${goalFired.allocateAmount ? ` (up to ${formatRupeesAndLakhs(goalFired.allocateAmount)})` : ''}. Invest any surplus in the diversified mutual funds.`
                   : 'Liquidate vested shares to fund your short-to-medium-term goals, or rebalance into the recommended asset allocation model below to manage downside risk.'
               }
             </div>
@@ -206,50 +230,18 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
               </div>
               <p class="trigger-desc">Triggers auto-alert in 2031 to review single-stock concentration.</p>
             </div>
-            
-            <div class="trigger-item ${coorgFired ? 'fired' : ''}">
-              <div class="trigger-header">
-                <span class="trigger-title">Coorg Construction</span>
-                <label class="toggle-switch">
-                  <input type="checkbox" id="trigger-coorg" ${coorgFired ? 'checked' : ''}>
-                  <span class="slider"></span>
-                </label>
-              </div>
-              <p class="trigger-desc">${coorgStatusText}</p>
-            </div>
 
-            <div class="trigger-item ${marriageFired ? 'fired' : ''}">
+            ${rules.map((rule) => `
+            <div class="trigger-item ${rule.active ? 'fired' : ''}">
               <div class="trigger-header">
-                <span class="trigger-title">Marriage Plan</span>
+                <span class="trigger-title">${rule.label}</span>
                 <label class="toggle-switch">
-                  <input type="checkbox" id="trigger-marriage" ${marriageFired ? 'checked' : ''}>
+                  <input type="checkbox" id="trigger-${rule.id}" ${rule.active ? 'checked' : ''}>
                   <span class="slider"></span>
                 </label>
               </div>
-              <p class="trigger-desc">Toggle when wedding timeline is finalized.</p>
-            </div>
-
-            <div class="trigger-item ${childFired ? 'fired' : ''}">
-              <div class="trigger-header">
-                <span class="trigger-title">Child Birth</span>
-                <label class="toggle-switch">
-                  <input type="checkbox" id="trigger-child" ${childFired ? 'checked' : ''}>
-                  <span class="slider"></span>
-                </label>
-              </div>
-              <p class="trigger-desc">Toggle to align liquidation with family goals.</p>
-            </div>
-
-            <div class="trigger-item ${jobFired ? 'fired' : ''}">
-              <div class="trigger-header">
-                <span class="trigger-title">Employment Change</span>
-                <label class="toggle-switch">
-                  <input type="checkbox" id="trigger-job" ${jobFired ? 'checked' : ''}>
-                  <span class="slider"></span>
-                </label>
-              </div>
-              <p class="trigger-desc">Toggle upon submitting resignation.</p>
-            </div>
+              <p class="trigger-desc">${ruleDescription(rule)}</p>
+            </div>`).join('')}
           </div>
         </div>
       </div>
@@ -328,26 +320,19 @@ export function renderEsop(container?: HTMLElement, context: FeatureContext = ac
 }
 
 function attachEsopHandlers() {
-  const marriageToggle = document.getElementById('trigger-marriage') as HTMLInputElement;
-  const childToggle = document.getElementById('trigger-child') as HTMLInputElement;
-  const jobToggle = document.getElementById('trigger-job') as HTMLInputElement;
-  const coorgToggle = document.getElementById('trigger-coorg') as HTMLInputElement;
-
-  const handleTriggerChange = () => {
-    D.esopDetails.triggers.marriage = marriageToggle ? marriageToggle.checked : false;
-    D.esopDetails.triggers.childBirth = childToggle ? childToggle.checked : false;
-    D.esopDetails.triggers.jobChange = jobToggle ? jobToggle.checked : false;
-    D.esopDetails.triggers.coorgConstruction = coorgToggle ? coorgToggle.checked : false;
+  const handleRuleToggle = (ruleId: string, checked: boolean) => {
+    const rule = D.liquidationRules.find((candidate) => candidate.id === ruleId);
+    if (rule) rule.active = checked;
 
     // Trigger toggles change the trigger-status list rendered by the template,
     // so this path still needs the full re-render.
     debounceSave(true);
   };
 
-  marriageToggle?.addEventListener('change', handleTriggerChange);
-  childToggle?.addEventListener('change', handleTriggerChange);
-  jobToggle?.addEventListener('change', handleTriggerChange);
-  coorgToggle?.addEventListener('change', handleTriggerChange);
+  for (const rule of D.liquidationRules) {
+    const toggle = document.getElementById(`trigger-${rule.id}`) as HTMLInputElement | null;
+    toggle?.addEventListener('change', () => handleRuleToggle(rule.id, toggle.checked));
+  }
 
   // Tax Calculator inputs handlers
   const sharesInput = document.getElementById('calc-shares') as HTMLInputElement;
@@ -464,13 +449,16 @@ function calculateTaxAndDeployment() {
   const ltcgTax = shares * priceDiff * rate * 0.125;
   const netRealized = gross - perquisiteTax - ltcgTax;
 
-  const coorgActive = D.esopDetails.triggers.coorgConstruction;
-  let coorgAlloc = 0;
+  // Fund active goal-linked rules from the net proceeds, in list order, before
+  // the diversified allocation split.
   let remainder = netRealized;
-  
-  if (coorgActive) {
-    coorgAlloc = Math.min(500000, netRealized);
-    remainder = netRealized - coorgAlloc;
+  const goalAllocations: Array<{ label: string; amount: number }> = [];
+  for (const rule of D.liquidationRules) {
+    if (!rule.active || rule.kind !== 'goal' || !rule.allocateAmount || rule.allocateAmount <= 0) continue;
+    const amount = Math.min(rule.allocateAmount, remainder);
+    if (amount <= 0) continue;
+    goalAllocations.push({ label: rule.label, amount });
+    remainder -= amount;
   }
 
   const ppfcfAlloc = remainder * 0.40;
@@ -483,7 +471,7 @@ function calculateTaxAndDeployment() {
     perquisiteTax,
     ltcgTax,
     netRealized,
-    coorgAlloc,
+    goalAllocations,
     ppfcfAlloc,
     nipponGrowthAlloc,
     nipponSmallCapAlloc,
@@ -506,21 +494,19 @@ function updateCalculationUI() {
 
   const deployContainer = document.getElementById('deployment-plan-list');
   if (deployContainer) {
-    const isCoorgActive = D.esopDetails.triggers.coorgConstruction;
-    
-    let html = '';
-    
-    if (isCoorgActive) {
-      html += `
+    let html = results.goalAllocations
+      .map(
+        (allocation) => `
         <div class="deploy-item highlight">
           <div class="deploy-info">
-            <span class="deploy-name">🏠 Coorg Construction Allocation</span>
-            <span class="deploy-desc">Max ₹5.00L prioritized for Coorg property construction.</span>
+            <span class="deploy-name">🏠 ${allocation.label} Allocation</span>
+            <span class="deploy-desc">Prioritized towards the ${allocation.label} goal.</span>
           </div>
-          <span class="deploy-value">${formatRupeesAndLakhs(results.coorgAlloc)}</span>
+          <span class="deploy-value">${formatRupeesAndLakhs(allocation.amount)}</span>
         </div>
-      `;
-    }
+      `,
+      )
+      .join('');
     
     html += `
       <div class="deploy-item">

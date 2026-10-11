@@ -6,6 +6,7 @@
 import type { PortfolioProfile, Holdings, DematHoldings, AlphaTrackerDataCollection, SIPFunds, OtherHoldings, Liabilities } from './portfolio';
 import type { CurrencyRateCacheMap, CurrencyRateData, HistoricalSeries, NiftyData, NAVCacheMap } from './api';
 import type { SyncMetadata, FirebaseUser } from './firebase';
+import { migratePersistedData } from '../lib/portfolioMigrations';
 import { z } from 'zod';
 
 // Firebase User type - Firebase authenticated user or null
@@ -40,11 +41,46 @@ export interface EsopVestingItem {
   shares: number;
 }
 
-export interface EsopTriggers {
-  marriage: boolean;
-  childBirth: boolean;
-  jobChange: boolean;
-  coorgConstruction: boolean;
+/** Category of a planning goal. Kept open-ended via `custom`. */
+export type GoalKind = 'fi' | 'home' | 'education' | 'marriage' | 'vehicle' | 'custom';
+
+/** Inflation assumption for a goal: a named index or an explicit annual percentage. */
+export type GoalInflation = 'cpi' | 'education' | 'medical' | number;
+
+export type GoalRiskBucket = 'low' | 'medium' | 'high';
+
+/** A user-defined planning goal (target, funding progress, and assumptions). */
+export interface Goal {
+  id: string;
+  name: string;
+  kind: GoalKind;
+  /** Target amount expressed in today's rupees. */
+  targetToday: number;
+  /** Target date in `YYYY-MM` format. */
+  targetDate: string;
+  inflation: GoalInflation;
+  linkedAssetIds: string[];
+  /** Corpus saved towards this goal so far, in rupees. */
+  currentAmount: number;
+  monthlyContribution?: number;
+  priority: number;
+  riskBucket: GoalRiskBucket;
+}
+
+/** What kind of milestone a liquidation rule reacts to. */
+export type LiquidationRuleKind = 'marriage' | 'childBirth' | 'jobChange' | 'goal' | 'holdingPeriod' | 'custom';
+
+/** A general ESOP liquidation rule, replacing the old fixed trigger enum. */
+export interface LiquidationRule {
+  id: string;
+  kind: LiquidationRuleKind;
+  label: string;
+  active: boolean;
+  /** Set for `goal` rules to name the goal the proceeds fund. */
+  goalId?: string;
+  /** Optional cap on how much of the net proceeds this rule allocates. */
+  allocateAmount?: number;
+  note?: string;
 }
 
 export interface EsopHolding {
@@ -63,7 +99,6 @@ export interface EsopDetails {
   currentPrice?: number;
   slabRate?: number;
   vestingSchedule: EsopVestingItem[];
-  triggers: EsopTriggers;
 }
 
 /** Complete global application state */
@@ -100,11 +135,8 @@ export interface FireOSState {
   // Alpha Tracking
   alphaTrackerData: AlphaTrackerDataCollection; // Fund vs benchmark returns
 
-  // Coorg Goal Tracking (Kerala home purchase by 2036)
-  coorgCorpus: number; // Current corpus in rupees
-  coorgStartDate: string; // When Coorg SIP starts (YYYY-MM format)
-  coorgTarget: number; // Target: ₹2Cr = 20000000
-  coorgMonthlyAmount: number; // Monthly SIP amount: ₹10000
+  // Planning goals (general, user-defined)
+  goals: Goal[];
 
   // Watchdog Rules & Alerts (fund health monitoring)
   watchdogRules: {
@@ -161,6 +193,9 @@ export interface FireOSState {
   // ESOP Details
   esopDetails: EsopDetails;
 
+  // General ESOP liquidation rules (replaces the old fixed trigger enum)
+  liquidationRules: LiquidationRule[];
+
   // Assistant preferences
   assistant: {
     /**
@@ -204,9 +239,9 @@ const isValid = (schema: z.ZodTypeAny, value: unknown): boolean =>
 export const PERSISTED_STATE_KEYS = [
   'profile', 'mf', 'fd', 'epf', 'sip', 'esop', 'bonds', 'otherHoldings', 'liabilities', 'demat', 'nav',
   'niftyHigh', 'niftyData', 'currencyRates', 'marketHistory', 'eurInr', 'eurInrData', 'alphaTrackerData',
-  'coorgCorpus', 'coorgStartDate', 'coorgTarget', 'coorgMonthlyAmount',
+  'goals',
   'watchdogRules', 'swpSchedule', 'taxCalendar', 'expenses', 'netWorthHistory',
-  'completedActions', 'achievedMilestones', 'insurance', 'esopDetails', 'assistant',
+  'completedActions', 'achievedMilestones', 'insurance', 'esopDetails', 'liquidationRules', 'assistant',
 ] as const;
 
 const finiteNumberSchema = z.number();
@@ -253,6 +288,29 @@ const marketHistorySchema = maxEntries(
   z.record(z.string(), historicalSeriesSchema),
   HISTORY_CACHE_MAX_ENTRIES,
 );
+const goalKindSchema = z.enum(['fi', 'home', 'education', 'marriage', 'vehicle', 'custom']);
+const goalSchema = z.strictObject({
+  id: z.string().min(1).max(64),
+  name: z.string().min(1).max(200),
+  kind: goalKindSchema,
+  targetToday: finiteNumberSchema.min(0),
+  targetDate: z.string().max(7),
+  inflation: z.union([z.enum(['cpi', 'education', 'medical']), finiteNumberSchema.min(0)]),
+  linkedAssetIds: z.array(z.string().max(64)).max(50),
+  currentAmount: finiteNumberSchema.min(0),
+  monthlyContribution: exactOptional(finiteNumberSchema.min(0)),
+  priority: finiteNumberSchema,
+  riskBucket: z.enum(['low', 'medium', 'high']),
+});
+const liquidationRuleSchema = z.strictObject({
+  id: z.string().min(1).max(64),
+  kind: z.enum(['marriage', 'childBirth', 'jobChange', 'goal', 'holdingPeriod', 'custom']),
+  label: z.string().min(1).max(200),
+  active: z.boolean(),
+  goalId: exactOptional(z.string().max(64)),
+  allocateAmount: exactOptional(finiteNumberSchema.min(0)),
+  note: exactOptional(z.string().max(500)),
+});
 const persistedPortfolioShape = {
   profile: exactOptional(profileSchema), mf: exactOptional(sipMapSchema), fd: exactOptional(holdingMapSchema),
   epf: exactOptional(holdingMapSchema), sip: exactOptional(sipMapSchema), esop: exactOptional(holdingMapSchema),
@@ -272,8 +330,7 @@ const persistedPortfolioShape = {
   alphaTrackerData: exactOptional(z.record(z.string(), z.strictObject({
     fund: z.string(), benchmark: z.string(), year: finiteNumberSchema, return: finiteNumberSchema, benchmarkReturn: finiteNumberSchema,
   }))),
-  coorgCorpus: exactOptional(finiteNumberSchema), coorgStartDate: exactOptional(z.string()),
-  coorgTarget: exactOptional(finiteNumberSchema), coorgMonthlyAmount: exactOptional(finiteNumberSchema),
+  goals: exactOptional(z.array(goalSchema).max(50)),
   watchdogRules: exactOptional(z.strictObject({
     ppfcfAumLimit: finiteNumberSchema, nipponGrowthBlockThreshold: finiteNumberSchema,
     nipponSmallCapBlockThreshold: finiteNumberSchema,
@@ -298,8 +355,8 @@ const persistedPortfolioShape = {
     grantPrice: finiteNumberSchema, liquidationShares: finiteNumberSchema.optional(), vestingFmv: finiteNumberSchema.optional(),
     currentPrice: finiteNumberSchema.optional(), slabRate: finiteNumberSchema.optional(),
     vestingSchedule: z.array(z.strictObject({ date: z.string(), shares: finiteNumberSchema })),
-    triggers: z.strictObject({ marriage: z.boolean(), childBirth: z.boolean(), jobChange: z.boolean(), coorgConstruction: z.boolean() }),
   })),
+  liquidationRules: exactOptional(z.array(liquidationRuleSchema).max(50)),
   assistant: exactOptional(z.strictObject({ sendExactFigures: z.boolean() })),
 };
 
@@ -408,11 +465,8 @@ export function initializeState(): FireOSState {
     // Tracking
     alphaTrackerData: {},
 
-    // Coorg Goal Tracking (Kerala home purchase by 2036)
-    coorgCorpus: 0,
-    coorgStartDate: '2031-01', // Coorg SIP starts Jan 2031
-    coorgTarget: 20000000, // ₹2Cr
-    coorgMonthlyAmount: 10000, // ₹10K monthly
+    // Planning goals (general, user-defined)
+    goals: [],
 
     // Watchdog Rules
     watchdogRules: {
@@ -473,13 +527,14 @@ export function initializeState(): FireOSState {
       vestingFmv: 0,
       slabRate: 30,
       vestingSchedule: [],
-      triggers: {
-        marriage: false,
-        childBirth: false,
-        jobChange: false,
-        coorgConstruction: false,
-      },
     },
+
+    // General ESOP liquidation rules (default milestone vocabulary)
+    liquidationRules: [
+      { id: 'marriage', kind: 'marriage', label: 'Marriage Plan', active: false },
+      { id: 'childBirth', kind: 'childBirth', label: 'Child Birth', active: false },
+      { id: 'jobChange', kind: 'jobChange', label: 'Employment Change', active: false },
+    ],
 
     // Assistant preferences (opt-in; off by default)
     assistant: { sendExactFigures: false },
@@ -489,7 +544,7 @@ export function initializeState(): FireOSState {
 
 /** Fill omitted top-level persisted sections with current application defaults. */
 export function normalizePersistedState(value: unknown): FireOSState | null {
-  const payload = dropMalformedMarketHistory(value);
+  const payload = dropMalformedMarketHistory(migratePersistedData(value));
   if (!isPersistedPortfolioData(payload)) return null;
 
   const defaults = initializeState();
@@ -517,7 +572,6 @@ export function normalizePersistedState(value: unknown): FireOSState | null {
     esopDetails: {
       ...defaults.esopDetails,
       ...data.esopDetails,
-      triggers: { ...defaults.esopDetails.triggers, ...data.esopDetails?.triggers },
     },
     assistant: { ...defaults.assistant, ...data.assistant },
   };
@@ -572,11 +626,12 @@ export function mergeState(existing: FireOSState, incoming: Partial<FireOSState>
     ...(incoming.eurInr !== undefined && { eurInr: incoming.eurInr }),
     ...(incoming.eurInrData !== undefined && { eurInrData: incoming.eurInrData }),
     ...(incoming.alphaTrackerData && { alphaTrackerData: { ...existing.alphaTrackerData, ...incoming.alphaTrackerData } }),
-    // Coorg goal fields
-    ...(incoming.coorgCorpus !== undefined && { coorgCorpus: incoming.coorgCorpus }),
-    ...(incoming.coorgStartDate !== undefined && { coorgStartDate: incoming.coorgStartDate }),
-    ...(incoming.coorgTarget !== undefined && { coorgTarget: incoming.coorgTarget }),
-    ...(incoming.coorgMonthlyAmount !== undefined && { coorgMonthlyAmount: incoming.coorgMonthlyAmount }),
+    // Planning goals: union by id, incoming entries win
+    ...(incoming.goals && {
+      goals: Array.from(
+        new Map([...existing.goals, ...incoming.goals].map((goal) => [goal.id, goal])).values(),
+      ),
+    }),
     // Watchdog rules (merge deeply for nested objects)
     ...(incoming.watchdogRules && {
       watchdogRules: {
@@ -635,12 +690,15 @@ export function mergeState(existing: FireOSState, incoming: Partial<FireOSState>
       ...initializeState().esopDetails,
       ...existing.esopDetails,
       ...incoming.esopDetails,
-      triggers: {
-        ...initializeState().esopDetails.triggers,
-        ...existing.esopDetails?.triggers,
-        ...incoming.esopDetails?.triggers,
-      },
     },
+    // Liquidation rules: union by id, incoming entries win
+    ...(incoming.liquidationRules && {
+      liquidationRules: Array.from(
+        new Map(
+          [...existing.liquidationRules, ...incoming.liquidationRules].map((rule) => [rule.id, rule]),
+        ).values(),
+      ),
+    }),
     ...(incoming.assistant && { assistant: { ...existing.assistant, ...incoming.assistant } }),
     // Metadata is only set explicitly, never from incoming
     _lastSavedAt: incoming._lastSavedAt ?? existing._lastSavedAt,

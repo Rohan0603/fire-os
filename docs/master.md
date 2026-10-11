@@ -114,18 +114,24 @@ previous identity being applied to the next one.
 `FireOSState` is defined in `src/types/state.ts`; persisted top-level fields are
 allowlisted by `PERSISTED_STATE_KEYS`. Major sections: `profile`; MF and SIP
 fund maps; FD, EPF, ESOP, bonds, custom assets, liabilities and demat; NAV/Nifty/
-FX caches; benchmark tracker; Coorg goal; fund watchdog inputs; SWP and tax
-calendar; expenses; net-worth history; completed actions and milestones;
-insurance; ESOP detail/vesting; Assistant preferences (`assistant.sendExactFigures`,
-opt-in and false by default); and `marketHistory`, a bounded local cache of
-market series. `currentUser`, `_lastSavedAt`, and `_syncMetadata`
-are runtime-only. `persistedPortfolioSchema` (Zod) and
+FX caches; benchmark tracker; general planning `goals`; fund watchdog inputs; SWP
+and tax calendar; expenses; net-worth history; completed actions and milestones;
+insurance; ESOP detail/vesting and `liquidationRules` (general ESOP liquidation
+rules replacing the old fixed trigger enum); Assistant preferences
+(`assistant.sendExactFigures`, opt-in and false by default); and `marketHistory`,
+a bounded local cache of market series. `currentUser`, `_lastSavedAt`, and
+`_syncMetadata` are runtime-only. `persistedPortfolioSchema` (Zod) and
 `isPersistedPortfolioData()` enforce exact key/nested shapes, types, finite
 numbers and selected limits; `normalizePersistedState()` fills omitted fields
 from defaults, discarding a malformed `marketHistory` without discarding the
 portfolio. Firestore rules independently validate their boundary.
-`mergeState()` deep-merges known object sections,
-unions milestones, deduplicates history dates, and keeps metadata explicit.
+`migratePersistedData()` (in `src/lib/portfolioMigrations.ts`) rewrites older
+payloads — the four scalar `coorg*` goal fields and the `esopDetails.triggers`
+booleans — into the current `goals`/`liquidationRules` shape at every read
+boundary (local storage, JSON backup restore, Firestore envelopes); it is
+idempotent and liberal in, strict out. `mergeState()` deep-merges known object
+sections, unions milestones and `goals`/`liquidationRules` by id, deduplicates
+history dates, and keeps metadata explicit.
 
 Storage keys are `fireOS_v2:anonymous` and `fireOS_v2:user:{uid}`; legacy
 `fireOS_v2` is copied to the anonymous scope on first read. `saveData()` refuses
@@ -255,7 +261,7 @@ engine. Read [UI](ui.md) for tab-level logic and additional calculations.
   no UI input.
 - **Plan** (`src/modules/plan/`): health score, action list, milestones,
   cashflow and history-oriented planning.
-- **ESOP Tools** (`src/modules/esop/`): vesting, triggers and quoted valuation.
+- **ESOP Tools** (`src/modules/esop/`): vesting, liquidation rules and quoted valuation.
 - **Assistant** (`src/modules/assistant/`): consent-aware chat, proposal review,
   reauthentication for sensitive changes, local audit and undo.
 - **Other shared UI** (`src/modules/ui/`): native dialog wrapper and the

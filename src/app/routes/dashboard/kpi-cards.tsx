@@ -1,8 +1,8 @@
 import { Card, cn } from '../../ui';
 import { formatCurrency } from '../../../lib/formatters';
-import { calculateCoorgProgress } from '../../../modules/dashboard/coorg-tracker';
+import { calculateGoalProgress } from '../../../modules/dashboard/goal-tracker';
 import { fiProgress, floatIndicator, sipStatus, totalNetWorth } from '../../../modules/dashboard/kpis';
-import type { FireOSState } from '../../../types/state';
+import type { FireOSState, Goal } from '../../../types/state';
 
 const TONE_CLASS = {
   positive: 'text-(--color-accent)',
@@ -115,35 +115,33 @@ function ProgressBar({ percent, label }: { percent: number; label: string }) {
   );
 }
 
-function CoorgGoal({ state }: { state: FireOSState }) {
-  const targetCr = Math.round((state.coorgTarget || 20000000) / 10000000);
-  let progress: { percentage: number; remainingAmount: number; yearsUntilStart: number; status: string };
+function GoalProgressCard({ goal, today }: { goal: Goal; today: string }) {
+  let progress: ReturnType<typeof calculateGoalProgress>;
   try {
-    progress = calculateCoorgProgress({
-      currentCorpus: state.coorgCorpus || 0,
-      targetCorpus: state.coorgTarget || 20000000,
-      currentDate: new Date().toISOString().slice(0, 10),
-      sipStartDate: state.coorgStartDate || '2031-01',
+    progress = calculateGoalProgress({
+      currentCorpus: goal.currentAmount,
+      targetCorpus: goal.targetToday,
+      currentDate: today,
+      sipStartDate: goal.targetDate,
     });
   } catch {
-    // Malformed persisted date: skip the goal rather than crash the dashboard.
+    // Missing or malformed target date: skip this goal rather than crash the dashboard.
     return null;
   }
-  const corpusLac = Math.round((state.coorgCorpus || 0) / 100000);
   const statusText =
     progress.status === 'planning'
-      ? `SIP starts in ${Math.round(progress.yearsUntilStart)} years`
+      ? goal.monthlyContribution
+        ? `SIP ₹${goal.monthlyContribution.toLocaleString('en-IN')}/mo • starts in ${Math.round(progress.yearsUntilStart)} years`
+        : `Starts in ${Math.round(progress.yearsUntilStart)} years`
       : progress.status === 'in_progress'
-        ? 'SIP in progress'
+        ? 'Funding in progress'
         : 'Target reached';
   return (
     <Card className="flex flex-col gap-2">
-      <p className="text-xs font-semibold text-(--color-muted-foreground)">
-        {`Coorg Goal Progress (₹${targetCr}Cr by 2036)`}
-      </p>
+      <p className="text-xs font-semibold text-(--color-muted-foreground)">{goal.name}</p>
       <div
         role="progressbar"
-        aria-label="Coorg goal progress"
+        aria-label={`${goal.name} progress`}
         aria-valuenow={Math.round(progress.percentage)}
         aria-valuemin={0}
         aria-valuemax={100}
@@ -155,10 +153,10 @@ function CoorgGoal({ state }: { state: FireOSState }) {
         />
       </div>
       <div className="flex justify-between text-xs text-(--color-muted-foreground)">
-        <span>{`₹${corpusLac}L / ₹${targetCr}Cr`}</span>
+        <span>{`${formatCurrency(goal.currentAmount, 0)} / ${formatCurrency(goal.targetToday, 0)}`}</span>
         <span>
           {progress.remainingAmount > 0
-            ? `₹${Math.round(progress.remainingAmount / 100000)}L remaining`
+            ? `${formatCurrency(progress.remainingAmount, 0)} remaining`
             : 'Target achieved'}
         </span>
       </div>
@@ -167,7 +165,20 @@ function CoorgGoal({ state }: { state: FireOSState }) {
   );
 }
 
-/** Asset-class bento, FI progress bar and the Coorg goal. */
+/** Progress cards for each user-defined planning goal. */
+function GoalCards({ state }: { state: FireOSState }) {
+  if (state.goals.length === 0) return null;
+  const today = new Date().toISOString().slice(0, 10);
+  return (
+    <>
+      {state.goals.map((goal) => (
+        <GoalProgressCard key={goal.id} goal={goal} today={today} />
+      ))}
+    </>
+  );
+}
+
+/** Asset-class bento, FI progress bar and planning goals. */
 export function PortfolioSummary({ state }: { state: FireOSState }) {
   const { breakdown } = totalNetWorth(state);
   const fi = fiProgress(state);
@@ -195,7 +206,7 @@ export function PortfolioSummary({ state }: { state: FireOSState }) {
         ))}
       </div>
       <ProgressBar percent={fi.progressPercent} label="Financial Independence Progress" />
-      <CoorgGoal state={state} />
+      <GoalCards state={state} />
     </section>
   );
 }

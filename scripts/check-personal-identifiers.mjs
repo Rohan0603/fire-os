@@ -6,12 +6,13 @@
 //
 // Narrowing note: the suggested pattern also listed identifiers that are
 // unavoidably present in shipped product modules today — fund names (ppfcf,
-// nippon), the "coorg" goal, and the owner's personal amounts / milestone years
-// (122000, 55000000, 125000, 2031, 2032). Those are baked into the default
-// state/config modules, not accidental leaks. Extracting them into a `presets/`
-// module is a larger, separate change; until then they are intentionally NOT
-// enforced here so this guard can gate everything else. Excluded paths follow
-// the brief: anything under a `presets/` directory and *.test.* / *.spec.* files.
+// nippon) and the owner's personal amounts / milestone years (122000, 55000000,
+// 125000, 2031, 2032). Those are baked into the default state/config modules,
+// not accidental leaks. Personal plan specifics (goal names, amounts) live in a
+// `presets/` module; wire them in per deployment instead of the defaults. The
+// identifiers above are intentionally NOT enforced here so this guard can gate
+// everything else. Excluded paths follow the brief: anything under a `presets/`
+// directory and *.test.* / *.spec.* files.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 

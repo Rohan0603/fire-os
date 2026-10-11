@@ -191,18 +191,19 @@ export function generateActionItems(state: FireOSState): ActionItem[] {
   });
   */
 
-  // 9. Coorg SIP start approaching (< 6 months) (upcoming)
-  if (state.coorgStartDate) {
-    const [cYear, cMonth] = state.coorgStartDate.split('-').map(Number);
-    const coorgStart = new Date(cYear, cMonth - 1, 1);
-    const monthsToStart = (coorgStart.getTime() - now.getTime()) / (1000 * 3600 * 24 * 30);
+  // 9. Goal SIP start approaching (< 6 months) (upcoming)
+  for (const goal of state.goals ?? []) {
+    if (!goal.targetDate || !goal.monthlyContribution) continue;
+    const [gYear, gMonth] = goal.targetDate.split('-').map(Number);
+    const goalStart = new Date(gYear, gMonth - 1, 1);
+    const monthsToStart = (goalStart.getTime() - now.getTime()) / (1000 * 3600 * 24 * 30);
     if (monthsToStart > 0 && monthsToStart < 6) {
       addAction({
-        id: 'coorg-sip-approaching',
+        id: `goal-sip-approaching-${goal.id}`,
         priority: 'upcoming',
         category: 'invest',
-        title: 'Prepare for Coorg SIP',
-        description: `Coorg SIP (₹${state.coorgMonthlyAmount}/mo) starts in ${Math.ceil(monthsToStart)} months (${state.coorgStartDate}). Ensure cashflow.`,
+        title: `Prepare for ${goal.name} SIP`,
+        description: `${goal.name} SIP (₹${goal.monthlyContribution}/mo) starts in ${Math.ceil(monthsToStart)} months (${goal.targetDate}). Ensure cashflow.`,
       });
     }
   }
