@@ -7,7 +7,6 @@ import { formatCurrency } from '../../lib/formatters';
 import { createFeatureContext, type FeatureContext } from '../../core/feature-context';
 import { parseCASPDF, CASParseResult } from './pdf-parser';
 import { validateFormInput, handleError, ValidationRules } from '../../lib/error-handler';
-import { getFundSchemeCode } from '../../lib/fundMatcher';
 import { calculateAgeFromDateOfBirth } from '../../types/portfolio';
 import { undoLastSavedPortfolioChange } from '../../lib/storage';
 import { profileCompletenessPercent as calculateProfileCompleteness } from '../../lib/completeness';
@@ -471,22 +470,13 @@ function attachProfileHandlers(context: FeatureContext) {
       input.addEventListener('blur', debounceProfileSave);
     });
 
-    // Event delegation for auto-populate scheme code when fund name changes
-    sipForm.addEventListener('blur', (e) => {
+// Event delegation for auto-populate scheme code when fund name changes.
+  // Note: schemeCode now comes from mfapi lookup or user entry; name-based
+  // auto-fill is no longer available (owner-specific fund names removed).
+  sipForm.addEventListener('blur', (e) => {
       const target = e.target as HTMLInputElement;
       if (target.classList.contains('sip-name')) {
-        const index = target.getAttribute('data-index');
-        if (index) {
-          const fundName = target.value?.trim();
-          const codeInput = sipForm.querySelector(`.sip-code[data-index="${index}"]`) as HTMLInputElement;
-          if (fundName && codeInput && !codeInput.value) {
-            const schemeCode = getFundSchemeCode(fundName);
-            if (schemeCode) {
-              codeInput.value = schemeCode;
-              debounceProfileSave();
-            }
-          }
-        }
+        // No auto-lookup: user enters schemeCode manually when needed for NAV fetch
       }
     }, true); // Use capture phase for blur event
   }

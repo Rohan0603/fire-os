@@ -62,6 +62,7 @@ export const PERSISTED_ALLOWLIST = Object.freeze([
   'eurInrData',
   'alphaTrackerData',
   'goals',
+  'fundBuckets',
   'watchdogRules',
   'swpSchedule',
   'taxCalendar',

@@ -33,7 +33,7 @@ describe('executeMonthlyWithdrawal', () => {
     const state: any = {
       swpSchedule: { enabled: true, startDate: '2024-12', monthlyAmount: 1000, rate: 3 },
       sip: {
-        sip1: { name: 'Parag Parikh Flexi Cap', units: 10, monthlyAmount: 500 },
+        sip1: { name: 'Large Cap Fund', schemeCode: '122639', units: 10, monthlyAmount: 500 },
       },
       mf: {},
       nav: { 122639: { nav: 100 } },
@@ -56,7 +56,7 @@ describe('executeMonthlyWithdrawal', () => {
     const state: any = {
       swpSchedule: { enabled: true, startDate: '2024-12', monthlyAmount: 5000, rate: 3 },
       sip: {
-        sip1: { name: 'Parag Parikh Flexi Cap', units: 5, monthlyAmount: 500 },
+        sip1: { name: 'Large Cap Fund', schemeCode: '122639', units: 5, monthlyAmount: 500 },
       },
       mf: {},
       nav: { 122639: { nav: 100 } },

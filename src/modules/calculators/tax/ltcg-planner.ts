@@ -1,6 +1,5 @@
 import { differenceInCalendarMonths, isValid, parse } from 'date-fns';
 import type { FireOSState } from '../../../types/state';
-import { getFundSchemeCode } from '../../../lib/fundMatcher';
 
 export interface FundHarvestRecommendation {
   fundKey: string;
@@ -72,7 +71,7 @@ export function calculateLTCGHarvestPlan(
     longTermUnits = Math.max(0, Math.min(units, longTermUnits));
 
     // 7. currentNAV
-    const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
+    const schemeCode = fund.schemeCode || '';
     const currentNAV = (schemeCode && nav[schemeCode]) ? nav[schemeCode].nav ?? 0 : 0;
 
     // 8. currentValue
@@ -103,9 +102,10 @@ export function calculateLTCGHarvestPlan(
     });
   }
 
-  // Calculate remaining limit
+  // Calculate remaining limit from the user-configured annual harvest target.
   const lastHarvested = state?.taxCalendar?.lastHarvestedAmount ?? 0;
-  const remainingLimit = Math.max(0, 125000 - lastHarvested);
+  const harvestTarget = state?.taxCalendar?.harvestTarget ?? 0;
+  const remainingLimit = Math.max(0, harvestTarget - lastHarvested);
 
   // Sort funds by ltcgGains descending
   const recommendations = tempRecs.sort((a, b) => b.ltcgGains - a.ltcgGains);

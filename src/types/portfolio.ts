@@ -4,10 +4,30 @@
  */
 import { differenceInCalendarDays, differenceInCalendarYears, isValid, parse } from 'date-fns';
 
+/**
+ * Generic asset-class bucket ids. These are a small, stable vocabulary; the
+ * per-bucket labels and target percentages are user data (`FundBucket`), and a
+ * holding's bucket is user data (`SIPFund.bucketId`), never inferred from a
+ * specific fund's name.
+ */
+export const FUND_BUCKET_IDS = ['large-cap', 'mid-cap', 'small-cap', 'gold', 'other'] as const;
+
+export type FundBucketId = (typeof FUND_BUCKET_IDS)[number];
+
+/** A user-owned asset-class bucket: display label plus target allocation. */
+export interface FundBucket {
+  id: FundBucketId;
+  label: string;
+  /** Target share of the tracked fund portfolio, 0-100. 0 means "unset". */
+  targetPercent: number;
+}
+
 /** Represents a single SIP (Systematic Investment Plan) fund */
 export interface SIPFund {
   name: string;
   schemeCode?: string; // Optional: can be looked up via fundMatcher
+  /** User-assigned asset-class bucket; falls back to a generic name heuristic. */
+  bucketId?: FundBucketId;
   units: number;
   startDate: string; // YYYY-MM format
   monthlyAmount: number;
@@ -45,7 +65,7 @@ export interface DematHolding {
 
 /** Represents alpha/benchmark tracking data for a fund */
 export interface AlphaTrackerData {
-  fund: string; // Fund name (e.g., "PPFCF", "Nippon Growth")
+  fund: string; // Fund name (user-entered)
   benchmark: string; // Benchmark index name (e.g., "Nifty 500 TRI")
   year: number; // Year of tracking (e.g., 2024, 2025, 2026)
   return: number; // Fund return percentage

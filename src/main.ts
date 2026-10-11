@@ -48,7 +48,6 @@ import { initPlanModule, renderPlan } from './modules/plan';
 import { initEsopModule, renderEsop } from './modules/esop';
 import { initAssistantModule, renderAssistant } from './modules/assistant';
 import { executeMonthlyWithdrawal } from './modules/calculators/swp-scheduler';
-import { getFundSchemeCode } from './lib/fundMatcher';
 import { fetchNAV } from './modules/api';
 
 
@@ -312,7 +311,7 @@ function setupBackgroundNAVRefresh() {
       let updated = false;
       for (const [, fund] of sipsToFetch) {
         if ((appState.currentUser?.uid ?? null) !== uid) return;
-        const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
+        const schemeCode = fund.schemeCode;
         if (schemeCode) {
           try {
             const oldNav = appState.nav[schemeCode]?.nav;

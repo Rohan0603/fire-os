@@ -59,35 +59,19 @@ service cloud.firestore {
         && isIso(value.timestamp);
     }
 
-    function validWatchdogRules(value) {
-      return value is map
-        && value.keys().hasOnly([
-          'ppfcfAumLimit', 'nipponGrowthBlockThreshold', 'nipponSmallCapBlockThreshold',
-          'currentAum', 'blockedDays', 'managerExits'
-        ])
-        && value.keys().hasAll([
-          'ppfcfAumLimit', 'nipponGrowthBlockThreshold', 'nipponSmallCapBlockThreshold',
-          'currentAum', 'blockedDays', 'managerExits'
-        ])
-        && value.size() <= 6
-        && value.ppfcfAumLimit is number
-        && value.nipponGrowthBlockThreshold is number
-        && value.nipponSmallCapBlockThreshold is number
-        && value.currentAum is map
-        && value.currentAum.keys().hasOnly(['PPFCF'])
-        && value.currentAum.keys().hasAll(['PPFCF'])
-        && value.currentAum.PPFCF is number
-        && value.blockedDays is map
-        && value.blockedDays.keys().hasOnly(['NipponGrowth', 'NipponSmallCap'])
-        && value.blockedDays.keys().hasAll(['NipponGrowth', 'NipponSmallCap'])
-        && value.blockedDays.NipponGrowth is number
-        && value.blockedDays.NipponSmallCap is number
-        && value.managerExits is map
-        && value.managerExits.keys().hasOnly(['PPFCF', 'NipponSmallCap'])
-        && value.managerExits.keys().hasAll(['PPFCF', 'NipponSmallCap'])
-        && value.managerExits.PPFCF is bool
-        && value.managerExits.NipponSmallCap is bool;
-    }
+function validWatchdogRules(value) {
+  return value is map
+    && value.keys().hasOnly(['id', 'label', 'aumLimit', 'currentAum', 'blockThresholdDays', 'blockedDays', 'managerExits'])
+    && value.keys().hasAll(['id', 'label'])
+    && value.size() <= 50
+    && value.id is string
+    && value.label is string
+    && (!('aumLimit' in value) || value.aumLimit is number)
+    && (!('currentAum' in value) || value.currentAum is number)
+    && (!('blockThresholdDays' in value) || value.blockThresholdDays is number)
+    && (!('blockedDays' in value) || value.blockedDays is number)
+    && (!('managerExits' in value) || value.managerExits is bool);
+}
 
     function validSwpSchedule(value) {
       return value is map
@@ -138,9 +122,9 @@ service cloud.firestore {
 
     function validEsopDetails(value) {
       return value is map
-        && value.keys().hasOnly(['shares', 'holdings', 'grantPrice', 'liquidationShares', 'vestingFmv', 'currentPrice', 'slabRate', 'vestingSchedule'])
+        && value.keys().hasOnly(['shares', 'holdings', 'grantPrice', 'liquidationShares', 'vestingFmv', 'currentPrice', 'slabRate', 'vestingSchedule', 'holdingPeriodYears'])
         && value.keys().hasAll(['shares', 'grantPrice', 'vestingSchedule'])
-        && value.size() <= 8
+        && value.size() <= 9
         && value.shares is number
         && (!('holdings' in value) || (value.holdings is list && value.holdings.size() <= 20))
         && value.grantPrice is number
@@ -148,20 +132,22 @@ service cloud.firestore {
         && (!('vestingFmv' in value) || value.vestingFmv is number)
         && (!('currentPrice' in value) || value.currentPrice is number)
         && (!('slabRate' in value) || value.slabRate is number)
+        && (!('holdingPeriodYears' in value) || value.holdingPeriodYears is number)
         && isBoundedList(value.vestingSchedule, 200);
     }
 
     function validMfEntry(value) {
       return value is map
-        && value.keys().hasOnly(['name', 'schemeCode', 'units', 'startDate', 'monthlyAmount', 'costBasis'])
+        && value.keys().hasOnly(['name', 'schemeCode', 'units', 'startDate', 'monthlyAmount', 'costBasis', 'bucketId'])
         && value.keys().hasAll(['name', 'units', 'startDate', 'monthlyAmount'])
-        && value.size() <= 6
+        && value.size() <= 7
         && isBoundedString(value.name, 200)
         && (!('schemeCode' in value) || isBoundedString(value.schemeCode, 50))
         && value.units is number
         && isBoundedString(value.startDate, 20)
         && value.monthlyAmount is number
-        && (!('costBasis' in value) || value.costBasis is number);
+        && (!('costBasis' in value) || value.costBasis is number)
+        && (!('bucketId' in value) || isBoundedString(value.bucketId, 20));
     }
 
     function validMfHoldingDocument() {
@@ -203,17 +189,19 @@ service cloud.firestore {
         && data.keys().hasOnly([
           'profile', 'sip', 'fd', 'epf', 'esop', 'bonds', 'otherHoldings', 'liabilities', 'demat',
           'nav', 'niftyHigh', 'niftyData', 'currencyRates', 'eurInr', 'eurInrData',
-          'alphaTrackerData', 'goals', 'watchdogRules', 'swpSchedule', 'taxCalendar',
+          'alphaTrackerData', 'goals', 'fundBuckets', 'watchdogRules', 'swpSchedule', 'taxCalendar',
           'expenses', 'netWorthHistory', 'completedActions', 'achievedMilestones',
           'insurance', 'esopDetails', 'liquidationRules', 'assistant'
         ])
-        && data.size() <= 40
+        && data.size() <= 41
         && (!('profile' in data) || data.profile is map)
         && (!('mf' in data) || isBoundedMap(data.mf, 200))
         && (!('currencyRates' in data) || isBoundedMap(data.currencyRates, 200))
         && (!('liabilities' in data) || isBoundedMap(data.liabilities, 50))
         && (!('otherHoldings' in data) || isBoundedMap(data.otherHoldings, 200))
         && (!('goals' in data) || isBoundedList(data.goals, 50))
+        && (!('fundBuckets' in data) || isBoundedList(data.fundBuckets, 10))
+        && (!('watchdogRules' in data) || isBoundedList(data.watchdogRules, 50))
         && (!('liquidationRules' in data) || isBoundedList(data.liquidationRules, 50))
         && (!('achievedMilestones' in data) || isBoundedList(data.achievedMilestones, 500))
         && (!('insurance' in data) || data.insurance is map)

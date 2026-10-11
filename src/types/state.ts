@@ -3,10 +3,11 @@
  * Defines the complete FireOSState interface and initialization logic
  */
 
-import type { PortfolioProfile, Holdings, DematHoldings, AlphaTrackerDataCollection, SIPFunds, OtherHoldings, Liabilities } from './portfolio';
+import type { PortfolioProfile, Holdings, DematHoldings, AlphaTrackerDataCollection, SIPFunds, OtherHoldings, Liabilities, FundBucket } from './portfolio';
 import type { CurrencyRateCacheMap, CurrencyRateData, HistoricalSeries, NiftyData, NAVCacheMap } from './api';
 import type { SyncMetadata, FirebaseUser } from './firebase';
 import { migratePersistedData } from '../lib/portfolioMigrations';
+import { DEFAULT_FUND_BUCKETS } from '../lib/fundMatcher';
 import { z } from 'zod';
 
 // Firebase User type - Firebase authenticated user or null
@@ -90,6 +91,25 @@ export interface EsopHolding {
   currency: string;
 }
 
+/**
+ * A user-defined fund watchdog rule: a named holding plus optional thresholds to
+ * watch. All thresholds are optional; a rule with none set never fires.
+ */
+export interface FundWatchdogRule {
+  id: string;
+  label: string;
+  /** Alert when the fund's assets-under-management exceeds this (rupees). */
+  aumLimit?: number;
+  /** Latest known AUM for this fund (rupees). */
+  currentAum?: number;
+  /** Alert when redemption has been blocked longer than this many days. */
+  blockThresholdDays?: number;
+  /** Current consecutive blocked-redemption days. */
+  blockedDays?: number;
+  /** Alert when the fund's manager has changed. */
+  managerExited?: boolean;
+}
+
 export interface EsopDetails {
   shares: number;
   holdings?: EsopHolding[];
@@ -99,6 +119,12 @@ export interface EsopDetails {
   currentPrice?: number;
   slabRate?: number;
   vestingSchedule: EsopVestingItem[];
+  /**
+   * Holding period (years) for the long-term-capital-gains milestone, measured
+   * from the earliest vesting date. Defaults to 5. Replaces the old hard-coded
+   * product milestone year.
+   */
+  holdingPeriodYears?: number;
 }
 
 /** Complete global application state */
@@ -138,18 +164,11 @@ export interface FireOSState {
   // Planning goals (general, user-defined)
   goals: Goal[];
 
-  // Watchdog Rules & Alerts (fund health monitoring)
-  watchdogRules: {
-    ppfcfAumLimit: number; // ₹1.75L Cr = 175000000000
-    nipponGrowthBlockThreshold: number; // 14 days
-    nipponSmallCapBlockThreshold: number; // 60 days
-    currentAum: { PPFCF: number }; // Current AUM values for monitoring
-    blockedDays: { NipponGrowth: number; NipponSmallCap: number }; // Redemption block days
-    managerExits: {
-      PPFCF: boolean; // Rajeev Thakkar exit status
-      NipponSmallCap: boolean; // Samir Rachh exit status
-    };
-  };
+  // User-owned fund buckets: labels + target allocation per asset class.
+  fundBuckets: FundBucket[];
+
+  // Fund watchdog rules (user-defined; each rule is self-contained)
+  watchdogRules: FundWatchdogRule[];
 
   // Auth
   currentUser: FirebaseUserType;
@@ -235,11 +254,23 @@ function maxEntries<T extends z.ZodTypeAny>(schema: T, max: number) {
 const isValid = (schema: z.ZodTypeAny, value: unknown): boolean =>
   schema.safeParse(value).success;
 
+/**
+ * Merge two bucket lists by id: keeps `base` order and every base bucket (so the
+ * full default vocabulary survives), with `incoming` overrides winning.
+ */
+function mergeBucketsById(base: FundBucket[], incoming?: FundBucket[]): FundBucket[] {
+  if (!incoming?.length) return base;
+  const byId = new Map(base.map((bucket) => [bucket.id, bucket]));
+  for (const bucket of incoming) byId.set(bucket.id, { ...(byId.get(bucket.id) ?? bucket), ...bucket });
+  return Array.from(byId.values());
+}
+
 /** Top-level keys accepted in persisted portfolio data (allowlist). */
 export const PERSISTED_STATE_KEYS = [
   'profile', 'mf', 'fd', 'epf', 'sip', 'esop', 'bonds', 'otherHoldings', 'liabilities', 'demat', 'nav',
   'niftyHigh', 'niftyData', 'currencyRates', 'marketHistory', 'eurInr', 'eurInrData', 'alphaTrackerData',
   'goals',
+  'fundBuckets',
   'watchdogRules', 'swpSchedule', 'taxCalendar', 'expenses', 'netWorthHistory',
   'completedActions', 'achievedMilestones', 'insurance', 'esopDetails', 'liquidationRules', 'assistant',
 ] as const;
@@ -260,7 +291,8 @@ const otherHoldingMapSchema = z.record(z.string(), z.strictObject({
   annualReturn: finiteNumberSchema.min(0).max(100),
 }));
 const sipMapSchema = z.record(z.string(), z.strictObject({
-  name: z.string(), schemeCode: z.string().optional(), units: finiteNumberSchema,
+  name: z.string(), schemeCode: z.string().optional(), bucketId: exactOptional(z.string().max(64)),
+  units: finiteNumberSchema,
   startDate: z.string(), monthlyAmount: finiteNumberSchema, costBasis: finiteNumberSchema.optional(),
 }));
 const dematMapSchema = z.record(z.string(), z.strictObject({
@@ -311,6 +343,20 @@ const liquidationRuleSchema = z.strictObject({
   allocateAmount: exactOptional(finiteNumberSchema.min(0)),
   note: exactOptional(z.string().max(500)),
 });
+const fundBucketSchema = z.strictObject({
+  id: z.enum(['large-cap', 'mid-cap', 'small-cap', 'gold', 'other']),
+  label: z.string().min(1).max(40),
+  targetPercent: finiteNumberSchema.min(0).max(100),
+});
+const fundWatchdogRuleSchema = z.strictObject({
+  id: z.string().min(1).max(64),
+  label: z.string().min(1).max(200),
+  aumLimit: exactOptional(finiteNumberSchema.min(0)),
+  currentAum: exactOptional(finiteNumberSchema.min(0)),
+  blockThresholdDays: exactOptional(finiteNumberSchema.min(0)),
+  blockedDays: exactOptional(finiteNumberSchema.min(0)),
+  managerExited: exactOptional(z.boolean()),
+});
 const persistedPortfolioShape = {
   profile: exactOptional(profileSchema), mf: exactOptional(sipMapSchema), fd: exactOptional(holdingMapSchema),
   epf: exactOptional(holdingMapSchema), sip: exactOptional(sipMapSchema), esop: exactOptional(holdingMapSchema),
@@ -331,13 +377,8 @@ const persistedPortfolioShape = {
     fund: z.string(), benchmark: z.string(), year: finiteNumberSchema, return: finiteNumberSchema, benchmarkReturn: finiteNumberSchema,
   }))),
   goals: exactOptional(z.array(goalSchema).max(50)),
-  watchdogRules: exactOptional(z.strictObject({
-    ppfcfAumLimit: finiteNumberSchema, nipponGrowthBlockThreshold: finiteNumberSchema,
-    nipponSmallCapBlockThreshold: finiteNumberSchema,
-    currentAum: z.strictObject({ PPFCF: finiteNumberSchema }),
-    blockedDays: z.strictObject({ NipponGrowth: finiteNumberSchema, NipponSmallCap: finiteNumberSchema }),
-    managerExits: z.strictObject({ PPFCF: z.boolean(), NipponSmallCap: z.boolean() }),
-  })),
+  fundBuckets: exactOptional(z.array(fundBucketSchema).max(10)),
+  watchdogRules: exactOptional(z.array(fundWatchdogRuleSchema).max(50)),
   swpSchedule: exactOptional(z.strictObject({ enabled: z.boolean(), startDate: z.string(), monthlyAmount: finiteNumberSchema, rate: finiteNumberSchema, autoExecute: z.boolean().default(false) })),
   taxCalendar: exactOptional(z.strictObject({ lastLTCGHarvestDate: z.string(), lastHarvestedAmount: finiteNumberSchema, harvestTarget: finiteNumberSchema })),
   expenses: exactOptional(z.array(z.strictObject({ date: z.string(), category: z.string(), amount: finiteNumberSchema, linkedToSWP: z.boolean() }))),
@@ -355,6 +396,7 @@ const persistedPortfolioShape = {
     grantPrice: finiteNumberSchema, liquidationShares: finiteNumberSchema.optional(), vestingFmv: finiteNumberSchema.optional(),
     currentPrice: finiteNumberSchema.optional(), slabRate: finiteNumberSchema.optional(),
     vestingSchedule: z.array(z.strictObject({ date: z.string(), shares: finiteNumberSchema })),
+    holdingPeriodYears: finiteNumberSchema.min(0).max(50).optional(),
   })),
   liquidationRules: exactOptional(z.array(liquidationRuleSchema).max(50)),
   assistant: exactOptional(z.strictObject({ sendExactFigures: z.boolean() })),
@@ -468,18 +510,11 @@ export function initializeState(): FireOSState {
     // Planning goals (general, user-defined)
     goals: [],
 
-    // Watchdog Rules
-    watchdogRules: {
-      ppfcfAumLimit: 175000000000, // ₹1.75L Cr
-      nipponGrowthBlockThreshold: 14, // 14 days
-      nipponSmallCapBlockThreshold: 60, // 60 days
-      currentAum: { PPFCF: 0 }, // Current AUM values
-      blockedDays: { NipponGrowth: 0, NipponSmallCap: 0 }, // Blocked days for redemptions
-      managerExits: {
-        PPFCF: false, // Not exited
-        NipponSmallCap: false, // Not exited
-      },
-    },
+    // User-owned fund buckets (labels + targets; targets start unset)
+    fundBuckets: DEFAULT_FUND_BUCKETS.map((bucket) => ({ ...bucket })),
+
+    // Fund watchdog rules (none by default)
+    watchdogRules: [],
 
     // Auth
     currentUser: null,
@@ -496,7 +531,7 @@ export function initializeState(): FireOSState {
     taxCalendar: {
       lastLTCGHarvestDate: '',
       lastHarvestedAmount: 0,
-      harvestTarget: 125000,
+      harvestTarget: 0,
     },
     expenses: [],
 
@@ -553,13 +588,8 @@ export function normalizePersistedState(value: unknown): FireOSState | null {
     ...defaults,
     ...data,
     profile: { ...defaults.profile, ...data.profile },
-    watchdogRules: {
-      ...defaults.watchdogRules,
-      ...data.watchdogRules,
-      currentAum: { ...defaults.watchdogRules.currentAum, ...data.watchdogRules?.currentAum },
-      blockedDays: { ...defaults.watchdogRules.blockedDays, ...data.watchdogRules?.blockedDays },
-      managerExits: { ...defaults.watchdogRules.managerExits, ...data.watchdogRules?.managerExits },
-    },
+    fundBuckets: mergeBucketsById(defaults.fundBuckets, data.fundBuckets),
+    watchdogRules: data.watchdogRules ?? defaults.watchdogRules,
     swpSchedule: { ...defaults.swpSchedule, ...data.swpSchedule },
     taxCalendar: { ...defaults.taxCalendar, ...data.taxCalendar },
     insurance: {
@@ -632,24 +662,13 @@ export function mergeState(existing: FireOSState, incoming: Partial<FireOSState>
         new Map([...existing.goals, ...incoming.goals].map((goal) => [goal.id, goal])).values(),
       ),
     }),
-    // Watchdog rules (merge deeply for nested objects)
+    // Fund buckets: union by id, incoming entries win
+    ...(incoming.fundBuckets && { fundBuckets: mergeBucketsById(existing.fundBuckets, incoming.fundBuckets) }),
+    // Watchdog rules: union by id, incoming entries win
     ...(incoming.watchdogRules && {
-      watchdogRules: {
-        ...existing.watchdogRules,
-        ...(incoming.watchdogRules as typeof existing.watchdogRules),
-        currentAum: {
-          ...existing.watchdogRules.currentAum,
-          ...((incoming.watchdogRules as typeof existing.watchdogRules)?.currentAum || {}),
-        },
-        blockedDays: {
-          ...existing.watchdogRules.blockedDays,
-          ...((incoming.watchdogRules as typeof existing.watchdogRules)?.blockedDays || {}),
-        },
-        managerExits: {
-          ...existing.watchdogRules.managerExits,
-          ...((incoming.watchdogRules as typeof existing.watchdogRules)?.managerExits || {}),
-        },
-      },
+      watchdogRules: Array.from(
+        new Map([...existing.watchdogRules, ...incoming.watchdogRules].map((rule) => [rule.id, rule])).values(),
+      ),
     }),
     // SWP & Tax Engine fields
     ...(incoming.swpSchedule && { swpSchedule: { ...existing.swpSchedule, ...incoming.swpSchedule } }),

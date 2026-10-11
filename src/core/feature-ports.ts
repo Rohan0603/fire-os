@@ -16,7 +16,6 @@ import { renderExpenseTracker } from '../modules/trackers/expense-tracker';
 import { checkWatchdogRules } from '../modules/watchdog/fund-manager-alerts';
 import { createModal, closeModal } from '../modules/ui/Modal';
 import { showToast } from '../modules/ui/Toast';
-import { getFundSchemeCode } from '../lib/fundMatcher';
 import { marketRefreshStatusStore } from './stores';
 import type { FireOSState } from '../types/state';
 
@@ -103,7 +102,7 @@ async function refreshPortfolioNAVsNow(state: FireOSState): Promise<number> {
   let fetched = 0;
 
   for (const [key, fund] of sipsToFetch) {
-    const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
+    const schemeCode = fund.schemeCode;
     if (schemeCode) {
       try {
         await fetchNAV(schemeCode);

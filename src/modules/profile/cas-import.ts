@@ -1,6 +1,5 @@
 import type { DematHolding, SIPFund } from '../../types/portfolio';
 import type { CASParseResult, CASHolding } from './pdf-parser';
-import { getFundSchemeCode } from '../../lib/fundMatcher';
 
 /**
  * Normalize a name for case-insensitive, whitespace-insensitive comparison.
@@ -86,17 +85,10 @@ export function planCasImport(
 
   // Process each SOA holding from the CAS statement.
   for (const h of result.holdings.filter((x) => x.type === 'soa')) {
-    const schemeCodeFromName = getFundSchemeCode(h.schemeName);
     let matchedKey: string | undefined;
 
-    // Try to match by scheme code first (if we got one from the name lookup).
-    if (schemeCodeFromName) {
-      matchedKey = sipByCode.get(schemeCodeFromName);
-    }
-    // Fall back to matching by normalized name.
-    if (!matchedKey) {
-      matchedKey = sipByName.get(normalizeName(h.schemeName));
-    }
+    // Match by normalized name.
+    matchedKey = sipByName.get(normalizeName(h.schemeName));
 
     const startDate = h.navDate ? h.navDate.substring(0, 7) : new Date().toISOString().slice(0, 7);
 

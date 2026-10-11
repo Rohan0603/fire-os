@@ -11,7 +11,6 @@
 import { createFeatureContext, type FeatureContext } from '../../core/feature-context';
 import { crashAlertStore } from '../../core/stores';
 import { CONFIG } from '../../lib/config';
-import { getFundSchemeCode } from '../../lib/fundMatcher';
 import { getCurrencyRateCache, isSupportedCurrencyCode } from '../api/currency';
 import type { CrashAlert } from '../api/nifty-monitor';
 import type { CurrencyRateData } from '../../types/api';
@@ -87,7 +86,7 @@ export function staleSourceLabels(state: FireOSState): string[] {
   const namesByCode = new Map<string, string>();
   const holdings = [...Object.values(state.sip || {}), ...Object.values(state.mf || {})];
   for (const fund of holdings) {
-    const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
+    const schemeCode = fund.schemeCode;
     if (schemeCode && !namesByCode.has(schemeCode)) namesByCode.set(schemeCode, fund.name);
   }
   const navLabels = Object.values(state.nav || {})

@@ -266,7 +266,7 @@ describe('applyPortfolioCsvImport', () => {
     const save = vi.spyOn(context.portfolio, 'save').mockResolvedValue();
     await applyPortfolioCsvImport(candidate, context, 'merge', true);
     expect(state.fd).toEqual({ fd: { amount: 999, currency: 'INR' } });
-    expect(state.sip.sip1).toEqual({ name: 'Existing SIP', units: 3, startDate: '2024-01', monthlyAmount: 1000 });
+    expect(state.sip.sip1).toEqual({ name: 'Existing SIP', units: 3, startDate: '2024-01', monthlyAmount: 1000, bucketId: 'other' });
     expect(state.profile.name).toBe('Ravi');
     expect(state.currentUser).toEqual({ uid: 'active-user' });
     expect(save).toHaveBeenCalledTimes(1);

@@ -2,20 +2,17 @@
 /* global console, process */
 // CI guard: fail the build if personal identifiers appear outside presets/ and
 // test files. This repository is public, so the maintainer's personal handles,
-// external-advisor references, and contact details must never ship in source.
+// external-advisor references, contact details, and fund-specific tokens must
+// never ship in source.
 //
-// Narrowing note: the suggested pattern also listed fund names (ppfcf, nippon)
-// and further figures (125000, 2031, 2032). These are NOT enforced: they are
-// live feature identifiers in shipped modules today — the fund-tracking /
-// watchdog layer keys public mutual funds by name, 125000 is the statutory LTCG
-// exemption limit, and 2031/2032 are product milestone years (ESOP 5-year
-// holding rule, annual harvest year). Enforcing them would fail the guard on
-// used features; they are recorded debt pending a feature-generalization pass
-// (see the sweep report for the p-config-fix commit). This is a documented
-// deferral, not a laundering rule: any identifier that IS enforced here must be
-// removed from source when it reappears, never re-narrowed to make the check
-// pass. Excluded paths follow the brief: anything under a `presets/` directory
-// and *.test.* / *.spec.* files.
+// NOTE: `ppfcf`, `nippon`, `2031`, `2032`, and `125000` are now enforced by this
+// guard after the fund-layer generalization (buckets + harvestTarget). They
+// must not appear in any `src/` source file outside `presets/` or test files.
+// Removing them from source is a prerequisite for the guard to pass; see the
+// brief for the full generalization scope.
+//
+// Excluded paths follow the brief: anything under a `presets/` directory and
+// *.test.* / *.spec.* files.
 //
 // HARD RULE for `presets/`: it may contain ONLY generic, non-identifying
 // sample data (fictional names, round illustrative amounts, placeholder
@@ -38,6 +35,12 @@ const DENY = [
   'user@example', // placeholder that must never ship as a real value
   '122000', // owner's former FI/SWP monthly withdrawal amount (removed)
   '55000000', // owner's former ₹5.5Cr FI target (removed)
+  'ppfcf', // Parag Parikh Flexi Cap Fund (owner-specific; generalized to fundBuckets)
+  'nippon', // Nippon India fund family (owner-specific; generalized to fundBuckets)
+  '2031', // ESOP 5-year holding milestone year (generalized to holdingPeriodYears)
+  '2032', // Annual harvest fiscal year (generalized to fiscal-year-end reminder)
+  '125000', // Statutory LTCG exemption limit (generalized to taxCalendar.harvestTarget)
+  '125_000', // Same with underscore literal
 ];
 
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'test-results', 'presets']);
