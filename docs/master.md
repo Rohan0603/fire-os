@@ -271,11 +271,15 @@ backend resource. See [UI reference](ui.md) for per-module behavior.
 The browser builds the summary in `src/lib/assistant/sanitize.ts`, transmits
 exact totals only when the user has opted in through the persisted
 `state.assistant.sendExactFigures` setting (false by default; the request's
-`sendExact` mirrors it), and POSTs to
-`/api/assistant/query`. The Worker validates the request and
+`sendExact` mirrors it), attaches the signed-in user's Firebase ID token, and
+POSTs to `/api/assistant/query`. The Worker verifies the token (signature,
+issuer, audience, expiry), validates the request and
 extracted-proposal envelopes with Zod in `shared/assistant-policy.js`, applies
-the separate prompt regex policy, rate limits, forwards a system prompt and conversation to
-OpenRouter, extract a JSON proposal from model output, and return the reply.
+the separate prompt regex policy, rate limits per user (with a per-IP guard),
+forwards a system prompt and conversation to OpenRouter, extracts a JSON
+proposal from model output, and returns the reply — a deterministic fallback
+reply when the model is unavailable. Signed-out users get a sign-in prompt and
+no request is sent.
 The same Worker serves the read-only `GET /api/market/*` Yahoo proxy with
 Cache-API TTLs and stale fallback.
 OpenRouter credentials remain server-side. `PERSISTED_ALLOWLIST` remains the
@@ -288,7 +292,8 @@ boundaries are in [AI reference](ai.md).
 
 - Browser public config: `VITE_FIREBASE_*`, optional
   `VITE_ASSISTANT_API_URL` (Assistant + market Worker base); see `.env.example`.
-- Worker secret: `OPENROUTER_API_KEY`; routing/limits in `worker/wrangler.toml`.
+- Worker secret: `OPENROUTER_API_KEY`; routing/limits in `worker/wrangler.toml`
+  (public `FIREBASE_PROJECT_ID` var keys the ID-token verification).
 - Local Worker dev: `npx wrangler dev --config worker/wrangler.toml` with
   `OPENROUTER_API_KEY` in `.dev.vars`.
 - Hosting headers/CSP, app rewrites, auth domains and Firestore paths are in

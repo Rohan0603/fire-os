@@ -96,21 +96,26 @@ history is checked. This is pattern filtering, not semantic moderation.
 
 Cloudflare Worker route: the Assistant handles only `POST /api/assistant/query`;
 the same Worker also serves the separate read-only `GET /api/market/*` proxy (see
-[backend](backend.md)). For the Assistant route, in order it rejects a missing
-`OPENROUTER_API_KEY` (500), enforces the
+[backend](backend.md)). For the Assistant route, in order it verifies the
+`Authorization: Bearer` Firebase ID token (missing/invalid/expired => 401 with
+`{ error, code: 'unauthenticated' }`; no `FIREBASE_PROJECT_ID` configured => 500),
+rejects a missing `OPENROUTER_API_KEY` (500), enforces the
 100 KB body cap (413), parses JSON (400), validates message shape and prompt
-policy, then applies a Cloudflare rate limit of 20 requests per minute per
-`CF-Connecting-IP` (binding failure => 503) before calling upstream with a 25s
-timeout. CORS allows configured `ALLOWED_ORIGIN`, a comma-separated
-origin allowlist (entries are trimmed; `*` allows any origin). A request whose
-`Origin` is not in the list does not receive its own origin echoed back, so the
-browser blocks it. The allowlist must cover every host the UI is served from:
-both Firebase Hosting hosts (`fire-os-dd6d6.firebaseapp.com`,
+policy, then applies a Cloudflare rate limit of 20 requests per minute keyed per
+verified user, plus a per-IP guard as a second layer (binding failure => 503),
+before calling upstream with a 25s timeout. CORS allows configured
+`ALLOWED_ORIGIN`, a comma-separated origin allowlist (entries are trimmed; `*`
+allows any origin), and the preflight now also admits the `Authorization` header.
+A request whose `Origin` is not in the list does not receive its own origin
+echoed back, so the browser blocks it. The allowlist must cover every host the
+UI is served from: both Firebase Hosting hosts (`fire-os-dd6d6.firebaseapp.com`,
 `fire-os-dd6d6.web.app`) and the local dev server. OpenRouter request uses
 `Authorization: Bearer ...`, `HTTP-Referer`,
 `X-OpenRouter-Title: FIRE OS`, selected model fallbacks, `max_tokens: 180`,
-non-streaming response. Provider failure maps to 502; timeout 504; malformed
-input 400/413; bad route 404.
+non-streaming response. Any non-2xx or timed-out provider result degrades to
+HTTP 200 `{ reply, fallback: true }` with a deterministic "temporarily
+unavailable" reply; provider error detail never reaches the client. Other
+failures: malformed input 400/413; bad route 404.
 
 Request shape/prompt policy and upstream helpers live in
 `shared/assistant-policy.js` and `shared/assistant-upstream.js`, covered by
@@ -163,11 +168,14 @@ portfolio repository.
 ## Error behavior and operations
 
 Client maps non-2xx responses to `AssistantRequestError(status)`, AbortError to
-timeout copy, and other failures to connectivity copy. Proxy errors commonly
-indicate missing `OPENROUTER_API_KEY`, provider quota/auth/model issues, policy
-rejections, rate limiting, or origin/CSP mismatch. Browser bundle must contain
-the intended `VITE_ASSISTANT_API_URL`; the API key must never be a `VITE_*`
-variable. Worker secret is set with Wrangler; see `docs/README.md`.
+timeout copy, and other failures to connectivity copy. A 401 renders the
+sign-in message; a signed-out user (or a reload that has not yet restored the
+Firebase session) gets the same sign-in prompt and no request is sent. Provider
+failures now surface as the deterministic `fallback` reply, so remaining proxy
+errors indicate missing `OPENROUTER_API_KEY`, policy rejections, rate limiting,
+or origin/CSP mismatch. Browser bundle must contain the intended
+`VITE_ASSISTANT_API_URL`; the API key must never be a `VITE_*` variable. Worker
+secret is set with Wrangler; see `docs/README.md`.
 
 Relevant checks: `npm run test:worker`, unit tests under
 `src/lib/assistant/`, and `e2e/assistant.spec.ts`. If changing a request,

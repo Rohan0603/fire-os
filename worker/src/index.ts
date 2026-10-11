@@ -3,7 +3,8 @@ import {
   extractProposedChanges,
   validateAssistantRequest,
 } from '../../shared/assistant-policy.js';
-import { extractUpstreamMessage, getOpenRouterModels } from '../../shared/assistant-upstream.js';
+import { getOpenRouterModels } from '../../shared/assistant-upstream.js';
+import { verifyFirebaseIdToken, type VerifiedUser } from './firebase-auth';
 
 const SYSTEM_INSTRUCTIONS = `You are the FIRE OS financial guide: knowledgeable about Indian personal finance, investing, and FIRE planning.
 
@@ -18,10 +19,18 @@ interface Env {
   OPENROUTER_HTTP_REFERER?: string;
   OPENROUTER_FALLBACK_MODELS?: string;
   ALLOWED_ORIGIN?: string;
+  // Firebase project id used as the ID-token issuer/audience. Public, not a secret.
+  FIREBASE_PROJECT_ID?: string;
 }
 
 const MAX_REQUEST_BYTES = 100_000;
 const UPSTREAM_TIMEOUT_MS = 25_000;
+
+// Deterministic, non-LLM replies so the assistant degrades gracefully instead of
+// returning an opaque provider error.
+const SIGN_IN_ERROR = 'Sign in to use the assistant.';
+const FALLBACK_REPLY =
+  'The assistant model is temporarily unavailable. Your data is safe and nothing was changed. Please try again in a moment, or review your dashboard figures in the meantime.';
 
 interface AssistantMessage {
   role: 'user' | 'assistant';
@@ -43,7 +52,7 @@ function corsHeaders(request: Request, env: Env): Record<string, string> {
   const isAllowed = allowed.includes('*') || (origin !== null && allowed.includes(origin));
   return {
     'Access-Control-Allow-Origin': isAllowed ? (origin ?? allowed[0] ?? '*') : (allowed[0] ?? 'null'),
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     Vary: 'Origin',
   };
@@ -54,6 +63,13 @@ function json(data: unknown, status: number, request: Request, env: Env): Respon
     status,
     headers: { 'Content-Type': 'application/json', ...corsHeaders(request, env) },
   });
+}
+
+/** Extract the token from an `Authorization: Bearer <token>` header, or null. */
+function bearerToken(request: Request): string | null {
+  const header = request.headers.get('Authorization') || '';
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -287,6 +303,19 @@ export default {
     const url = new URL(request.url);
     if (url.pathname.startsWith('/api/market/')) return handleMarket(request, env, url);
     if (request.method !== 'POST' || url.pathname !== '/api/assistant/query') return json({ error: 'Not found' }, 404, request, env);
+
+    // Identity first: only signed-in users of this Firebase project may call the
+    // assistant. The token is verified (not merely decoded) before any other work.
+    const token = bearerToken(request);
+    if (!token) return json({ error: SIGN_IN_ERROR, code: 'unauthenticated' }, 401, request, env);
+    let user: VerifiedUser | null;
+    try {
+      user = await verifyFirebaseIdToken(token, env.FIREBASE_PROJECT_ID ?? '');
+    } catch {
+      return json({ error: 'Authentication is not configured.' }, 500, request, env);
+    }
+    if (!user) return json({ error: SIGN_IN_ERROR, code: 'unauthenticated' }, 401, request, env);
+
     if (!env.OPENROUTER_API_KEY) return json({ error: 'OpenRouter API key not configured.' }, 500, request, env);
     const contentLength = Number(request.headers.get('Content-Length'));
     if (Number.isFinite(contentLength) && contentLength > MAX_REQUEST_BYTES) {
@@ -302,10 +331,22 @@ export default {
     const promptError = messages.filter((message) => message.role === 'user').map((message) => checkPromptPolicy(message.content)).find(Boolean);
     if (promptError) return json({ error: promptError.error }, promptError.status, request, env);
 
+    // Quota is per signed-in user; a per-IP guard is a second layer so one host
+    // cannot spend every user's quota. Both share the one rate-limiter binding.
     let rateLimitSuccess: boolean;
     try {
       ({ success: rateLimitSuccess } = await env.ASSISTANT_RATE_LIMITER.limit({
-        key: request.headers.get('CF-Connecting-IP') || 'unknown',
+        key: `user:${user.uid}`,
+      }));
+    } catch {
+      return json({ error: 'Rate limiting is temporarily unavailable' }, 503, request, env);
+    }
+    if (!rateLimitSuccess) {
+      return json({ error: 'Rate limit exceeded. Please try again later.' }, 429, request, env);
+    }
+    try {
+      ({ success: rateLimitSuccess } = await env.ASSISTANT_RATE_LIMITER.limit({
+        key: `ip:${request.headers.get('CF-Connecting-IP') || 'unknown'}`,
       }));
     } catch {
       return json({ error: 'Rate limiting is temporarily unavailable' }, 503, request, env);
@@ -324,18 +365,18 @@ export default {
         signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
       });
       if (!response.ok) {
-        const detail = extractUpstreamMessage(await response.text()).slice(0, 200);
-        return json({ error: `LLM backend error${detail ? `: ${detail}` : ''}` }, 502, request, env);
+        // Degrade gracefully: return a deterministic reply rather than an opaque
+        // provider error. Provider detail stays out of the client response.
+        await response.text();
+        return json({ reply: FALLBACK_REPLY, fallback: true }, 200, request, env);
       }
       const data = await response.json() as { choices?: Array<{ message?: { content?: string } }>; content?: string };
       const reply = data.choices?.[0]?.message?.content ?? (typeof data.content === 'string' ? data.content : '');
       const proposedChanges = extractProposedChanges(reply);
       return json({ reply, ...(proposedChanges ? { proposedChanges } : {}) }, 200, request, env);
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'TimeoutError') {
-        return json({ error: 'LLM backend timed out' }, 504, request, env);
-      }
-      return json({ error: 'Internal proxy error' }, 500, request, env);
+    } catch {
+      // Timeout or network failure reaching the model: same deterministic fallback.
+      return json({ reply: FALLBACK_REPLY, fallback: true }, 200, request, env);
     }
   },
 };
