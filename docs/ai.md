@@ -6,7 +6,7 @@
 Deep Chat UI
  -> consent-scoped client state
  -> optional fresh Nifty fetch
- -> buildContextSummary(state, sendExact=true)
+ -> buildContextSummary(state, sendExact)
  -> POST { question, contextSummary, messages, sendExact }
  -> Cloudflare Worker (via VITE_ASSISTANT_API_URL, dev and production)
  -> shared shape/prompt policy -> OpenRouter Chat Completions
@@ -22,7 +22,11 @@ Primary sources are `src/modules/assistant/index.ts`, `src/lib/assistant/`,
 ## Consent and user scope
 
 Assistant write permission is stored by `consentScope(uid)` in localStorage;
-guests have a separate scope. Reads are enabled by default. Write access is
+guests have a separate scope. Reads are enabled by default — every question sends
+the sanitized context and conversation to the configured provider (see Context
+construction and privacy), so the UI copy must not claim purely local
+processing; the Profile privacy notice and the assistant consent copy state this
+explicitly. Write access is
 explicitly toggled in the panel and can be revoked. When the authenticated user
 scope changes, pending proposals and attachments are cleared. Chat history is
 provided by Deep Chat in the browser and only the most recent 12 alternating
@@ -30,9 +34,11 @@ messages are sent. Starter prompts submit through the same request handler.
 
 The UI attempts a fresh Nifty fetch before each question. A successful result is
 stored locally without cloud sync; failure is non-fatal and uses the existing
-cache. The “send exact” boolean is part of the request. Current UI calls
-`buildContextSummary(state, true)`, so exact aggregates are sent for these
-requests; default helper behavior is bucketed-only.
+cache. The “send exact” boolean is part of the request. It is driven by the
+persisted user setting `state.assistant.sendExactFigures`, which defaults to
+false, so the UI sends bucketed ranges only unless the user opts in from the
+Assistant panel ("Send exact figures"). `buildContextSummary` still accepts an
+explicit boolean and defaults to bucketed-only.
 
 ## Context construction and privacy
 
@@ -70,11 +76,11 @@ base URL it is same-origin. Browser timeout defaults to 30s. JSON body:
   "question": "latest user question",
   "contextSummary": {},
   "messages": [{"role":"user","content":"latest user question"}],
-  "sendExact": true
+  "sendExact": false
 }
 ```
 
-Shared Valibot schemas in `shared/assistant-policy.js` validate request and
+Shared Zod schemas in `shared/assistant-policy.js` validate request and
 proposal-envelope shapes. Message history has 1–12 strict message objects,
 strictly alternating user/assistant starting with user; text must be non-empty and ≤6,000 chars. The last message must be the
 user question exactly. `contextSummary` is required and must be non-null (400 if
@@ -88,8 +94,10 @@ requests such as deleting/wiping/resetting everything (403), and requests for
 PII/raw dumps/full portfolio disclosure (403). Each user turn in the submitted
 history is checked. This is pattern filtering, not semantic moderation.
 
-Cloudflare Worker route: only `POST /api/assistant/query` and OPTIONS are
-handled. In order it rejects a missing `OPENROUTER_API_KEY` (500), enforces the
+Cloudflare Worker route: the Assistant handles only `POST /api/assistant/query`;
+the same Worker also serves the separate read-only `GET /api/market/*` proxy (see
+[backend](backend.md)). For the Assistant route, in order it rejects a missing
+`OPENROUTER_API_KEY` (500), enforces the
 100 KB body cap (413), parses JSON (400), validates message shape and prompt
 policy, then applies a Cloudflare rate limit of 20 requests per minute per
 `CF-Connecting-IP` (binding failure => 503) before calling upstream with a 25s
@@ -120,7 +128,7 @@ clarifies `exact.holdings.sip` means current SIP market value, while
 Model configuration defaults to `openrouter/free`, then configured free-model
 fallbacks, capped at OpenRouter's 3-model limit. Reply extraction reads first
 choice content (or compatible `content` field). Proposal extraction parses the
-first greedy `{...}` substring as a Valibot-validated object envelope, then
+first greedy `{...}` substring as a Zod-validated object envelope, then
 `PERSISTED_ALLOWLIST` projects allowed persisted top-level fields and removes
 runtime/underscore keys. Extraction does not establish semantic correctness;
 the browser applies the complete persisted-state schema to the merged candidate
@@ -174,11 +182,12 @@ proposal or privacy contract, update both proxy boundary tests and the UI flow.
    data overwrites state `niftyData` and `niftyHigh` and persists locally with
    cloud sync disabled. Network failure is ignored so request can use old
    persisted Nifty data.
-3. UI calls `buildContextSummary(state, true)`. Helper independently supports
-   false (default), but current UI opts into exact aggregates for each request.
-   It updates Nifty freshness label and calls browser `queryAssistant()` with
-   timeout 30s, JSON content type and no auth header. CORS/proxy endpoint is
-   from `VITE_ASSISTANT_API_URL`, or relative same-origin when unset.
+3. UI calls `buildContextSummary(state, state.assistant.sendExactFigures)`. The
+   setting is off by default; the helper independently supports an explicit
+   boolean and defaults to false. It updates Nifty freshness label and calls
+   browser `queryAssistant()` with timeout 30s, JSON content type and no auth
+   header. CORS/proxy endpoint is from `VITE_ASSISTANT_API_URL`, or relative
+   same-origin when unset.
 4. `validateAssistantRequest()` validates body and message alternation, exact
    last question match, boolean sendExact and serialized size. Every user turn
    is scanned by regex prompt policy. Provider receives context serialized as
@@ -217,9 +226,9 @@ key is `${scope}:fireOS:assistant:consent`, with scope `anonymous` or
 `user:{uid}`. Existing `suggestChanges` legacy true value is accepted as write
 consent. Data context is generated from appState and sent to configured backend
 when a question is asked, independent of write toggle. `sendExact` controls
-range vs exact aggregates within summary builder; current Chat handler passes
-true unconditionally, so today's UI currently always sends exact summary
-figures. This differs from route metadata wording that describes range-only; see
+range vs exact aggregates within summary builder; it is driven by the persisted
+`state.assistant.sendExactFigures` setting, which defaults to false, so today's
+UI sends range buckets only until the user opts in. See
 `scripts/routes.mjs` if adjusting UI behavior.
 
 Assistant audit key is `${activePortfolioStorageKey}:fireOS:assistant:audit`;

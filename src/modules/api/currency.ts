@@ -1,6 +1,7 @@
 /** Generic exchange-rate fetching and caching module. */
 
 import { getLogger } from '../../lib/logger';
+import { workerUrl } from './worker';
 import type { CurrencyRateCacheMap, CurrencyRateData, MarketDataStatus } from '../../types/api';
 import { CONFIG } from '../../lib/config';
 
@@ -83,32 +84,23 @@ export async function convertCurrency(
   const cached = getCachedCurrencyRate(source, desired);
   if (cached && cached.status !== 'stale') return amount * cached.rate;
 
-  const proxyKey = import.meta.env.VITE_CORSPROXY_API_KEY;
-  if (!proxyKey) {
-    logger.warn('Currency conversion skipped: VITE_CORSPROXY_API_KEY is not configured');
-    return null;
-  }
+  const url = workerUrl(
+    `/api/market/currency?from=${encodeURIComponent(source)}&to=${encodeURIComponent(desired)}`
+  );
 
-  const yahooSymbol = `${source}${desired}=X`;
-  const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?interval=1d&range=1d`;
-  const apiUrl = `https://corsproxy.io/?key=${encodeURIComponent(proxyKey)}&url=${encodeURIComponent(yahooUrl)}`;
-  console.log('[Currency API] Conversion request', { amount, source, desired });
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10_000);
   try {
-    const response = await fetch(apiUrl, { signal: controller.signal });
-    console.log('[Currency API] Conversion response', { status: response.status, ok: response.ok });
-    if (!response.ok) return null;
+    const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+    if (!response.ok) {
+      logger.warn(`Currency market endpoint returned HTTP ${response.status}`);
+      return null;
+    }
 
-    const data = await response.json() as {
-      chart?: { result?: Array<{ meta?: { regularMarketPrice?: unknown } } | null> };
-    };
-    const rate = data.chart?.result?.[0]?.meta?.regularMarketPrice;
-    if (typeof rate !== 'number' || !Number.isFinite(rate)) return null;
+    const data = (await response.json()) as { rate?: unknown };
+    const rate = data.rate;
+    if (typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0) return null;
 
     setCachedCurrencyRate(source, desired, rate, {
-      source: 'Yahoo Finance via corsproxy',
+      source: 'Yahoo Finance',
       status: 'live',
     });
     const converted = amount * rate;
@@ -117,8 +109,6 @@ export async function convertCurrency(
   } catch (error) {
     logger.warn(`Currency conversion failed: ${error instanceof Error ? error.message : 'unknown error'}`);
     return null;
-  } finally {
-    clearTimeout(timeoutId);
   }
 }
 
@@ -139,7 +129,7 @@ export async function fetchCurrencyRate(sourceCurrency: string, targetCurrency: 
 
     if (rate !== null) {
       setCachedCurrencyRate(source, target, rate, {
-        source: 'Yahoo Finance via corsproxy',
+        source: 'Yahoo Finance',
         status: 'live',
       });
 

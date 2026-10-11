@@ -130,7 +130,7 @@ appear as `401` (key), `402/403` (quota/provider), `404` (model), or `429`
 | Area | Service | Notes |
 | --- | --- | --- |
 | Mutual fund NAV | `api.mfapi.in` | Cached for four hours; scheme codes live in `src/lib/config.ts`. |
-| Nifty and FX | Yahoo Finance via `corsproxy.io` | Cached; failures retain last known values where possible. |
+| Nifty, FX and ESOP quotes | Yahoo Finance via the Cloudflare Worker (`/api/market/*`) | Cached; no proxy key ships to the browser; failures retain last known values where possible. |
 | Portfolio sync | Firebase Auth + Firestore | Owner-scoped rules and offline browser cache. |
 | Assistant | Cloudflare Worker + OpenRouter | Secret stays server-side. |
 
@@ -159,10 +159,16 @@ migration complexity.
 | Run worker unit tests | `npm run test:worker` |
 | TypeScript check only | `npm run build` (tsc --noEmit) |
 | Verify route metadata | `npm run test:metadata` |
+| Guard against personal identifiers | `npm run test:privacy` |
 
 `npm run check` runs the fast local gate in CI order: `build`, `lint`, `format:check`,
-unit tests, Worker tests, then route metadata. It omits the checks that need a
-server, emulator, or browser — run those separately.
+unit tests, Worker tests, route metadata, then the personal-identifier guard. It
+omits the checks that need a server, emulator, or browser — run those separately.
+
+`npm run test:privacy` (`scripts/check-personal-identifiers.mjs`) fails if the
+maintainer's personal identifiers appear in `src`, `worker`, `shared`,
+`firestore.rules` or `firebase.json`, excluding `presets/` and test files, so
+they cannot be re-introduced into this public repository.
 
 The Playwright suite is the component-test harness for the React layer; there is
 no jsdom or Testing Library. It covers route resolution and the

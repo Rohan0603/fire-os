@@ -12,7 +12,6 @@ import { totalNetWorth, sipStatus, fiProgress, floatIndicator, portfolioComposit
 import { calculateAllocationDrift } from '../modules/calculators/portfolio-rebalancing';
 import { calculateFIAge, calculateCoastFire } from '../modules/calculators/scenario-modeler';
 import { renderCashflowSummary } from '../modules/plan/cashflow-summary';
-import { renderAdvisorIntegrationWidget, registerAdvisorReview } from '../modules/integrations/advisor-webhook';
 import { renderExpenseTracker } from '../modules/trackers/expense-tracker';
 import { checkWatchdogRules } from '../modules/watchdog/fund-manager-alerts';
 import { createModal, closeModal } from '../modules/ui/Modal';
@@ -56,8 +55,6 @@ export interface FeatureCalculationPort {
 
 export interface FeatureWidgetPort {
   renderCashflowSummary: typeof renderCashflowSummary;
-  renderAdvisorIntegrationWidget: typeof renderAdvisorIntegrationWidget;
-  registerAdvisorReview: typeof registerAdvisorReview;
   renderExpenseTracker: typeof renderExpenseTracker;
 }
 
@@ -88,8 +85,9 @@ export function refreshPortfolioNAVs(state: FireOSState): Promise<void> {
 
   marketRefreshStatusStore.set('refreshing');
   const refresh = refreshPortfolioNAVsNow(state)
-    .then(() => {
-      marketRefreshStatusStore.set('success');
+    .then((fetched) => {
+      // Nothing to fetch (e.g. empty portfolio): don't claim "up to date".
+      marketRefreshStatusStore.set(fetched > 0 ? 'success' : 'idle');
     })
     .catch((error: unknown) => {
       marketRefreshStatusStore.set('error');
@@ -100,8 +98,9 @@ export function refreshPortfolioNAVs(state: FireOSState): Promise<void> {
   return refresh;
 }
 
-async function refreshPortfolioNAVsNow(state: FireOSState): Promise<void> {
+async function refreshPortfolioNAVsNow(state: FireOSState): Promise<number> {
   const sipsToFetch = Object.entries(state.sip).filter(([, fund]) => fund.units && fund.units > 0);
+  let fetched = 0;
 
   for (const [key, fund] of sipsToFetch) {
     const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
@@ -111,6 +110,7 @@ async function refreshPortfolioNAVsNow(state: FireOSState): Promise<void> {
         const navCache = getNAVCacheMap();
         if (navCache[schemeCode]) {
           state.nav[schemeCode] = navCache[schemeCode];
+          fetched++;
         }
       } catch (error) {
         console.warn(`[MarketData] Failed to fetch NAV for SIP ${key}:`, error);
@@ -118,6 +118,8 @@ async function refreshPortfolioNAVsNow(state: FireOSState): Promise<void> {
     }
     await new Promise(resolve => setTimeout(resolve, 100));
   }
+
+  return fetched;
 }
 
 export function createFeaturePorts(): FeaturePorts {
@@ -137,8 +139,6 @@ export function createFeaturePorts(): FeaturePorts {
     },
     widgets: {
       renderCashflowSummary,
-      renderAdvisorIntegrationWidget,
-      registerAdvisorReview,
       renderExpenseTracker,
     },
     marketData: {

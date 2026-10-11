@@ -12,6 +12,7 @@
 import { getLogger } from '../../lib/logger';
 import type { HistoricalDataPoint, HistoricalSeries, HistoryRange, NiftyData } from '../../types/api';
 import { CONFIG } from '../../lib/config';
+import { workerUrl } from './worker';
 
 const logger = getLogger();
 
@@ -23,8 +24,7 @@ const NIFTY_CACHE_TTL = CONFIG.cacheTtl.nifty;
 /**
  * NSE API Endpoints (potential sources)
  * Note: NSE doesn't provide a direct public REST API for free tier
- * Attempting: 1) YahooFinance via CORS proxy 2) ETF approximation
- * Future: Direct NSE API if/when available
+ * The FIRE OS Worker proxies Yahoo Finance server-side; no browser key needed.
  */
 
 /**
@@ -46,7 +46,7 @@ export async function fetchNifty(): Promise<NiftyData | null> {
     };
   }
 
-  // ATTEMPT 1: Try Yahoo Finance via CORS proxy for real Nifty data
+  // ATTEMPT 1: Fetch real Nifty data from the FIRE OS Worker market endpoint
   try {
     const niftyReal = await fetchNiftyFromYahoo();
     if (niftyReal) {
@@ -55,7 +55,7 @@ export async function fetchNifty(): Promise<NiftyData | null> {
         level: niftyReal.level,
         high52w: niftyReal.high52w,
         timestamp,
-        source: 'Yahoo Finance (NSE data)',
+        source: niftyReal.source,
         status: 'live',
       };
       return {
@@ -75,80 +75,49 @@ export async function fetchNifty(): Promise<NiftyData | null> {
 }
 
 /**
- * Fetch Nifty 50 from Yahoo Finance via CORS proxy
- * Parses JSON data for current level and 52-week high
+ * Fetch Nifty 50 level and 52-week high from the FIRE OS Worker market endpoint
+ * (`GET /api/market/nifty`). The Worker owns the Yahoo access and caching; the
+ * browser never sees a proxy key.
  *
- * @returns { level, high52w, source } or null if fetch fails
+ * @returns { level, high52w, source } or null if the Worker is unreachable
  */
 async function fetchNiftyFromYahoo(): Promise<{
   level: number;
   high52w: number;
   source: string;
 } | null> {
-  const proxies = [{ url: 'https://corsproxy.io/?', name: 'corsproxy' }];
-
-  // Yahoo Finance Chart API gives exact JSON data for Nifty 50
-  const yahooApiUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI?interval=1d&range=1y';
-
-  for (const proxy of proxies) {
-    try {
-      const proxyKey = import.meta.env.VITE_CORSPROXY_API_KEY;
-      if (proxy.name === 'corsproxy' && !proxyKey) {
-        logger.warn('Nifty corsproxy request skipped: VITE_CORSPROXY_API_KEY is not configured');
-        continue;
-      }
-
-      const proxyUrl = `${proxy.url}key=${encodeURIComponent(proxyKey!)}&url=${encodeURIComponent(yahooApiUrl)}`;
-
-      logger.log(`Nifty fetch via ${proxy.name}:`, proxyUrl);
-
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-      const response = await fetch(proxyUrl, {
-        method: 'GET',
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        logger.warn(`Nifty ${proxy.name} returned HTTP ${response.status}`);
-        continue;
-      }
-
-      const data = await response.json();
-
-      if (data?.chart?.result?.[0]) {
-        const result = data.chart.result[0];
-        const meta = result.meta;
-        const currentPrice = meta.regularMarketPrice;
-        
-        let fiftyTwoWeekHigh = meta.fiftyTwoWeekHigh;
-        
-        // Fallback: Calculate from 1-year history data if not in meta
-        if (!fiftyTwoWeekHigh && result.indicators?.quote?.[0]?.high) {
-          const highs = result.indicators.quote[0].high.filter((h: any) => typeof h === 'number');
-          if (highs.length > 0) {
-            fiftyTwoWeekHigh = Math.max(...highs);
-          }
-        }
-        
-        if (!fiftyTwoWeekHigh) fiftyTwoWeekHigh = currentPrice;
-
-        if (currentPrice && fiftyTwoWeekHigh) {
-          logger.log('Nifty fetched from Yahoo Finance JSON API:', { level: currentPrice, high52w: fiftyTwoWeekHigh });
-          return { level: currentPrice, high52w: fiftyTwoWeekHigh, source: `Yahoo Finance API (${proxy.name})` };
-        }
-      }
-
-      logger.warn(`${proxy.name}: Could not parse Yahoo Finance JSON data`);
-    } catch (error) {
-      logger.warn(`${proxy.name} fetch failed:`, error);
+  try {
+    const response = await fetch(workerUrl('/api/market/nifty'), {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) {
+      logger.warn(`Nifty market endpoint returned HTTP ${response.status}`);
+      return null;
     }
-  }
 
-  return null;
+    const data = (await response.json()) as { level?: unknown; high52w?: unknown; source?: unknown };
+    const level =
+      typeof data.level === 'number' && Number.isFinite(data.level) && data.level > 0
+        ? data.level
+        : null;
+    const high52w =
+      typeof data.high52w === 'number' && Number.isFinite(data.high52w) && data.high52w > 0
+        ? data.high52w
+        : level;
+    if (level === null || high52w === null) {
+      logger.warn('Nifty market endpoint returned unusable data');
+      return null;
+    }
+
+    return {
+      level,
+      high52w,
+      source: typeof data.source === 'string' && data.source ? data.source : 'Market Worker',
+    };
+  } catch (error) {
+    logger.warn('Nifty market endpoint unreachable', error);
+    return null;
+  }
 }
 
 /**
@@ -289,33 +258,23 @@ function fiveYearsBefore(isoDate: string): string {
   return new Date(Date.UTC(year - HISTORY_RANGE_YEARS, month - 1, day)).toISOString().slice(0, 10);
 }
 
-function normalizeNiftyHistory(result: unknown): HistoricalDataPoint[] | null {
-  if (!result || typeof result !== 'object') return null;
-
-  const { timestamp, indicators } = result as {
-    timestamp?: unknown;
-    indicators?: { quote?: Array<{ close?: unknown }> };
-  };
-  const quote = Array.isArray(indicators?.quote) ? indicators.quote[0] : undefined;
-  const closes = quote?.close;
-  if (!Array.isArray(timestamp) || !Array.isArray(closes)) return null;
+/**
+ * Validate and normalize the Worker's `points` array (the Worker already
+ * parsed and sorted the Yahoo series). Re-validating at the trust boundary
+ * drops malformed entries, dedupes keeping the first record per date, and
+ * sorts ascending. Returns null when no usable points remain.
+ */
+function normalizeWorkerPoints(raw: unknown): HistoricalDataPoint[] | null {
+  if (!Array.isArray(raw)) return null;
 
   const points: HistoricalDataPoint[] = [];
   const seenDates = new Set<string>();
-  const length = Math.min(timestamp.length, closes.length);
 
-  for (let index = 0; index < length; index++) {
-    const seconds = timestamp[index];
-    if (typeof seconds !== 'number' || !Number.isFinite(seconds)) continue;
-    const time = seconds * 1000;
-    if (!Number.isFinite(time) || Math.abs(time) > 8.64e15) continue;
-
-    const date = new Date(time).toISOString().slice(0, 10);
-    if (seenDates.has(date)) continue;
-
-    const close = closes[index];
-    const value = typeof close === 'number' ? close : NaN;
-    if (!Number.isFinite(value) || value <= 0) continue;
+  for (const entry of raw) {
+    if (!entry || typeof entry !== 'object') continue;
+    const { date, value } = entry as { date?: unknown; value?: unknown };
+    if (typeof date !== 'string' || !isValidIsoDate(date) || seenDates.has(date)) continue;
+    if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) continue;
 
     seenDates.add(date);
     points.push({ date, value });
@@ -326,48 +285,32 @@ function normalizeNiftyHistory(result: unknown): HistoricalDataPoint[] | null {
 }
 
 async function fetchNiftyHistoryFromYahoo(): Promise<HistoricalDataPoint[] | null> {
-  const proxyKey = import.meta.env.VITE_CORSPROXY_API_KEY;
-  if (!proxyKey) {
-    logger.warn('Nifty history request skipped: VITE_CORSPROXY_API_KEY is not configured');
-    return null;
-  }
-
-  const yahooApiUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/%5ENSEI?interval=1d&range=5y';
-  const proxyUrl = `https://corsproxy.io/?key=${encodeURIComponent(proxyKey)}&url=${encodeURIComponent(yahooApiUrl)}`;
-
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-
-    const response = await fetch(proxyUrl, {
-      method: 'GET',
-      signal: controller.signal,
+    const response = await fetch(workerUrl('/api/market/nifty'), {
+      signal: AbortSignal.timeout(8000),
     });
-
-    clearTimeout(timeoutId);
-
     if (!response.ok) {
-      logger.warn(`Nifty history returned HTTP ${response.status}`);
+      logger.warn(`Nifty history market endpoint returned HTTP ${response.status}`);
       return null;
     }
 
-    const data = await response.json();
-    return normalizeNiftyHistory(data?.chart?.result?.[0]);
+    const data = (await response.json()) as { points?: unknown };
+    return normalizeWorkerPoints(data.points);
   } catch (error) {
-    logger.warn('Nifty history fetch failed', error);
+    logger.warn('Nifty history market endpoint unreachable', error);
     return null;
   }
 }
 
 /**
  * Fetch a bounded, normalized Nifty 50 history series
- * Uses the existing Yahoo chart endpoint through corsproxy with
- * `interval=1d&range=5y`. Timestamps are validated (finite epoch seconds),
- * converted to UTC calendar dates, deduplicated keeping the first provider
- * record per date, and sorted ascending; null/invalid closes are dropped so
- * sparse provider gaps stay sparse. Requests older than the five-year window
- * are clamped to it (bounded, never extrapolated); invalid ranges are rejected
- * before any request; failures and non-overlapping windows return null.
+ * Uses the FIRE OS Worker endpoint `GET /api/market/nifty`, which fetches
+ * Yahoo `interval=1d&range=5y` server-side and returns normalized points.
+ * Points are re-validated here (dates, finite positive values), deduplicated
+ * keeping the first record per date, and sorted ascending; sparse provider
+ * gaps stay sparse. Requests older than the five-year window are clamped to it
+ * (bounded, never extrapolated); invalid ranges are rejected before any
+ * request; failures and non-overlapping windows return null.
  *
  * @param range - Optional inclusive YYYY-MM-DD window
  * @returns Normalized series or null when no usable history exists
@@ -397,7 +340,7 @@ export async function fetchNiftyHistory(range?: HistoryRange): Promise<Historica
     points: inRange.length > NIFTY_HISTORY_MAX_POINTS
       ? inRange.slice(inRange.length - NIFTY_HISTORY_MAX_POINTS)
       : inRange,
-    source: 'Yahoo Finance API (corsproxy)',
+    source: 'Yahoo Finance',
     fetchedAt: new Date().toISOString(),
     status: 'live',
   };

@@ -1,6 +1,6 @@
 /**
- * Dashboard side widgets: annual cashflow, SWP schedule, tax calendar,
- * CFP advisor review and the SWP expense tracker.
+ * Dashboard side widgets: annual cashflow, SWP schedule, tax calendar
+ * and the SWP expense tracker.
  *
  * These are the React replacements for the `render*Widget` HTML from the legacy
  * dashboard. They read the shared `appState` directly and persist through the
@@ -10,10 +10,6 @@
 import { useState } from 'react';
 import { Button, Card, CardTitle, Dialog, FieldLabel, Input } from '../../ui';
 import { formatCurrency } from '../../../lib/formatters';
-import { getFundSchemeCode } from '../../../lib/fundMatcher';
-import { calculateAllocationDrift } from '../../../modules/calculators/portfolio-rebalancing';
-import { totalNetWorth } from '../../../modules/dashboard/kpis';
-import { registerAdvisorReview } from '../../../modules/integrations/advisor-webhook';
 import { addExpense, calculateExpenseRate, type Expense } from '../../../modules/trackers/expense-tracker';
 import { showToast } from '../../../modules/ui/Toast';
 import { createPortfolioRepository } from '../../../core/persistence/portfolio-repository';
@@ -84,68 +80,6 @@ export function TaxOptimizationWidget({ state }: { state: FireOSState }) {
       <CardTitle>Tax Optimization</CardTitle>
       <StatRow label="LTCG Harvest Target" value={formatCurrency(taxCalendar.harvestTarget, 0)} />
       <StatRow label="Last Harvest" value={taxCalendar.lastLTCGHarvestDate || 'None'} />
-    </Card>
-  );
-}
-
-/** Request a CFP review of the current allocation; opens the returned link. */
-export function AdvisorWidget({ state }: { state: FireOSState }) {
-  const [requesting, setRequesting] = useState(false);
-
-  const requestReview = async () => {
-    setRequesting(true);
-    try {
-      const holdings: Record<string, number> = { PPFCF: 0, NipponGrowth: 0, NipponSmallCap: 0, Gold: 0 };
-      const processFund = (fund: { name: string; schemeCode?: string; units: number }) => {
-        const schemeCode = fund.schemeCode || getFundSchemeCode(fund.name);
-        const nav = schemeCode ? (state.nav[schemeCode]?.nav ?? 0) : 0;
-        const value = fund.units * nav;
-        if (value <= 0) return;
-        if (schemeCode === '122639') holdings.PPFCF += value;
-        else if (schemeCode === '118668') holdings.NipponGrowth += value;
-        else if (schemeCode === '118778') holdings.NipponSmallCap += value;
-        else if (schemeCode === '135106') holdings.Gold += value;
-      };
-      Object.values(state.sip || {}).forEach(processFund);
-      Object.values(state.mf || {}).forEach(processFund);
-
-      const netWorth = totalNetWorth(state).netWorth;
-      const drift = calculateAllocationDrift(holdings, netWorth);
-      const result = await registerAdvisorReview({
-        userEmail: state.currentUser?.email || 'user@example.com',
-        portfolioSummary: { totalCorpus: netWorth, allocation: drift.current },
-      });
-
-      if (result.status === 'review_request_sent' && result.reviewUrl) {
-        showToast('Review request sent! Opening link…', 3000, 'success');
-        window.open(result.reviewUrl, '_blank');
-      } else {
-        showToast(result.error || 'Failed to request review', 4000, 'warning');
-      }
-    } catch {
-      showToast('Error requesting review', 4000, 'warning');
-    } finally {
-      setRequesting(false);
-    }
-  };
-
-  return (
-    <Card className="flex flex-col gap-2">
-      <CardTitle>Certified Financial Planner Review</CardTitle>
-      <p className="text-sm text-(--color-muted-foreground)">
-        Get an expert review of your portfolio allocation and SWP strategy.
-      </p>
-      <Button
-        id="request-advisor-review-btn"
-        variant="secondary"
-        disabled={requesting}
-        onClick={() => void requestReview()}
-      >
-        {requesting ? 'Requesting…' : 'Request Review'}
-      </Button>
-      <p className="text-xs text-(--color-muted-foreground)">
-        Optional. Your portfolio summary will be shared with the CFP.
-      </p>
     </Card>
   );
 }

@@ -82,7 +82,7 @@ removes child holdings and state. Rules permit only authenticated owner reads,
 writes and deletes; state and MF shapes have allowlists, bounded strings/maps,
 lists and schema versions. The Firestore source is `firestore.rules`.
 
-`persistedPortfolioSchema` in `src/types/state.ts` is the Valibot client
+`persistedPortfolioSchema` in `src/types/state.ts` is the Zod client
 boundary; `isPersistedPortfolioData()` delegates to it and normalization still
 fills legacy partial payloads from defaults. The strict schema enforces exact
 keys and finite numbers, plus limits such as 50 liabilities, 20 ESOP quote
@@ -105,16 +105,18 @@ remain separate documents to control state document size.
 | Feature | Request | Cache/fallback | Source |
 | --- | --- | --- | --- |
 | Mutual fund NAV | `GET https://api.mfapi.in/mf/{schemeCode}`; parses first `data[]` NAV | 4h; in-flight dedupe, 30s timeout, stale value on failure | `src/modules/api/mfapi.ts` |
-| Nifty 50 | Yahoo chart `^NSEI` one-year daily data via `https://corsproxy.io/?key=...&url=...` | 1h; parses `regularMarketPrice` and 52w high (history highs/current fallback); manual entry when unavailable | `src/modules/api/nifty.ts` |
-| FX | Yahoo chart `{FROM}{TO}=X` via corsproxy | 24h; stale cached rate fallback; manual rate helper | `src/modules/api/currency.ts` |
-| ESOP quote | Yahoo chart `{symbol}` daily via corsproxy | 15m memory + localStorage; in-flight request dedupe | `src/modules/api/esop.ts` |
-| Nifty history | Yahoo chart `^NSEI` `interval=1d&range=5y` via corsproxy, 8s timeout | 24h bounded history cache; provider clamp 5y, client-side window cuts | `src/modules/api/nifty.ts` |
+| Nifty 50 | `GET {VITE_ASSISTANT_API_URL}/api/market/nifty` (Worker → Yahoo `^NSEI` `range=5y`) | Client 1h cache; Worker 1h Cache-API TTL with stale fallback; manual entry when unavailable | `src/modules/api/nifty.ts` |
+| FX | `GET {VITE_ASSISTANT_API_URL}/api/market/currency?from=&to=` (Worker → Yahoo `{FROM}{TO}=X`) | 24h; stale cached rate fallback; manual rate helper | `src/modules/api/currency.ts` |
+| ESOP quote | `GET {VITE_ASSISTANT_API_URL}/api/market/quote?symbol=` (Worker → Yahoo `{symbol}` daily) | 15m memory + localStorage; in-flight request dedupe | `src/modules/api/esop.ts` |
+| Nifty history | `GET {VITE_ASSISTANT_API_URL}/api/market/nifty` (`range=5y`; client window cuts) | 24h bounded history cache; provider clamp 5y | `src/modules/api/nifty.ts` |
 | NAV history | MFAPI `GET https://api.mfapi.in/mf/{schemeCode}` full-life series, 30s timeout | 24h bounded history cache | `src/modules/api/mfapi.ts` |
 | Assistant | `POST {VITE_ASSISTANT_API_URL}/api/assistant/query` | no response cache | Worker; see [AI](ai.md) |
 
-Nifty/FX/ESOP browser calls require `VITE_CORSPROXY_API_KEY`. These are
-client-exposed configuration values, not secrets; do not put provider
-credentials in Vite env. Yahoo FX accepts an ISO-code allowlist. Currency
+Nifty, FX and ESOP quotes are fetched through the Worker `/api/market/*`
+endpoints (see [Market endpoints](#market-endpoints)); the browser sends no key
+and only reaches the Worker origin. `src/modules/api/worker.ts` resolves the
+base URL from `VITE_ASSISTANT_API_URL` (same-origin by default). Yahoo FX
+accepts an ISO-code allowlist. Currency
 identity returns the original amount; unsupported pairs/data return null.
 ESOP valuation = holding quantity × Yahoo quote price × FX-to-INR; it returns
 null value unless quote and positive rate are available. Symbols prefixed
@@ -133,15 +135,15 @@ at most 8 series, per-series caps of 1260 Nifty and 2520 NAV daily points, and a
 256 KB budget). It hydrates from persisted `marketHistory`, serves a series as
 `cache-fresh` inside the TTL, returns provider results as `live`, and falls back
 to expired cache as `stale` only when the provider fails — provider failures never
-erase a valid cache. Both history endpoints require `VITE_CORSPROXY_API_KEY` for
-the Nifty series. `marketHistory` is non-enumerable on state, is never written to
+erase a valid cache. The Nifty history series is fetched through the Worker
+`/api/market/nifty` endpoint. `marketHistory` is non-enumerable on state, is never written to
 the cloud envelope, and is mirrored into identity-scoped localStorage on save.
 
 ## Assistant endpoint
 
 Production Worker is configured in `worker/wrangler.toml`; secret binding is
 `OPENROUTER_API_KEY`, rate limiter binding is `ASSISTANT_RATE_LIMITER`. The
-endpoint accepts OPTIONS and `POST /api/assistant/query`. Shared Valibot
+endpoint accepts OPTIONS and `POST /api/assistant/query`. Shared Zod
 schemas in `shared/assistant-policy.js` validate request fields, strict message
 objects, role alternation, and extracted-proposal envelopes. It limits body to
 100KB, requires 1–12 alternating message objects and matching latest question,
@@ -157,13 +159,33 @@ local Worker work run `npx wrangler dev --config worker/wrangler.toml` with
 `OPENROUTER_API_KEY` in `.dev.vars`, and point `VITE_ASSISTANT_API_URL` at the
 local Wrangler URL (otherwise the browser calls the deployed Worker).
 
+## Market endpoints
+
+The same Worker proxies read-only market data so the browser no longer needs a
+public CORS proxy or a key compiled into the bundle. Routes accept `GET` (CORS
+`ALLOWED_ORIGIN` plus the shared `ASSISTANT_RATE_LIMITER`, 20 req/min/IP):
+
+| Route | Upstream | TTL | Response fields |
+|-------|----------|-----|-----------------|
+| `GET /api/market/nifty` | Yahoo `^NSEI` `interval=1d&range=5y` | 1h | `level`, `high52w`, `points[]`, `source`, `timestamp`, `stale` |
+| `GET /api/market/currency?from=&to=` | Yahoo `{FROM}{TO}=X` daily | 24h | `from`, `to`, `rate`, `source`, `timestamp`, `stale` |
+| `GET /api/market/quote?symbol=` | Yahoo `{symbol}` daily | 15m | `symbol`, `price`, `currency`, `source`, `timestamp`, `stale` |
+
+Each response is cached with the Cache API, keyed by path+query. A fresh hit is
+served directly; an expired hit is served with `stale: true` when the upstream
+fails; an upstream failure with no cached copy returns 502 (504 on timeout). Yahoo
+is fetched server-side with a browser User-Agent, a 10s timeout and a 2MB response
+cap. Currency codes must be three letters; the quote symbol is validated against a
+charset allowlist. No secret is required, and failures return empty state to the
+client rather than breaking the charts.
+
 ## Configuration and deployment
 
 Root `.env.example` describes browser config. `OPENROUTER_API_KEY` is a server
 secret only. Build injects `VITE_*` variables; they are public by design.
 Hosting CSP, COOP, X-Frame-Options and related headers are configured in
-`firebase.json`; CSP connect-src allows Firebase, Assistant Worker, Yahoo,
-corsproxy and MFAPI. Hosting SPA rewrites all paths to `/index.html`, with
+`firebase.json`; CSP connect-src allows Firebase, the Assistant/market Worker
+and MFAPI. Hosting SPA rewrites all paths to `/index.html`, with
 pre-rendered route metadata generated by scripts.
 
 Typical commands:
@@ -307,7 +329,7 @@ are limited to schemaVersion, lastSavedAt, client, serverMetadata, data,
 sectionUpdatedAt, entryUpdatedAt, migration, format. Supported schema strings
 are fireOS_v2/v3/v4. Owner may delete canonical doc and child holdings. Rules
 validate top-level envelope and selected nested structures, bounds and
-allowlisted keys independently of Assistant Valibot validation. Client
+allowlisted keys independently of Assistant Zod validation. Client
 `isPersistedPortfolioData()` does stricter nested
 validation for locally loaded/updated data. Keep both rule emulator tests and
 client validator tests when changing schema.
@@ -325,19 +347,19 @@ fresh/stale status except manual. Startup cache hydration copies persisted map.
 
 ### Nifty
 
-`fetchNifty()` uses cache when under one hour. Otherwise it requires the
-configured corsproxy key and requests Yahoo chart `^NSEI`, `interval=1d`,
-`range=1y`, timeout 8s. Current value from `meta.regularMarketPrice`; high from
-`meta.fiftyTwoWeekHigh`, or max numeric historical highs, or current price as
-last fallback. It timestamps `live`, stores cache and returns. Fetch failure
-returns null, not stale cache. Manual modal validates positive current/high and
-current ≤ high; setter writes in-memory manual cache. Separate persisted data is
-copied into cache during bootstrap.
+`fetchNifty()` uses cache when under one hour. Otherwise it calls the Worker
+`GET /api/market/nifty` (timeout 8s); the Worker owns the Yahoo `^NSEI`
+request. Level and 52-week high come from the response `level`/`high52w`
+fields (high falls back to the level). It timestamps `live`, stores cache and
+returns. Fetch failure returns null, not stale cache. Manual modal validates
+positive current/high and current ≤ high; setter writes in-memory manual cache.
+Separate persisted data is copied into cache during bootstrap.
 
 ### Currency and stock quotes
 
 Currency cache keys are normalized concatenated pairs (e.g. `EURINR`). A pair
-request uses Yahoo symbol `EURINR=X`, chart range 1 day. Only supported ISO
+request calls the Worker `GET /api/market/currency?from=&to=`, which uses Yahoo
+symbol `FROMTO=X`, chart range 1 day. Only supported ISO
 codes, finite positive rate and numeric provider quote are accepted. Convert
 returns same amount for identical codes, fresh cached rate if available, else
 network or null. `fetchCurrencyRate()` falls back to cached rate including stale
@@ -347,14 +369,15 @@ are memory-cache only. Legacy `eurInrData` is hydrated as `EURINR` at bootstrap 
 no generic map exists.
 
 Stock symbols are normalized uppercase; prefix `EPA:`, `NSE:`, `BSE:` maps to
-`.PA`, `.NS`, `.BO`. Quotes use Yahoo daily chart `regularMarketPrice` and
-currency, timeout 10s, with memory + localStorage cache for 15m and in-flight
+`.PA`, `.NS`, `.BO`. Quotes call the Worker `GET /api/market/quote?symbol=`,
+which returns Yahoo daily `regularMarketPrice` and currency; the client applies a
+10s timeout with memory + localStorage cache for 15m and in-flight
 dedupe. There is no stale quote fallback. ESOP valuations run quote and currency
 fetch in parallel for every holding and calculate quantity×price×rate.
 
 ### Other outbound calls
 
-Advisor review API call and its user gesture are detailed in [UI](ui.md). PDF.js
+PDF.js
 is served from local `public/pdfjs/` assets, not a CDN. Assistant requests are
 covered by [AI](ai.md).
 
@@ -363,14 +386,14 @@ covered by [AI](ai.md).
 `firebase.json` Hosting serves `dist`, disables trailing slash, rewrites all
 paths to index, ignores docs/source metadata. Headers set CSP with local scripts
 plus Google auth scripts, inline script/style allowances, allowed Firebase,
-Yahoo, corsproxy, MFAPI and Worker `connect-src`; PDF worker may run from self or
+MFAPI and Worker `connect-src`; PDF worker may run from self or
 blob. COOP is `same-origin-allow-popups`, X-Frame-Options DENY,
 frame-ancestors none, nosniff, strict-origin referrer and no camera/microphone/
 geolocation. Google popup behavior depends on the COOP setting.
 
 Quality workflow on PR and main runs Node 22 / Java 21, npm ci, build, lint,
-Prettier check, unit tests, Worker tests, Firestore emulator tests and Chromium
-Playwright tests. Deployment workflow on main/manual installs root dependencies,
+Prettier check, unit tests, Worker tests, the personal-identifier guard, Firestore
+emulator tests and Chromium Playwright tests. Deployment workflow on main/manual installs root dependencies,
 Worker tests, builds with env, verifies route metadata, lint, format, unit/Worker/
 rules tests; deploys Firebase Hosting/rules/indexes, checks Cloudflare tokens,
 deploys Worker, then smoke-tests production routes. Details and scripts are in

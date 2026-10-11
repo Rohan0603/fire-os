@@ -116,9 +116,10 @@ allowlisted by `PERSISTED_STATE_KEYS`. Major sections: `profile`; MF and SIP
 fund maps; FD, EPF, ESOP, bonds, custom assets, liabilities and demat; NAV/Nifty/
 FX caches; benchmark tracker; Coorg goal; fund watchdog inputs; SWP and tax
 calendar; expenses; net-worth history; completed actions and milestones;
-insurance; ESOP detail/vesting; and `marketHistory`, a bounded local cache of
+insurance; ESOP detail/vesting; Assistant preferences (`assistant.sendExactFigures`,
+opt-in and false by default); and `marketHistory`, a bounded local cache of
 market series. `currentUser`, `_lastSavedAt`, and `_syncMetadata`
-are runtime-only. `persistedPortfolioSchema` (Valibot) and
+are runtime-only. `persistedPortfolioSchema` (Zod) and
 `isPersistedPortfolioData()` enforce exact key/nested shapes, types, finite
 numbers and selected limits; `normalizePersistedState()` fills omitted fields
 from defaults, discarding a malformed `marketHistory` without discarding the
@@ -158,7 +159,8 @@ Reactive UI signals are vanilla Nanostores atoms in `src/core/stores.ts`:
 (`SyncCoordinator` status: `idle`, `pending`, `syncing`, `offline`, `error`,
 `conflict`), `activeScopeStore` (identity-neutral active scope, `local`/`cloud`),
 `marketRefreshStatusStore` (market-refresh cycle: `idle`, `refreshing`, `success`,
-`error`) and `crashAlertStore` (latest `CrashAlert | null`, read by the dashboard
+`error`; a refresh that had nothing to fetch returns to `idle` rather than a false
+`success`) and `crashAlertStore` (latest `CrashAlert | null`, read by the dashboard
 banner). They are ephemeral signals only — there is no `@nanostores/persistent`
 and no second copy of the portfolio: durable portfolio persistence remains in
 `PortfolioRepository`/`storage.ts` (identity-scoped localStorage) plus
@@ -183,20 +185,21 @@ Firestore's 1 MiB document ceiling.
 
 ## Data and calculation flows
 
-Market clients live in `src/modules/api/`. MFAPI NAV calls use a four-hour
-cache, in-flight deduplication, a 30s timeout and stale-cache fallback. Nifty
-uses Yahoo chart data through corsproxy.io (configured public proxy key), a
-one-hour cache, then manual entry. History adapters (`fetchNiftyHistory(range?)`,
+Market clients live in `src/modules/api/`. Mutual fund NAV calls MFAPI directly
+(four-hour cache, in-flight dedupe, 30s timeout, stale-cache fallback). Nifty,
+FX and ESOP quotes call the Worker `/api/market/*` endpoints, so the browser
+needs no public CORS proxy or compiled key. Nifty uses a
+one-hour client cache then manual entry; FX caches for 24h and treats
+same-currency conversion as identity; ESOP quotes cache for 15 minutes in memory
+and localStorage, map `EPA:`, `NSE:`, `BSE:` symbols to Yahoo suffixes, then
+convert to INR. History adapters (`fetchNiftyHistory(range?)`,
 `fetchNAVHistory(code, range?)`) normalize provider series to at most 1260 Nifty
 / 2520 NAV daily points and are exposed through `FeaturePorts.marketData`; the
 bounded cache hydrates from persisted `marketHistory` at startup and serves a
 series as `cache-fresh` inside the 24h TTL, returns provider results as `live`,
 and falls back to expired cache as `stale` only when the provider fails —
-provider failures never erase a valid cache. FX uses Yahoo Finance through corsproxy.io,
-validates ISO currency codes, and caches for 24h; same-currency conversion is
-identity. ESOP stock quotes are cached for 15 minutes in memory and
-localStorage, map `EPA:`, `NSE:`, `BSE:` symbols to Yahoo suffixes, then convert
-quote currencies to INR. Details and API contracts are in [backend](backend.md).
+provider failures never erase a valid cache. Details and endpoint contracts are
+in [Backend](backend.md).
 
 Core formulas and their code locations:
 
@@ -207,11 +210,11 @@ Core formulas and their code locations:
 | Portfolio composition | Each asset category / total assets; zero categories omitted | `src/modules/dashboard/kpis.ts` |
 | Period return | Annualized XIRR over flows dated within `[start, end]` inclusive; does not synthesize missing historical values. Returns null when an endpoint is invalid or the in-period flows cannot be solved. Exported helper, not the value behind the SIP status KPI | `src/modules/dashboard/kpis.ts`, `src/lib/calculations.ts` |
 | SIP P&L | Current value minus explicit cost basis or monthly contribution × elapsed months; XIRR approximates monthly cash outflows and current value | `src/modules/dashboard/kpis.ts`, `src/lib/calculations.ts` |
-| FI progress | Net worth / user-entered FI target; achieved => 0 years remaining, otherwise unknown | `src/modules/dashboard/kpis.ts` |
+| FI progress | Net worth / user-entered FI target; achieved => 0 years remaining, otherwise unknown. With no positive target set, progress is 0% and years remaining stays unknown (never a false "achieved") | `src/modules/dashboard/kpis.ts` |
 | SIP future value | `P × (((1+r)^n − 1)/r)` with monthly rate; zero-rate fallback `P × n` | `src/lib/calculations.ts` |
 | XIRR | `xirr` package (Newton-Raphson) solves annualized return on dated cash flows; invalid dates/non-finite amounts are dropped (null when fewer than two valid flows remain), null when a sign is missing, and any package error (same-day flows, nonconvergence) or non-finite result converts to null | `src/lib/calculations.ts` |
 | Allocation drift | Current bucket percentage minus target (40/30/20/10); recommend when absolute rounded drift >5 percentage points | `src/modules/calculators/portfolio-rebalancing.ts` |
-| FIRE-age scenario | Monthly compounding from annual CAGR, add SIP monthly, annual step-up default 10%, stop at goal or 1,000 months | `src/modules/calculators/scenario-modeler.ts` |
+| FIRE-age scenario | Monthly compounding from annual CAGR, add SIP monthly, annual step-up default 10%; simulation caps at 1,000 months (~83 years) and returns `unreachable: true` with null age/months when the goal is not reached in that horizon | `src/modules/calculators/scenario-modeler.ts` |
 | Coast FIRE | Required today = target / `(1+return)^years`; coast age solves compound growth without contributions | `src/modules/calculators/scenario-modeler.ts` |
 | LTCG harvest | Estimated long-term units from SIP months older than 12; gains allocated up to hard-coded ₹125,000 remaining yearly allowance | `src/modules/calculators/tax/ltcg-planner.ts` |
 | Emergency runway | Selected liquid assets / monthly expenses; UI floors to whole months | `src/modules/calculators/index.ts`, `src/lib/calculations.ts` |
@@ -243,7 +246,7 @@ engine. Read [UI](ui.md) for tab-level logic and additional calculations.
   dependency and module CSS were removed); pure series/range/downsample logic
   lives in `chart-data.ts`, and the route refreshes NAVs/FX and benchmark
   history once on mount. Cashflow/data trust panels, goals,
-  and conditional SWP/expense/advisor widgets.
+  and conditional SWP and expense widgets.
 - **Planning Tools** (`src/modules/calculators/`): crash protocol, emergency
   runway, SIP pause, LTCG tax planner, SWP scheduler, allocation rebalancing and
   side-by-side scenario comparison.
@@ -265,12 +268,16 @@ backend resource. See [UI reference](ui.md) for per-module behavior.
 
 ## Assistant boundary
 
-The browser builds the summary in `src/lib/assistant/sanitize.ts`, explicitly
-transmits exact totals only with the request's `sendExact` choice, and POSTs to
+The browser builds the summary in `src/lib/assistant/sanitize.ts`, transmits
+exact totals only when the user has opted in through the persisted
+`state.assistant.sendExactFigures` setting (false by default; the request's
+`sendExact` mirrors it), and POSTs to
 `/api/assistant/query`. The Worker validates the request and
-extracted-proposal envelopes with Valibot in `shared/assistant-policy.js`, applies
+extracted-proposal envelopes with Zod in `shared/assistant-policy.js`, applies
 the separate prompt regex policy, rate limits, forwards a system prompt and conversation to
 OpenRouter, extract a JSON proposal from model output, and return the reply.
+The same Worker serves the read-only `GET /api/market/*` Yahoo proxy with
+Cache-API TTLs and stale fallback.
 OpenRouter credentials remain server-side. `PERSISTED_ALLOWLIST` remains the
 server's top-level output projection; the browser merges proposals into a
 candidate and validates the full persisted state before review/acceptance.
@@ -280,7 +287,7 @@ boundaries are in [AI reference](ai.md).
 ## Configuration and operational checks
 
 - Browser public config: `VITE_FIREBASE_*`, optional
-  `VITE_ASSISTANT_API_URL`, `VITE_CORSPROXY_API_KEY`; see `.env.example`.
+  `VITE_ASSISTANT_API_URL` (Assistant + market Worker base); see `.env.example`.
 - Worker secret: `OPENROUTER_API_KEY`; routing/limits in `worker/wrangler.toml`.
 - Local Worker dev: `npx wrangler dev --config worker/wrangler.toml` with
   `OPENROUTER_API_KEY` in `.dev.vars`.
@@ -289,7 +296,7 @@ boundaries are in [AI reference](ai.md).
 - Tests: `npm test`, `npm run test:worker`,
   `npm run test:rules`, `npm run test:rules:emulator`, `npm run test:e2e`.
 - Gates: `npm run check` (fast local gate: build, lint, format, unit, worker,
-  route metadata), `npm run lint`, `npm run build`; deployment:
+  route metadata, personal-identifier guard), `npm run lint`, `npm run build`; deployment:
   `npm run deploy:worker` and Firebase Hosting/rules deploy (see
   `docs/README.md`).
 
@@ -398,7 +405,6 @@ unchanged. See [AI reference](ai.md#full-request-trace-from-chat-event-to-model-
 | Plan | State + watchdog/insurance/tax rules | Health band, actions, milestones/history | `modules/plan/` |
 | ESOP | Quote holdings + currency + exercise inputs | INR quote value, tax estimate, allocation proposal | `modules/esop/`, `api/esop.ts` |
 | Expense tracking | Dated expenses and SWP settings | Mean expense amount per record vs fixed target | `trackers/expense-tracker.ts` |
-| Advisor integration | User email, corpus and allocation | External review request URL | `integrations/advisor-webhook.ts` |
 | AI guide | Sanitized context and conversation | Reply and optional user-confirmed state proposal | [AI reference](ai.md) |
 
 ## Important state and terminology notes

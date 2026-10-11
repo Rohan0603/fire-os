@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Worker market proxy** (`GET /api/market/nifty|currency|quote`): the Worker now
+  fetches Yahoo Finance server-side with Cache-API TTLs (1h/24h/15m) and a stale
+  fallback, reusing the existing CORS allowlist and rate limiter, so the browser
+  needs no public CORS proxy.
+- **Personal-identifier guard** (`scripts/check-personal-identifiers.mjs`, `npm run test:privacy`):
+  fails the Quality workflow if the maintainer's personal identifiers, external-advisor
+  references, or the personal support email reappear in `src`, `worker`, `shared`,
+  `firestore.rules` or `firebase.json` (excluding `presets/` and test files).
 - **Shared UI kit** (`src/app/ui`): Button, Input, Card, Table, Tabs, Select and Dialog for
   migrated routes, plus a `cn` helper. Tabs/Select/Dialog wrap the Radix primitives already in
   `package.json`. Proven by computed-style assertions in `e2e/ui-kit.spec.ts`, because an
@@ -22,7 +30,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Scenario Comparison**: side-by-side FI projection of two scenarios in the calculators tab
 - **Agent-friendly development**: enhanced `AGENTS.md` with explicit PR/MR workflow, CI check guidance, and issue onboarding; added quick-reference validation table and agent-contributing guide to `docs/README.md`
 
+### Changed
+- **Client market calls now go to the Worker**: `nifty.ts`, `currency.ts` and `esop.ts`
+  call the Worker `/api/market/*` endpoints instead of `corsproxy.io`. The
+  `VITE_CORSPROXY_API_KEY` build variable (and the deploy-workflow secret), the
+  `corsproxy.io`/`query1.finance.yahoo.com` CSP `connect-src` entries, and the client
+  proxy-key guards are removed; caching, TTLs and graceful degradation are unchanged.
+
+### Removed
+- **Advisor webhook integration**: the dashboard CFP-review widget and `src/modules/integrations/advisor-webhook.ts` are gone. It POSTed the user's email and exact portfolio figures to `https://api.fire-os.app`, an NXDOMAIN/unowned domain with no backend, exposing a registerable leak.
+
 ### Fixed
+- **Profile privacy notice implied local-only processing**: it said portfolio data
+  "stays in this browser", which read as if nothing ever leaves the device even
+  though the Assistant sends a sanitized summary (and, only when opted in, exact
+  figures) to the FIRE OS assistant service. The notice now states the storage
+  scope and the Assistant data flow explicitly.
+- **Trust panel claimed cloud sync and fresh market data it did not have**: in local-only mode an idle coordinator read "Synced", and `refreshPortfolioNAVs` published a "success" (rendered "Up to date") even when the portfolio had no holdings to fetch. The sync label is now scope-aware ("Local-only (not cloud synced)") and an empty refresh returns to `idle`.
+- **Empty profile rendered an "FI in 83y (age 108)" projection**: `calculateFIAge()` capped its month-by-month simulation at 1,000 months and returned the capped horizon as if it were a real result, so an unreachable goal looked like a distant date. It now returns an explicit `unreachable: true` with null age/months; the Plan tab and scenario comparison render "not reachable" instead of a fabricated horizon.
+- **Fresh profile claimed "FI achieved"**: with no positive FI target set, `fiProgress()` treated `currentCorpus >= fiTarget` as achieved, so the dashboard's FI Goal Progress card showed "FI achieved" for an empty profile. The achieved branch now requires a positive target, and the card/KPI report "Set an FI target to track progress" / "No FI target set" instead.
 - **Legacy modules rendered light cards with invisible text in dark mode**: the legacy palette in
   `tokens.css` defined its dark half only under `html[data-theme="dark"]`, but the Tailwind palette
   also treats `prefers-color-scheme: dark` as authoritative and the theme toggle deliberately leaves

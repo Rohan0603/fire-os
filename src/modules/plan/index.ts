@@ -50,6 +50,11 @@ export function renderPlan(context: FeatureContext = activeContext) {
   const coorgTarget = D.coorgTarget || 20_000_000;
   const coorgProgressPct = coorgTarget > 0 ? Math.min((coorgCorpus / coorgTarget) * 100, 100) : 0;
 
+  const fiProjectionNote =
+    baseScenario.unreachable || baseScenario.monthsToFI === null || baseScenario.fiAge === null
+      ? 'FI goal not reached within ~83 years at these assumptions — raise your SIP or expected return.'
+      : `FI in <strong>${(baseScenario.monthsToFI / 12).toFixed(0)}y</strong> (age ${baseScenario.fiAge.toFixed(0)})`;
+
   el.innerHTML = `
     <div class="plan-container">
       ${renderHealthStatusBanner(D)}
@@ -94,7 +99,7 @@ export function renderPlan(context: FeatureContext = activeContext) {
             <div class="plan-progress-bar">
               <div class="plan-progress-fill" style="width:${fiProgressPct.toFixed(0)}%"></div>
             </div>
-            <p class="plan-progress-note">FI in <strong>${(baseScenario.monthsToFI / 12).toFixed(0)}y</strong> (age ${baseScenario.fiAge.toFixed(0)})</p>
+            <p class="plan-progress-note">${fiProjectionNote}</p>
             <p class="plan-assumptions">Estimate: assumes ${Math.round(ASSUMED_ANNUAL_RETURN * 100)}% a year return and your SIP rising ${Math.round(ASSUMED_SIP_STEP_UP * 100)}% each year, from ${formatCurrency(totalMonthlyAmount, 0)}/mo. Actual returns will differ.</p>
             ${goalIsDefault ? `<p class="plan-assumptions plan-assumptions--hint">Goal is the default ${formatCurrency(fiTarget, 0)} — set your own in Profile.</p>` : ''}
           </section>

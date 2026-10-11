@@ -33,7 +33,7 @@ const proposalEnvelopeSchema = z.record(z.string(), z.unknown());
 const sendExactSchema = z.boolean();
 const messageArrayShapeSchema = z.array(z.unknown()).min(1).max(12);
 
-/** Valibot's `is`: true when the value satisfies the schema, never throwing. */
+/** Zod `safeParse`: true when the value satisfies the schema, never throwing. */
 const is = (schema, value) => schema.safeParse(value).success;
 
 const PII_REQUEST_PATTERNS = [
@@ -74,6 +74,7 @@ export const PERSISTED_ALLOWLIST = Object.freeze([
   'achievedMilestones',
   'insurance',
   'esopDetails',
+  'assistant',
 ]);
 
 /** @returns {null | { status: number, error: string }} */

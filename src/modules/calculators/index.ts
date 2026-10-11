@@ -295,7 +295,7 @@ function attachCalculatorHandlers(context: FeatureContext) {
     }
 
     if (!D.swpSchedule) {
-      D.swpSchedule = { enabled: false, startDate: '', monthlyAmount: 122000, rate: 3 };
+      D.swpSchedule = { enabled: false, startDate: '', monthlyAmount: 122000, rate: 3, autoExecute: false };
     }
 
     D.swpSchedule.enabled = enabled;
@@ -318,9 +318,18 @@ function attachCalculatorHandlers(context: FeatureContext) {
         context.ports.ui.showToast('Please enable SWP and save config first', 3000, 'warning');
         return;
       }
-      await executeMonthlyWithdrawal(D);
+      const { actualAmount } = await executeMonthlyWithdrawal(D);
       await context.portfolio.save(D, { awaitCloud: true });
-      context.ports.ui.showToast('✓ Simulated withdrawal executed successfully', 3000, 'success');
+      const target = D.swpSchedule.monthlyAmount;
+      if (actualAmount > 0 && actualAmount < target) {
+        context.ports.ui.showToast(
+          `✓ Withdrawal executed for ₹${Math.round(actualAmount).toLocaleString('en-IN')} (shortfall of ₹${Math.round(target - actualAmount).toLocaleString('en-IN')})`,
+          5000,
+          'warning',
+        );
+      } else {
+        context.ports.ui.showToast('✓ Simulated withdrawal executed successfully', 3000, 'success');
+      }
     } catch {
       context.ports.ui.showToast('✗ Withdrawal execution failed', 3000, 'error');
     } finally {
@@ -557,8 +566,8 @@ function renderCompareResults(results: FIScenarioResult[], skipped: number) {
         <tr><th>Projection (estimate)</th>${results.map((r) => `<th>${escapeHtml(r.label)}</th>`).join('')}</tr>
       </thead>
       <tbody>
-        ${row('Estimated months to goal', results.map((r) => String(r.monthsToGoal)))}
-        ${row('Estimated age at goal', results.map((r) => r.ageAtGoal.toFixed(1)))}
+        ${row('Estimated months to goal', results.map((r) => (r.unreachable ? 'Not reachable' : String(r.monthsToGoal))))}
+        ${row('Estimated age at goal', results.map((r) => (r.unreachable ? 'Not reachable' : r.ageAtGoal!.toFixed(1))))}
         ${row('Projected corpus (estimate)', results.map((r) => formatCurrency(r.projectedCorpus)))}
         ${row(
           'Assumptions used',

@@ -58,7 +58,13 @@ export function KpiRow({ state }: { state: FireOSState }) {
       <KpiCard
         label="FI Progress"
         value={`${fi.progressPercent.toFixed(0)}%`}
-        detail={fi.yearsRemaining === null ? 'Years remaining: not yet achieved' : 'Financial independence achieved'}
+        detail={
+          fi.fiTarget > 0
+            ? fi.yearsRemaining === null
+              ? 'Years remaining: not yet achieved'
+              : 'Financial independence achieved'
+            : 'No FI target set'
+        }
       />
       <KpiCard
         label="Market Drawdown"

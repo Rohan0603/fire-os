@@ -123,13 +123,14 @@ export interface FireOSState {
   currentUser: FirebaseUserType;
   _lastSavedAt: string; // ISO timestamp of last save
 
-  // SWP & Tax Engine (v3.0)
-  swpSchedule: {
-    enabled: boolean;
-    startDate: string;
-    monthlyAmount: number;
-    rate: number;
-  };
+// SWP & Tax Engine (v3.0)
+   swpSchedule: {
+     enabled: boolean;
+     startDate: string;
+     monthlyAmount: number;
+     rate: number;
+     autoExecute: boolean;
+   };
   taxCalendar: {
     lastLTCGHarvestDate: string;
     lastHarvestedAmount: number;
@@ -159,6 +160,16 @@ export interface FireOSState {
 
   // ESOP Details
   esopDetails: EsopDetails;
+
+  // Assistant preferences
+  assistant: {
+    /**
+     * Opt-in to transmit exact portfolio figures (net worth, FI target,
+     * expenses, per-asset totals) to the Assistant. Defaults to false, so
+     * only range buckets are sent unless the user turns this on.
+     */
+    sendExactFigures: boolean;
+  };
 }
 
 /**
@@ -195,7 +206,7 @@ export const PERSISTED_STATE_KEYS = [
   'niftyHigh', 'niftyData', 'currencyRates', 'marketHistory', 'eurInr', 'eurInrData', 'alphaTrackerData',
   'coorgCorpus', 'coorgStartDate', 'coorgTarget', 'coorgMonthlyAmount',
   'watchdogRules', 'swpSchedule', 'taxCalendar', 'expenses', 'netWorthHistory',
-  'completedActions', 'achievedMilestones', 'insurance', 'esopDetails',
+  'completedActions', 'achievedMilestones', 'insurance', 'esopDetails', 'assistant',
 ] as const;
 
 const finiteNumberSchema = z.number();
@@ -270,7 +281,7 @@ const persistedPortfolioShape = {
     blockedDays: z.strictObject({ NipponGrowth: finiteNumberSchema, NipponSmallCap: finiteNumberSchema }),
     managerExits: z.strictObject({ PPFCF: z.boolean(), NipponSmallCap: z.boolean() }),
   })),
-  swpSchedule: exactOptional(z.strictObject({ enabled: z.boolean(), startDate: z.string(), monthlyAmount: finiteNumberSchema, rate: finiteNumberSchema })),
+  swpSchedule: exactOptional(z.strictObject({ enabled: z.boolean(), startDate: z.string(), monthlyAmount: finiteNumberSchema, rate: finiteNumberSchema, autoExecute: z.boolean().default(false) })),
   taxCalendar: exactOptional(z.strictObject({ lastLTCGHarvestDate: z.string(), lastHarvestedAmount: finiteNumberSchema, harvestTarget: finiteNumberSchema })),
   expenses: exactOptional(z.array(z.strictObject({ date: z.string(), category: z.string(), amount: finiteNumberSchema, linkedToSWP: z.boolean() }))),
   netWorthHistory: exactOptional(z.array(z.strictObject({ date: z.string(), value: finiteNumberSchema }))),
@@ -289,6 +300,7 @@ const persistedPortfolioShape = {
     vestingSchedule: z.array(z.strictObject({ date: z.string(), shares: finiteNumberSchema })),
     triggers: z.strictObject({ marriage: z.boolean(), childBirth: z.boolean(), jobChange: z.boolean(), coorgConstruction: z.boolean() }),
   })),
+  assistant: exactOptional(z.strictObject({ sendExactFigures: z.boolean() })),
 };
 
 /** Exact allowlisted persisted shape; omitted sections remain valid for legacy data. */
@@ -419,13 +431,14 @@ export function initializeState(): FireOSState {
     currentUser: null,
     _lastSavedAt: new Date().toISOString(),
 
-    // SWP & Tax Engine (v3.0)
-    swpSchedule: {
-      enabled: false,
-      startDate: '',
-      monthlyAmount: 122000,
-      rate: 0.03,
-    },
+     // SWP & Tax Engine (v3.0)
+     swpSchedule: {
+       enabled: false,
+       startDate: '',
+       monthlyAmount: 122000,
+       rate: 0.03,
+       autoExecute: false,
+     },
     taxCalendar: {
       lastLTCGHarvestDate: '',
       lastHarvestedAmount: 0,
@@ -467,6 +480,9 @@ export function initializeState(): FireOSState {
         coorgConstruction: false,
       },
     },
+
+    // Assistant preferences (opt-in; off by default)
+    assistant: { sendExactFigures: false },
   };
   return defineMarketHistory(state, {});
 }
@@ -503,6 +519,7 @@ export function normalizePersistedState(value: unknown): FireOSState | null {
       ...data.esopDetails,
       triggers: { ...defaults.esopDetails.triggers, ...data.esopDetails?.triggers },
     },
+    assistant: { ...defaults.assistant, ...data.assistant },
   };
   return defineMarketHistory(normalized, data.marketHistory ?? {});
 }
@@ -624,6 +641,7 @@ export function mergeState(existing: FireOSState, incoming: Partial<FireOSState>
         ...incoming.esopDetails?.triggers,
       },
     },
+    ...(incoming.assistant && { assistant: { ...existing.assistant, ...incoming.assistant } }),
     // Metadata is only set explicitly, never from incoming
     _lastSavedAt: incoming._lastSavedAt ?? existing._lastSavedAt,
   };

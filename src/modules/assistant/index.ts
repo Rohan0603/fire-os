@@ -68,6 +68,14 @@ function getScope(): string {
 }
 
 /**
+ * Whether the user has opted in to sending exact portfolio figures.
+ * Defaults to false: only range buckets leave the browser until enabled.
+ */
+function exactFiguresEnabled(): boolean {
+  return activeContext?.state.assistant?.sendExactFigures === true;
+}
+
+/**
  * Initialize the assistant module: build DOM, restore consent, attach listeners.
  * The deep-chat element is imported on demand so its bundle is not part of the
  * initial page load; the DOM is built only after the element is defined.
@@ -106,6 +114,9 @@ export function renderAssistant(context?: FeatureContext): void {
     box.checked = consent[flag] === true;
   });
 
+  const exactToggle = root.querySelector<HTMLInputElement>('#assistant-exact-figures');
+  if (exactToggle) exactToggle.checked = exactFiguresEnabled();
+
   refreshAuditSection();
   updateMarketFreshness(activeContext.state);
 }
@@ -118,9 +129,15 @@ function buildAssistantHTML(): string {
           <strong>FIRE OS Assistant</strong>
           <span class="assistant-consent-copy">Reads enabled. Writes require approval.</span>
         </div>
-        <button type="button" id="assistant-write-consent" class="btn-secondary">
-          ${consent.allowWrites ? 'Revoke write access' : 'Agree to write access'}
-        </button>
+        <div class="assistant-privacy-controls">
+          <label class="assistant-exact-toggle">
+            <input type="checkbox" id="assistant-exact-figures" ${exactFiguresEnabled() ? 'checked' : ''} />
+            Send exact figures
+          </label>
+          <button type="button" id="assistant-write-consent" class="btn-secondary">
+            ${consent.allowWrites ? 'Revoke write access' : 'Agree to write access'}
+          </button>
+        </div>
       </div>
 
       <div class="assistant-chat" style="display: flex">
@@ -164,6 +181,19 @@ function wireListeners(root: HTMLElement): void {
     consent = toggleConsent(getScope(), 'allowWrites');
     showToast(`Write access ${consent.allowWrites ? 'enabled' : 'disabled'}`, 3000);
     renderAssistant();
+  });
+
+  root.querySelector('#assistant-exact-figures')?.addEventListener('change', (event) => {
+    if (!activeContext) return;
+    const checked = (event.target as HTMLInputElement).checked;
+    activeContext.state.assistant.sendExactFigures = checked;
+    activeContext.portfolio.save(activeContext.state, { sync: false });
+    showToast(
+      checked
+        ? 'Exact figures will be sent with assistant questions'
+        : 'Only range estimates will be sent',
+      3000
+    );
   });
 
   const chat = root.querySelector('#fireos-deep-chat') as DeepChatElement | null;
@@ -216,7 +246,7 @@ async function handleDeepChatRequest(
       // Market data is optional; continue with the last cached value if available.
     }
 
-    const contextSummary = buildContextSummary(activeContext.state, true);
+    const contextSummary = buildContextSummary(activeContext.state, exactFiguresEnabled());
     updateMarketFreshness(activeContext.state);
     const requestMessages = deepChatMessages
       .filter((message) => message.role === 'user' || message.role === 'ai')

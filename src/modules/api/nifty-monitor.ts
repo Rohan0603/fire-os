@@ -29,7 +29,7 @@ export interface CrashAlert {
   crashPercentage: number; // Percentage drop from 52W high, rounded to 1 decimal
   severity: 'low' | 'medium' | 'high' | 'critical'; // Alert severity level
   shouldAlert: boolean; // Whether to trigger alert (true if >= 10%)
-  deployAmount?: number; // Suggested Wint deployment amount (only if shouldAlert = true)
+  deployAmount?: number; // Suggested deployment amount (only if shouldAlert = true)
 }
 
 /**

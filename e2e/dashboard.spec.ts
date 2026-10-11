@@ -44,6 +44,26 @@ test('uses no emoji as content in migrated dashboard markup', async ({ page }) =
   expect(hasEmoji, 'dashboard renders an emoji glyph').toBe(false);
 });
 
+/**
+ * Regression guard: a fresh guest profile has fiTarget 0, so the FI progress
+ * math used to treat "corpus >= target" as achieved and the dashboard claimed
+ * "FI achieved" before the user had set any goal. It also must not claim cloud
+ * sync or fresh market data it does not have.
+ */
+test('a fresh guest profile claims no achievements it does not have', async ({ page }) => {
+  await page.goto('/dashboard');
+  const dashboard = page.locator('#dashboard');
+  await expect(dashboard.getByText('Data quality')).toBeVisible();
+
+  await expect(dashboard.getByText('FI Goal Progress')).toBeVisible();
+  await expect(dashboard.getByText('Set an FI target to track progress')).toBeVisible();
+  await expect(dashboard.getByText('No FI target set')).toBeVisible();
+  await expect(dashboard.getByText('FI achieved')).toHaveCount(0);
+
+  await expect(dashboard.locator('#sync-status-value')).toHaveText('Local-only (not cloud synced)');
+  await expect(dashboard.locator('#market-refresh-value')).toHaveText('Not refreshed yet');
+});
+
 test('leaves exactly one active container when navigating away and back', async ({ page }) => {
   await page.goto('/dashboard');
   await page.getByRole('link', { name: 'Profile' }).click();

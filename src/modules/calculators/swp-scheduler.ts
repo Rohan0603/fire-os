@@ -73,8 +73,10 @@ export function getSWPWithdrawalDates(fiTriggerDate: string): string[] {
   );
 }
 
-export async function executeMonthlyWithdrawal(state: any): Promise<void> {
-  if (!state.swpSchedule || !state.swpSchedule.enabled) return;
+export async function executeMonthlyWithdrawal(state: any): Promise<{ actualAmount: number }> {
+  if (!state.swpSchedule || !state.swpSchedule.enabled) {
+    return { actualAmount: 0 };
+  }
 
   // Gather current holdings with NAV from mf and sip
   const holdings: Record<string, { units: number; nav: number }> = {
@@ -153,16 +155,25 @@ export async function executeMonthlyWithdrawal(state: any): Promise<void> {
     }
   }
 
-  // Add withdrawal to expense tracker
+  // Compute actual redeemed amount: sum over funds of (unitsRedeemed * nav)
+  let actualAmount = 0;
+  for (const [fundName, unitsRedeemed] of Object.entries(redemption)) {
+    const nav = holdings[fundName]?.nav ?? 0;
+    actualAmount += unitsRedeemed * nav;
+  }
+
+  // Add withdrawal to expense tracker with the actual amount redeemed
   if (!state.expenses) {
     state.expenses = [];
   }
   state.expenses.push({
     date: new Date().toISOString().split("T")[0],
     category: "SWP",
-    amount: state.swpSchedule.monthlyAmount,
+    amount: actualAmount,
     linkedToSWP: true,
   });
+
+  return { actualAmount };
 }
 
 

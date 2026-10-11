@@ -7,7 +7,7 @@ import { checkNewMilestones } from '../modules/plan/milestones';
 export interface DailyTaskDeps {
   persist(state: FireOSState): void;
   notify(message: string, duration: number, type: ToastType): void;
-  executeMonthlyWithdrawal(state: FireOSState): Promise<void>;
+   executeMonthlyWithdrawal(state: FireOSState): Promise<{ actualAmount: number }>;
 }
 
 /**
@@ -44,8 +44,8 @@ export function createDailyTaskRunner(deps: DailyTaskDeps): (state: FireOSState)
         deps.notify('🏆 Milestone Reached!', 5000, 'success');
       }
 
-      // SWP monthly execution check
-      if (state.swpSchedule && state.swpSchedule.enabled) {
+       // SWP monthly execution check
+       if (state.swpSchedule && state.swpSchedule.enabled && state.swpSchedule.autoExecute === true) {
         const currentYearMonth = today.substring(0, 7);
         const startYearMonth = state.swpSchedule.startDate
           ? state.swpSchedule.startDate.substring(0, 7)
@@ -56,12 +56,24 @@ export function createDailyTaskRunner(deps: DailyTaskDeps): (state: FireOSState)
             (e) => e.category === 'SWP' && e.date.substring(0, 7) === currentYearMonth,
           );
           if (!hasSwpThisMonth) {
-            stateChanged = true;
+            const target = state.swpSchedule.monthlyAmount;
             deps
               .executeMonthlyWithdrawal(state)
-              .then(() => {
+              .then((result) => {
                 deps.persist(state);
-                deps.notify('✓ Automatic monthly SWP executed', 4000, 'success');
+                const actual = result.actualAmount;
+                if (actual > 0) {
+                  if (actual < target) {
+                    const shortfall = target - actual;
+                    deps.notify(
+                      `✓ SWP executed for ₹${Math.round(actual).toLocaleString('en-IN')} (shortfall of ₹${Math.round(shortfall).toLocaleString('en-IN')})`,
+                      5000,
+                      'warning',
+                    );
+                  } else {
+                    deps.notify('✓ Automatic monthly SWP executed', 4000, 'success');
+                  }
+                }
               })
               .catch((e) => {
                 console.error('[SWP Auto] Failed to execute withdrawal:', e);

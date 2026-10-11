@@ -71,7 +71,7 @@ function sizedPortfolio(scale: number): FireOSState {
     source: 'corsproxy.io',
     status: 'cache-fresh',
   };
-  state.swpSchedule = { enabled: true, startDate: '2026-04-01', monthlyAmount: 122_000, rate: 0.03 };
+  state.swpSchedule = { enabled: true, startDate: '2026-04-01', monthlyAmount: 122_000, rate: 0.03, autoExecute: false };
   state.taxCalendar = { lastLTCGHarvestDate: '2026-03-31', lastHarvestedAmount: 180_000, harvestTarget: 125_000 };
   state.insurance = {
     termLife: { currentCover: 10_000_000, annualPremium: 24_000, expiryDate: '2040-01-01', provider: 'HDFC Life' },

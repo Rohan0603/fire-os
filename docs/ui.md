@@ -83,6 +83,12 @@ serialization uses PapaParse in both directions: export lives in
 `src/lib/portfolioCsv.ts`, import parsing/validation in
 `src/modules/profile/csv-import.ts`.
 
+The Profile privacy notice (`privacy-notice`) is deliberately precise: the
+portfolio is stored in the browser unless the user signs in and chooses cloud
+sync, and the Assistant sends a sanitized summary to the FIRE OS assistant
+service — exact figures only when "Send exact figures" is on. Do not restore a
+blanket "stays in this browser" claim.
+
 ### Dashboard — `src/app/routes/dashboard/`
 
 The dashboard is migrated: React owns the route (`DashboardRoute`), its
@@ -100,8 +106,10 @@ rows) and fetches Nifty history in parallel, then re-renders on portfolio saves
 value/invested/P&L; FI progress; Nifty drawdown; cashflow summary; market-data
 freshness, sync mode, last-save time, profile completeness and liabilities;
 category composition pie (Recharts, HTML legend below the chart); FI target
-progress; Coorg goal; two analytics charts (below); and, when SWP enabled, SWP,
-tax, advisor-review and expense-tracker widgets. A market crash monitor can show
+progress; Coorg goal; two analytics charts (below); and, when SWP enabled, the
+SWP schedule, tax and expense-tracker widgets. With no positive FI target set the
+FI progress KPI reports "No FI target set" and the FI Goal Progress card prompts
+to set a target instead of claiming "FI achieved". A market crash monitor can show
 a severity banner (`crashAlertStore`), and the trust-panel sync, market-refresh
 and cloud-mode labels update live from the reactive status stores. Charts are
 static markup (`isAnimationActive={false}`) and honour
@@ -223,8 +231,9 @@ health renderers.
 
 Stores grant/shares, liquidation shares, vesting FMV, triggers and optional
 holdings by ticker, quantity and currency. `esopDetails.vestingSchedule` is
-persisted and validated but is no longer rendered or edited anywhere. Quotes use
-Yahoo Finance through corsproxy; FX converts to INR. Value = quantity × quote ×
+persisted and validated but is no longer rendered or edited anywhere. Quotes come
+from Yahoo Finance via the Worker `/api/market/quote` endpoint; FX converts to
+INR. Value = quantity × quote ×
 INR rate. There is no manual holding valuation path: a failed quote or missing
 FX rate renders as unavailable. Stock quote freshness is 15 minutes.
 
@@ -282,7 +291,11 @@ disposal runs). The session also publishes the scope signal when a sync
 coordinator is attached. The dashboard's data-trust panel (`DataTrustPanel`)
 renders these signals (`sync-status-value`, `market-refresh-value`,
 `scope-mode-label`) and reads them through `useStore`, so React handles
-subscription and cleanup. `crashAlertStore` is not cleared by
+subscription and cleanup. Its labels are honest about the active scope: in
+local-only mode an idle coordinator reads "Local-only (not cloud synced)" rather
+than "Synced", and the market-data row only shows "Up to date" after a refresh
+that actually fetched a NAV — a refresh with nothing to fetch stays "Not
+refreshed yet". `crashAlertStore` is not cleared by
 `resetScopeStatuses`; the Nifty monitor owns its value.
 
 Ownership is unchanged: these stores are ephemeral UI signals only — durable
@@ -508,19 +521,20 @@ and drift round to one decimal. Recommendation rupees = abs(rounded drift)/100 �
 totalValue; display converts to lakh and rounds one decimal. Zero total value
 returns targets, zero current/drift and no actions. Action-engine denominator
 includes recognized funds plus custom holding value; passed target buckets only
-contain recognized categories. Dashboard advisor request instead passes net
-worth as denominator, so calculations can differ from Plan action suggestions.
+contain recognized categories.
 
 ### Scenario modeler
 
 `calculateFIAge()` throws on invalid parameters — corpus/SIP must be nonnegative,
 goal >0, CAGR/current age nonnegative. Monthly return = `(1+CAGR)^(1/12)-1`; every
 iteration grows current corpus then adds current SIP; after each 12th contribution
-monthly SIP steps up by default 10%. It stops when goal reached or at 1,000 months
-(~83 years), then returns age to one decimal, month count, rounded final corpus and
-a rounded percent label. If unreachable, it still returns capped-horizon values; no
-separate failure status. The Plan tab uses fixed 17% CAGR, profile FI target or
-₹55,000,000 fallback, profile age or 25 fallback, and total SIP monthlyAmount.
+monthly SIP steps up by default 10%. The simulation caps at 1,000 months
+(~83 years): when the goal is reached it returns age to one decimal, month count,
+rounded final corpus and a rounded percent label; when the goal is not reached
+within the horizon it returns an explicit unreachable result (`unreachable: true`,
+null `fiAge`/`monthsToFI`) instead of a capped "FI in 83y" figure. The Plan tab uses fixed 17% CAGR, profile FI target or
+₹55,000,000 fallback, profile age or 25 fallback, and total SIP monthlyAmount; an
+unreachable projection renders a "goal not reached" note rather than a fake horizon.
 Coast FIRE helper is exported through ports but not displayed in current Plan
 render; required corpus is target/(1+return)^years available; if already above
 threshold coasting begins now; otherwise logs solve years from target/current
@@ -530,7 +544,9 @@ and returns null if no positive return or beyond retirement age. Like
 `calculateFIAge()` math and returns results in input order with an `assumptions`
 echo of the full input (label, corpus, SIP, step-up, return, goal, age);
 scenarios with non-finite or negative (or zero-goal) assumptions are filtered
-out without throwing. Comparison outputs are labeled estimates — the calculator
+out without throwing. Unreachable scenarios carry `unreachable: true` and render
+"Not reachable" in the comparison table's month/age rows. Comparison outputs are
+labeled estimates — the calculator
 table and disclaimer state the assumptions used and describe every projection as
 an estimate, never as a guaranteed or actual return.
 
@@ -618,12 +634,6 @@ cover the withdrawal. A manual simulator awaits cloud persistence.
   grouped by month/date; `_startDate` is unused. Target ₹122,000; within ±10%
   inclusive? Source uses strict `abs(variance)<10`, where variance is rounded
   whole percent. Widget is only displayed when SWP is enabled.
-- **Advisor review:** dashboard builds corpus and allocation, posts email +
-  portfolio summary + timestamp to `https://api.fire-os.app/advisor/review`,
-  opens returned advisor URL. Dashboard uses account email or placeholder
-  `user@example.com`; this sends PII and financial summary externally after an
-  explicit button click. UI calls it only when SWP is enabled (widget itself is
-  conditional). This route is separate from Assistant and Firebase.
 
 ## Auth UI and formatting details
 

@@ -44,6 +44,13 @@ const SCOPE_LABELS: Record<ActiveScopeStatus, string> = {
   cloud: 'Cloud sync enabled',
 };
 
+/** Sync label is scope-aware: in local-only mode nothing reaches the cloud, so
+ * an idle coordinator must not read as "Synced". */
+function syncStatusLabel(status: SyncStatus, scope: ActiveScopeStatus): string {
+  if (scope === 'local' && status === 'idle') return 'Local-only (not cloud synced)';
+  return SYNC_STATUS_LABELS[status];
+}
+
 /** Severity banner shown at the top of the dashboard when the monitor fires. */
 export function CrashAlertBanner() {
   const alert = useStore(crashAlertStore);
@@ -57,7 +64,7 @@ export function CrashAlertBanner() {
         {`Nifty crashed ${alert.crashPercentage}%`}
       </p>
       <p className="text-sm text-(--color-foreground)">
-        {`Deploy ${formatCurrency(alert.deployAmount || 0, 0)} via Wint Wealth (Crash Protocol)`}
+        {`Deploy ${formatCurrency(alert.deployAmount || 0, 0)} (Crash Protocol)`}
       </p>
     </div>
   );
@@ -123,7 +130,7 @@ export function DataTrustPanel({ state }: { state: FireOSState }) {
           <span>{` • ${savedLabel}`}</span>
         </TrustRow>
         <TrustRow label="Sync status">
-          <span id="sync-status-value">{SYNC_STATUS_LABELS[sync]}</span>
+          <span id="sync-status-value">{syncStatusLabel(sync, scope)}</span>
         </TrustRow>
         <TrustRow label="Market data">
           <span id="market-refresh-value">{MARKET_REFRESH_LABELS[market]}</span>

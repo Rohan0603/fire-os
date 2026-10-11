@@ -213,7 +213,7 @@ service cloud.firestore {
           'alphaTrackerData', 'coorgCorpus', 'coorgStartDate', 'coorgTarget',
           'coorgMonthlyAmount', 'watchdogRules', 'swpSchedule', 'taxCalendar',
           'expenses', 'netWorthHistory', 'completedActions', 'achievedMilestones',
-          'insurance', 'esopDetails'
+          'insurance', 'esopDetails', 'assistant'
         ])
         && data.size() <= 40
         && (!('profile' in data) || data.profile is map)
