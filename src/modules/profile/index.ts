@@ -13,7 +13,7 @@ import { undoLastSavedPortfolioChange } from '../../lib/storage';
 import { profileCompletenessPercent as calculateProfileCompleteness } from '../../lib/completeness';
 import { buildPortfolioCsv } from '../../lib/portfolioCsv';
 import type { EsopHolding } from '../../types/state';
-import { restorePortfolioBackup } from './backup-import';
+import { parsePortfolioBackup, restorePortfolioBackup } from './backup-import';
 import { applyPortfolioCsvImport, parsePortfolioCsv, type CsvImportMode, type CsvImportPreview } from './csv-import';
 import { buildImportSummary, captureStateSnapshot, showImportSummary } from './import-summary';
 import { planCasImport } from './cas-import';

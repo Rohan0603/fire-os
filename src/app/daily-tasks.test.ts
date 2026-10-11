@@ -148,7 +148,7 @@ describe('createDailyTaskRunner', () => {
   it('does not mutate state on load when auto-execution is opt-in and off', async () => {
     const state = createFixture();
     state.achievedMilestones = ['nw-10l'];
-    state.swpSchedule = { enabled: true, startDate: '2026-01', monthlyAmount: 1000, rate: 0.03 };
+    state.swpSchedule = { enabled: true, startDate: '2026-01', monthlyAmount: 1000, rate: 0.03, autoExecute: false };
     const deps = createDeps();
     const run = createDailyTaskRunner(deps);
 

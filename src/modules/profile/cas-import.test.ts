@@ -44,10 +44,14 @@ describe('CAS import merge', () => {
       investedValue: 500000,
       balanceUnits: 1200,
       navDate: '2026-09-15',
+      nav: 420.5,
+      marketValue: 500000,
+      gainLossAbs: 0,
+      gainLossPct: 0,
     };
     const result: CASParseResult = {
-      investor: { name: 'Test', pan: 'ABCDE1234F' },
       asOnDate: '2026-09-30',
+      investor: { name: 'Test', pan: 'ABCDE1234F', email: '', mobile: '' },
       holdings: [holding],
     };
 
@@ -70,8 +74,8 @@ describe('CAS import merge', () => {
   it('adds new SIP funds from a new CAS statement', () => {
     const state = makeState();
     const result: CASParseResult = {
-      investor: { name: 'Test', pan: 'ABCDE1234F' },
       asOnDate: '2026-09-30',
+      investor: { name: 'Test', pan: 'ABCDE1234F', email: '', mobile: '' },
       holdings: [
         {
           type: 'soa',
@@ -80,6 +84,10 @@ describe('CAS import merge', () => {
           investedValue: 100000,
           balanceUnits: 500,
           navDate: '2026-09-01',
+          nav: 200,
+          marketValue: 100000,
+          gainLossAbs: 0,
+          gainLossPct: 0,
         },
       ],
     };
@@ -103,8 +111,8 @@ describe('CAS import merge', () => {
       costBasis: 50000,
     };
     const result: CASParseResult = {
-      investor: { name: 'Test', pan: 'ABCDE1234F' },
       asOnDate: '2026-09-30',
+      investor: { name: 'Test', pan: 'ABCDE1234F', email: '', mobile: '' },
       holdings: [],
     };
     const plan = planCasImport({ sip: state.sip, demat: state.demat }, result);
@@ -115,8 +123,8 @@ describe('CAS import merge', () => {
   it('merges demat holdings by name and preserves an existing ISIN', () => {
     const state = makeState();
     const result: CASParseResult = {
-      investor: { name: 'Test', pan: 'ABCDE1234F' },
       asOnDate: '2026-09-30',
+      investor: { name: 'Test', pan: 'ABCDE1234F', email: '', mobile: '' },
       holdings: [
         {
           type: 'demat',
@@ -125,6 +133,10 @@ describe('CAS import merge', () => {
           investedValue: 50000,
           balanceUnits: 60,
           navDate: '',
+          nav: 850,
+          marketValue: 51000,
+          gainLossAbs: 1000,
+          gainLossPct: 0.02,
         },
       ],
     };

@@ -295,7 +295,7 @@ function attachCalculatorHandlers(context: FeatureContext) {
     }
 
     if (!D.swpSchedule) {
-      D.swpSchedule = { enabled: false, startDate: '', monthlyAmount: 122000, rate: 3 };
+      D.swpSchedule = { enabled: false, startDate: '', monthlyAmount: 122000, rate: 3, autoExecute: false };
     }
 
     D.swpSchedule.enabled = enabled;

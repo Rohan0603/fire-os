@@ -120,7 +120,7 @@ function isIsoTimestamp(value: unknown): value is string {
   return typeof value === 'string' && Number.isFinite(Date.parse(value));
 }
 
-const persistedFields = new Set<keyof PersistedPortfolioData>([
+const persistedFields = new Set<keyof PortfolioData | 'assistant'>([
   'profile', 'mf', 'sip', 'fd', 'epf', 'esop', 'bonds', 'otherHoldings', 'liabilities', 'demat', 'nav',
   'niftyHigh', 'niftyData', 'currencyRates', 'eurInr', 'eurInrData', 'alphaTrackerData',
   'coorgCorpus', 'coorgStartDate', 'coorgTarget', 'coorgMonthlyAmount',

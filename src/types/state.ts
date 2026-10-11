@@ -123,13 +123,14 @@ export interface FireOSState {
   currentUser: FirebaseUserType;
   _lastSavedAt: string; // ISO timestamp of last save
 
-  // SWP & Tax Engine (v3.0)
-  swpSchedule: {
-    enabled: boolean;
-    startDate: string;
-    monthlyAmount: number;
-    rate: number;
-  };
+// SWP & Tax Engine (v3.0)
+   swpSchedule: {
+     enabled: boolean;
+     startDate: string;
+     monthlyAmount: number;
+     rate: number;
+     autoExecute: boolean;
+   };
   taxCalendar: {
     lastLTCGHarvestDate: string;
     lastHarvestedAmount: number;
