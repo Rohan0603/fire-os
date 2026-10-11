@@ -118,12 +118,14 @@ npm run build
 npx firebase-tools deploy --only hosting
 ```
 
-The production Worker validates message shape, rejects destructive and
-PII-disclosure requests, strips unapproved proposal keys, and applies a
-Cloudflare rate limit of 20 requests per minute per client IP. Writes follow
-propose -> review -> confirm -> audit -> undo. OpenRouter failures commonly
-appear as `401` (key), `402/403` (quota/provider), `404` (model), or `429`
-(rate limit).
+The production Worker verifies the caller's Firebase ID token before anything
+else (missing/invalid/expired => `401`), validates message shape, rejects
+destructive and PII-disclosure requests, strips unapproved proposal keys, and
+applies a Cloudflare rate limit of 20 requests per minute keyed per user, with a
+per-IP guard as a second layer. Writes follow propose -> review -> confirm ->
+audit -> undo. OpenRouter failures degrade to a deterministic `fallback` reply;
+remaining proxy errors appear as `401` (auth), `403/429` (policy or rate
+limit), or server errors.
 
 ## External APIs
 

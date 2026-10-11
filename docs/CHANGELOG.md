@@ -22,6 +22,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shape at every read boundary (local storage, JSON backup restore, Firestore
   envelope load/snapshot); idempotent, liberal in / strict out. Writes now use
   envelope schema `fireOS_v5`; reads still accept v2–v5.
+- **Assistant Worker authentication**: `POST /api/assistant/query` now requires a
+  verified Firebase ID token sent as `Authorization: Bearer`. The Worker checks
+  RS256 signature against Google's JWKS, issuer/audience for
+  `FIREBASE_PROJECT_ID`, and expiry; missing/invalid/expired tokens get 401
+  `{ error, code: 'unauthenticated' }`. The browser sends the signed-in user's
+  token and shows a sign-in prompt instead of firing a request when signed out.
+  CORS preflight now admits the `Authorization` header.
+- **Per-user rate limiting**: the Assistant rate limit (20 req/min) is keyed by
+  the verified user uid, with a per-IP guard as a second layer; both reuse the
+  existing `ASSISTANT_RATE_LIMITER` binding. This replaces the old per-IP-only
+  quota.
+- **Graceful assistant degradation**: non-2xx or timed-out OpenRouter responses
+  now return HTTP 200 with a deterministic `{ reply, fallback: true }` message
+  instead of an opaque 502/504 provider error.
 - **Worker market proxy** (`GET /api/market/nifty|currency|quote`): the Worker now
   fetches Yahoo Finance server-side with Cache-API TTLs (1h/24h/15m) and a stale
   fallback, reusing the existing CORS allowlist and rate limiter, so the browser

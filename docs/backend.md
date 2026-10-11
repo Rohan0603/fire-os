@@ -146,15 +146,27 @@ the cloud envelope, and is mirrored into identity-scoped localStorage on save.
 
 Production Worker is configured in `worker/wrangler.toml`; secret binding is
 `OPENROUTER_API_KEY`, rate limiter binding is `ASSISTANT_RATE_LIMITER`. The
-endpoint accepts OPTIONS and `POST /api/assistant/query`. Shared Zod
-schemas in `shared/assistant-policy.js` validate request fields, strict message
-objects, role alternation, and extracted-proposal envelopes. It limits body to
-100KB, requires 1–12 alternating message objects and matching latest question,
-blocks destructive/PII prompts, limits to 20 req/min/IP, forwards sanitized
-context and messages to OpenRouter, max 180 output tokens and 25s upstream
-timeout. CORS `ALLOWED_ORIGIN` is a comma-separated origin allowlist; it must
-include every host that serves the UI, or the Assistant fails CORS in production
-only. See [AI](ai.md) for exact
+endpoint accepts OPTIONS and `POST /api/assistant/query`. Authentication comes
+first: the browser sends a Firebase ID token as `Authorization: Bearer`, and
+the Worker verifies it before any other work — RS256 signature against Google's
+published JWKS (`jose`), issuer `https://securetoken.google.com/{FIREBASE_PROJECT_ID}`,
+the same project as audience, and expiry. `FIREBASE_PROJECT_ID` is a public var
+in `wrangler.toml` (not a secret). A missing/invalid/expired token returns 401
+`{ error, code: 'unauthenticated' }`; a Worker without a configured project id
+returns 500. Shared Zod schemas in `shared/assistant-policy.js` validate request
+fields, strict message objects, role alternation, and extracted-proposal
+envelopes. It limits body to 100KB, requires 1–12 alternating message objects
+and matching latest question, blocks destructive/PII prompts, then applies the
+rate limit keyed per user (`user:{uid}`), with a per-IP guard (`ip:{addr}`) as a
+second layer — both share the same `ASSISTANT_RATE_LIMITER` binding, 20
+req/min each, binding failure => 503. It forwards sanitized context and messages
+to OpenRouter, max 180 output tokens and 25s upstream timeout. A non-2xx or
+timed-out upstream returns HTTP 200 with a deterministic `{ reply, fallback:
+true }` so the client degrades gracefully instead of surfacing an opaque
+provider error. CORS `ALLOWED_ORIGIN` is a comma-separated origin allowlist; it
+must include every host that serves the UI, or the Assistant fails CORS in
+production only. `Access-Control-Allow-Headers` now admits `Authorization` so
+the browser can send the token cross-origin. See [AI](ai.md) for exact
 validation, response shape, prompt and proposal handling.
 
 There is no local Assistant proxy: the Worker is the only implementation. For
