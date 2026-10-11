@@ -345,7 +345,10 @@ are limited to schemaVersion, lastSavedAt, client, serverMetadata, data,
 sectionUpdatedAt, entryUpdatedAt, migration, format. Supported schema strings
 are fireOS_v2/v3/v4/v5. Owner may delete canonical doc and child holdings. Rules
 validate top-level envelope and selected nested structures, bounds and
-allowlisted keys independently of Assistant Zod validation. Client
+allowlisted keys independently of Assistant Zod validation. Nested `esopDetails`
+content is validated by `validEsopDetails()` (allowlisted keys with required
+`shares`/`grantPrice`/`vestingSchedule` and bounded `holdings`/`vestingSchedule`),
+matching the client `esopDetails` Zod schema. Client
 `isPersistedPortfolioData()` does stricter nested
 validation for locally loaded/updated data. Keep both rule emulator tests and
 client validator tests when changing schema.
