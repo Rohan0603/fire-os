@@ -216,7 +216,8 @@ service cloud.firestore {
         && (!('goals' in data) || isBoundedList(data.goals, 50))
         && (!('liquidationRules' in data) || isBoundedList(data.liquidationRules, 50))
         && (!('achievedMilestones' in data) || isBoundedList(data.achievedMilestones, 500))
-        && (!('insurance' in data) || data.insurance is map);
+        && (!('insurance' in data) || data.insurance is map)
+        && (!('esopDetails' in data) || validEsopDetails(data.esopDetails));
     }
 
     function validServerMetadata() {

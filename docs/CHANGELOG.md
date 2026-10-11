@@ -78,6 +78,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Advisor webhook integration**: the dashboard CFP-review widget and `src/modules/integrations/advisor-webhook.ts` are gone. It POSTed the user's email and exact portfolio figures to `https://api.fire-os.app`, an NXDOMAIN/unowned domain with no backend, exposing a registerable leak.
 
 ### Fixed
+- **Firestore rules never validated `esopDetails` content**: `validEsopDetails()`
+  was defined in `firestore.rules` but never called, so `esopDetails` passed
+  `validPersistedData` as an unchecked map and a client could persist arbitrary
+  nested data (including the retired `triggers` shape) there. `validPersistedData`
+  now calls `validEsopDetails(data.esopDetails)`, rejecting unknown keys and
+  malformed values. Already-synced legacy documents are unaffected:
+  `migratePortfolioEnvelope()` drops `triggers` at every read boundary, so the
+  next legitimate write is already in the current shape.
 - **Profile privacy notice implied local-only processing**: it said portfolio data
   "stays in this browser", which read as if nothing ever leaves the device even
   though the Assistant sends a sanitized summary (and, only when opted in, exact
