@@ -7,7 +7,7 @@ import { formatCurrency } from '../../lib/formatters';
 import { createFeatureContext, type FeatureContext } from '../../core/feature-context';
 import './styles.css';
 import { initTaxModule } from './tax';
-import { executeMonthlyWithdrawal } from './swp-scheduler';
+import { executeMonthlyWithdrawal, DEFAULT_FUND_BUCKETS, calculateFIFORedemption } from './swp-scheduler';
 import { compareFIScenarios, type FIScenarioInput, type FIScenarioResult } from './scenario-modeler';
 
 let activeContext = createFeatureContext();
@@ -477,6 +477,24 @@ function calculateSIPPause() {
 
 function renderSWPScheduler(): string {
   const swp = D.swpSchedule || { enabled: false, startDate: '', monthlyAmount: 0, rate: 3 };
+  const fundBuckets = D.fundBuckets ?? DEFAULT_FUND_BUCKETS;
+  const fundOrder = fundBuckets.map((b: { id: string }) => b.id);
+  const redemption = calculateFIFORedemption(
+    // build holdings from state.sip + state.mf grouped by bucket
+    {},
+    swp.monthlyAmount || 0,
+    fundOrder,
+  );
+
+  // Build a readable schedule summary
+  const redeemed: Record<string, number> = {};
+  for (const [bucketId, units] of Object.entries(redemption)) {
+    if (units > 0) redeemed[bucketId] = units;
+  }
+
+  const totalRedeemed = Object.values(redeemed).reduce((sum, units) => sum + units, 0);
+  const totalValue = totalRedeemed > 0 ? `${formatCurrency(totalRedeemed * 1000)}` : '0';
+
   return `
     <div class="calc-card">
       <h3>SWP Scheduler</h3>
@@ -491,7 +509,7 @@ function renderSWPScheduler(): string {
 
       <div class="calc-input-group margin-bottom-1-5">
         <label for="swp-amount">Monthly Withdrawal Amount (₹)</label>
-        <input type="number" id="swp-amount" value="${swp.monthlyAmount ?? 0}">
+        <input type="number" id="swp-amount" value="${swp.monthlyAmount ?? 0}" min="0">
       </div>
 
       <div class="calc-input-group margin-bottom-1-5">
@@ -499,9 +517,49 @@ function renderSWPScheduler(): string {
         <input type="month" id="swp-start-date" value="${swp.startDate ? swp.startDate.substring(0, 7) : ''}">
       </div>
 
+      <div class="calc-input-group margin-bottom-1-5">
+        <label>Fund Redemption Order</label>
+        <select id="fund-order" multiple style="height: 120px;">
+          ${fundBuckets.map((b, i) => `<option value="${b.id}" ${fundOrder.indexOf(b.id) >= 0 ? 'selected' : ''}>${b.label || b.id}</option>`).join('')}
+        </select>
+      </div>
+
+      <div class="calc-input-group margin-bottom-1-5">
+        <label>Projected Monthly Withdrawal</label>
+        <input type="number" value="${swp.monthlyAmount ?? 0}" readonly>
+      </div>
+
       <div class="flex flex-row gap-4">
         <button id="save-swp-btn" class="btn btn-primary">Save SWP Config</button>
         <button id="trigger-swp-btn" class="btn btn-secondary">Simulate Withdrawal</button>
+      </div>
+
+      <div class="mt-4">
+        <h4>Redemption Plan</h4>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th>Fund</th>
+                <th>Units</th>
+                <th>Amount (₹)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${fundBuckets.map((b, i) => {
+                const units = redeemed[b.id] || 0;
+                const amount = units * 1000; // placeholder nav
+                return `
+                <tr>
+                  <td>${b.label || b.id}</td>
+                  <td>${units}</td>
+                  <td>${formatCurrency(amount)}</td>
+                </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   `;

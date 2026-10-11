@@ -1,5 +1,7 @@
 import { addMonths, isValid, parseISO } from 'date-fns';
 import { resolveFundBucket, DEFAULT_FUND_BUCKETS } from '../../lib/fundMatcher';
+export { DEFAULT_FUND_BUCKETS };
+import { formatCurrency } from '../../lib/formatters';
 
 interface Holding {
   units: number;
