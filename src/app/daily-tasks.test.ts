@@ -21,6 +21,7 @@ function createDeps(): DailyTaskDeps {
         amount: 1000,
         linkedToSWP: true,
       });
+      return { actualAmount: 1000 };
     }),
   };
 }
@@ -88,7 +89,7 @@ describe('createDailyTaskRunner', () => {
   it('runs the monthly SWP once per month and persists the result', async () => {
     const state = createFixture();
     state.achievedMilestones = ['nw-10l'];
-    state.swpSchedule = { enabled: true, startDate: '2026-01', monthlyAmount: 1000, rate: 0.03 };
+    state.swpSchedule = { enabled: true, startDate: '2026-01', monthlyAmount: 1000, rate: 0.03, autoExecute: true };
     const deps = createDeps();
     const run = createDailyTaskRunner(deps);
 
@@ -110,7 +111,7 @@ describe('createDailyTaskRunner', () => {
     const state = createFixture();
     state.achievedMilestones = ['nw-10l'];
     state.netWorthHistory = [{ date: '2026-03-10', value: 2_000_000 }];
-    state.swpSchedule = { enabled: true, startDate: '2026-04', monthlyAmount: 1000, rate: 0.03 };
+    state.swpSchedule = { enabled: true, startDate: '2026-04', monthlyAmount: 1000, rate: 0.03, autoExecute: true };
     const deps = createDeps();
     const run = createDailyTaskRunner(deps);
 
@@ -125,7 +126,7 @@ describe('createDailyTaskRunner', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const state = createFixture();
     state.achievedMilestones = ['nw-10l'];
-    state.swpSchedule = { enabled: true, startDate: '2026-01', monthlyAmount: 1000, rate: 0.03 };
+    state.swpSchedule = { enabled: true, startDate: '2026-01', monthlyAmount: 1000, rate: 0.03, autoExecute: true };
     const deps = createDeps();
     deps.executeMonthlyWithdrawal = vi.fn(async () => {
       throw new Error('network down');
@@ -142,5 +143,20 @@ describe('createDailyTaskRunner', () => {
       expect.any(Error),
     );
     consoleError.mockRestore();
+  });
+
+  it('does not mutate state on load when auto-execution is opt-in and off', async () => {
+    const state = createFixture();
+    state.achievedMilestones = ['nw-10l'];
+    state.swpSchedule = { enabled: true, startDate: '2026-01', monthlyAmount: 1000, rate: 0.03 };
+    const deps = createDeps();
+    const run = createDailyTaskRunner(deps);
+
+    run(state);
+    await flush();
+
+    expect(deps.executeMonthlyWithdrawal).not.toHaveBeenCalled();
+    expect(state.expenses).toHaveLength(0);
+    expect(deps.persist).toHaveBeenCalledTimes(1);
   });
 });

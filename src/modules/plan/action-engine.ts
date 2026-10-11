@@ -219,6 +219,28 @@ export function generateActionItems(state: FireOSState): ActionItem[] {
     });
   }
 
+  // 11. Monthly SWP due but not auto-executing (this-month)
+  const swp = state.swpSchedule;
+  if (swp?.enabled && swp.autoExecute !== true) {
+    const swpStart = swp.startDate ? swp.startDate.substring(0, 7) : '';
+    const currentYearMonth = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+    const isDueMonth = swpStart ? currentYearMonth >= swpStart : true;
+    if (isDueMonth) {
+      const hasSwpThisMonth = state.expenses?.some(
+        (e) => e.category === 'SWP' && e.date.substring(0, 7) === currentYearMonth,
+      );
+      if (!hasSwpThisMonth) {
+        addAction({
+          id: `swp-due-${currentYearMonth}`,
+          priority: 'this-month',
+          category: 'invest',
+          title: 'Monthly SWP is due',
+          description: `Automatic withdrawal is off. Execute your ₹${Math.round(swp.monthlyAmount).toLocaleString('en-IN')} monthly SWP in the Calculators tab, then mark this action complete.`,
+        });
+      }
+    }
+  }
+
   // Sort by priority
   const priorityScore = {
     'urgent': 4,

@@ -318,9 +318,18 @@ function attachCalculatorHandlers(context: FeatureContext) {
         context.ports.ui.showToast('Please enable SWP and save config first', 3000, 'warning');
         return;
       }
-      await executeMonthlyWithdrawal(D);
+      const { actualAmount } = await executeMonthlyWithdrawal(D);
       await context.portfolio.save(D, { awaitCloud: true });
-      context.ports.ui.showToast('✓ Simulated withdrawal executed successfully', 3000, 'success');
+      const target = D.swpSchedule.monthlyAmount;
+      if (actualAmount > 0 && actualAmount < target) {
+        context.ports.ui.showToast(
+          `✓ Withdrawal executed for ₹${Math.round(actualAmount).toLocaleString('en-IN')} (shortfall of ₹${Math.round(target - actualAmount).toLocaleString('en-IN')})`,
+          5000,
+          'warning',
+        );
+      } else {
+        context.ports.ui.showToast('✓ Simulated withdrawal executed successfully', 3000, 'success');
+      }
     } catch {
       context.ports.ui.showToast('✗ Withdrawal execution failed', 3000, 'error');
     } finally {

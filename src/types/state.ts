@@ -280,7 +280,7 @@ const persistedPortfolioShape = {
     blockedDays: z.strictObject({ NipponGrowth: finiteNumberSchema, NipponSmallCap: finiteNumberSchema }),
     managerExits: z.strictObject({ PPFCF: z.boolean(), NipponSmallCap: z.boolean() }),
   })),
-  swpSchedule: exactOptional(z.strictObject({ enabled: z.boolean(), startDate: z.string(), monthlyAmount: finiteNumberSchema, rate: finiteNumberSchema })),
+  swpSchedule: exactOptional(z.strictObject({ enabled: z.boolean(), startDate: z.string(), monthlyAmount: finiteNumberSchema, rate: finiteNumberSchema, autoExecute: z.boolean().default(false) })),
   taxCalendar: exactOptional(z.strictObject({ lastLTCGHarvestDate: z.string(), lastHarvestedAmount: finiteNumberSchema, harvestTarget: finiteNumberSchema })),
   expenses: exactOptional(z.array(z.strictObject({ date: z.string(), category: z.string(), amount: finiteNumberSchema, linkedToSWP: z.boolean() }))),
   netWorthHistory: exactOptional(z.array(z.strictObject({ date: z.string(), value: finiteNumberSchema }))),
@@ -430,13 +430,14 @@ export function initializeState(): FireOSState {
     currentUser: null,
     _lastSavedAt: new Date().toISOString(),
 
-    // SWP & Tax Engine (v3.0)
-    swpSchedule: {
-      enabled: false,
-      startDate: '',
-      monthlyAmount: 122000,
-      rate: 0.03,
-    },
+     // SWP & Tax Engine (v3.0)
+     swpSchedule: {
+       enabled: false,
+       startDate: '',
+       monthlyAmount: 122000,
+       rate: 0.03,
+       autoExecute: false,
+     },
     taxCalendar: {
       lastLTCGHarvestDate: '',
       lastHarvestedAmount: 0,
