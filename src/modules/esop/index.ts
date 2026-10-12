@@ -540,10 +540,10 @@ function updateCalculationUI() {
 }
 
 function formatRupeesAndLakhs(amount: number): string {
-  if (amount < 0) amount = 0;
+  if (amount <= 0) return '₹0';
   const lakhs = amount / 100000;
   const formatter = new Intl.NumberFormat('en-IN', {
     maximumFractionDigits: 0
   });
-  return `₹${formatter.format(Math.round(amount))} (${lakhs.toFixed(0)}L)`;
+  return `₹${formatter.format(Math.round(amount))} (${lakhs.toFixed(1)}L)`;
 }

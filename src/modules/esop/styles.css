@@ -332,6 +332,7 @@ input:checked + .slider:before {
 
 .animate-pulse {
   animation: flash-pulse 2s infinite ease-in-out;
+  motion-reduce: animation-none;
 }
 
 @keyframes flash-pulse {

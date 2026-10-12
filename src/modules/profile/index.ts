@@ -115,13 +115,72 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
         <button id="add-other-holding-btn" class="btn-secondary" type="button">+ Add Holding</button>
       </div>
 
-      <div class="profile-section">
+<div class="profile-section">
         <h3>Liabilities</h3>
         <p class="form-hint">Optional INR liabilities. Used to calculate net worth.</p>
         <div id="liabilities-list" class="liabilities-form">${renderLiabilityFields()}</div>
         <button id="add-liability-btn" class="btn-secondary" type="button">+ Add Liability</button>
       </div>
-
+      <div class="profile-section">
+        <h3>Insurance</h3>
+        <div class="insurance-form">
+          <div class="form-group">
+            <label>Term Life Insurance</label>
+            <div class="row">
+              <div class="form-field">
+                <label>Current Cover (₹)</label>
+                <input type="number" id="term-life-cover" value="${D.profile.insurance?.termLife?.currentCover || ''}">
+              </div>
+              <div class="form-field">
+                <label>Annual Premium (₹)</label>
+                <input type="number" id="term-life-premium" value="${D.profile.insurance?.termLife?.annualPremium || ''}">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Expiry Date</label>
+              <input type="date" id="term-life-expiry" value="${D.profile.insurance?.termLife?.expiryDate || ''}">
+            </div>
+            <div class="form-field">
+              <label>Provider</label>
+              <input type="text" id="term-life-provider" value="${D.profile.insurance?.termLife?.provider || ''}">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Health Insurance</label>
+            <div class="row">
+              <div class="form-field">
+                <label>Current Cover (₹)</label>
+                <input type="number" id="health-cover" value="${D.profile.insurance?.health?.currentCover || ''}">
+              </div>
+              <div class="form-field">
+                <label>Annual Premium (₹)</label>
+                <input type="number" id="health-premium" value="${D.profile.insurance?.health?.annualPremium || ''}">
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Family Size</label>
+              <input type="number" id="family-size" value="${D.profile.insurance?.health?.familySize || ''}">
+            </div>
+            <div class="form-field">
+              <label>Provider</label>
+              <input type="text" id="health-provider" value="${D.profile.insurance?.health?.provider || ''}">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Vehicle Insurance</label>
+            <div class="row">
+              <div class="form-field">
+                <label>Covered</label>
+                <input type="checkbox" id="vehicle-covered" ${D.profile.insurance?.vehicle?.covered ? 'checked' : ''}>
+              </div>
+              <div class="form-field">
+                <label>Annual Premium (₹)</label>
+                <input type="number" id="vehicle-premium" value="${D.profile.insurance?.vehicle?.annualPremium || ''}">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="profile-section">
         <h3>Data Management</h3>
         <div class="data-actions" style="display: flex; gap: 1rem; align-items: center; margin-top: 0.5rem;">
@@ -245,11 +304,11 @@ function renderSIPFields(): string {
   existingIndices.sort((a, b) => a - b);
 
   let html = `
-    <div class="sip-table-wrapper" style="overflow-x: auto; margin-bottom: 1rem;">
-      <table class="sip-table" style="width: 100%; border-collapse: collapse; text-align: left; background: var(--card-bg); border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    <div class="sip-table-wrapper" style="overflow-x: auto; margin-bottom: 1rem; -webkit-overflow-scrolling: touch;">
+      <table class="sip-table" style="width: 100%; border-collapse: collapse; text-align: left; background: var(--card-bg); border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); table-layout: fixed;">
         <thead style="background: var(--bg-tertiary); border-bottom: 2px solid var(--border-primary);">
           <tr>
-            <th style="padding: 12px 16px; font-weight: 600; color: var(--text-secondary); min-width: 300px;">Fund Name</th>
+            <th style="padding: 12px 16px; font-weight: 600; color: var(--text-secondary); min-width: 0;">Fund Name</th>
             <th style="padding: 12px 16px; font-weight: 600; color: var(--text-secondary);">Scheme Code</th>
             <th style="padding: 12px 16px; font-weight: 600; color: var(--text-secondary);">Units</th>
             <th style="padding: 12px 16px; font-weight: 600; color: var(--text-secondary);">Monthly (₹)</th>
@@ -263,24 +322,24 @@ function renderSIPFields(): string {
   for (const i of existingIndices) {
     const sip = D.sip[`sip${i}`];
     html += `
-          <tr style="border-bottom: 1px solid var(--border-primary); transition: background-color 0.2s;">
+          <tr style="border-bottom: 1px solid var(--border-primary); transition: background-color 0.2s; motion-reduce:transition-none">
             <td style="padding: 8px 16px;">
-              <input type="text" class="sip-name" data-index="${i}" placeholder="Fund name" value="${sip?.name || ''}" style="width: 100%; min-width: 280px; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+              <input type="text" class="sip-name" data-index="${i}" placeholder="Fund name" value="${sip?.name || ''}" style="width: 100%; flex: 1; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text); font-variant-numbers: tabular-nums;">
             </td>
             <td style="padding: 8px 16px;">
-              <input type="text" class="sip-code" data-index="${i}" placeholder="Code" value="${sip?.schemeCode || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+              <input type="text" class="sip-code" data-index="${i}" placeholder="Code" value="${sip?.schemeCode || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text); font-variant-numbers: tabular-nums;">
             </td>
             <td style="padding: 8px 16px;">
-              <input type="number" class="sip-units" data-index="${i}" placeholder="Units" value="${sip?.units || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+              <input type="number" class="sip-units" data-index="${i}" placeholder="Units" value="${sip?.units || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text); font-variant-numbers: tabular-nums;">
             </td>
             <td style="padding: 8px 16px;">
-              <input type="number" class="sip-amount" data-index="${i}" placeholder="₹0" value="${sip?.monthlyAmount || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+              <input type="number" class="sip-amount" data-index="${i}" placeholder="₹0" value="${sip?.monthlyAmount || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text); font-variant-numbers: tabular-nums;">
             </td>
             <td style="padding: 8px 16px;">
-              <input type="text" class="sip-start" data-index="${i}" placeholder="YYYY-MM" value="${sip?.startDate || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+              <input type="text" class="sip-start" data-index="${i}" placeholder="YYYY-MM" value="${sip?.startDate || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text); font-variant-numbers: tabular-nums;">
             </td>
             <td style="padding: 8px 16px;">
-              <input type="number" class="sip-cost-basis" data-index="${i}" placeholder="Optional" value="${sip?.costBasis || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+              <input type="number" class="sip-cost-basis" data-index="${i}" placeholder="Optional" value="${sip?.costBasis || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text); font-variant-numbers: tabular-nums;">
             </td>
           </tr>
     `;
@@ -342,13 +401,13 @@ function renderOtherHoldingsFields(): string {
             return `
               <tr style="border-bottom: 1px solid var(--border-primary);">
                 <td style="padding: 8px 16px;">
-                  <input type="text" class="other-holding-name profile-editable-field ${editingOtherHoldingIndices.has(index) ? 'is-editing' : 'is-readonly'}" data-index="${index}" placeholder="e.g. Gold, Crypto" value="${escapeHtml(holding?.name || '')}" ${editingOtherHoldingIndices.has(index) ? '' : 'readonly'} style="width: 100%; min-width: 200px; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+                  <input type="text" class="other-holding-name profile-editable-field ${editingOtherHoldingIndices.has(index) ? 'is-editing' : 'is-readonly'}" data-index="${index}" placeholder="e.g. Gold, Crypto" value="${escapeHtml(holding?.name || '')}" ${editingOtherHoldingIndices.has(index) ? '' : 'readonly'} style="width: 100%; min-width: 200px; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text); font-variant-numbers: tabular-nums;">
                 </td>
                 <td style="padding: 8px 16px;">
-                  <input type="number" class="other-holding-amount profile-editable-field ${editingOtherHoldingIndices.has(index) ? 'is-editing' : 'is-readonly'}" data-index="${index}" min="0" step="0.01" placeholder="₹0" value="${holding?.amount || ''}" ${editingOtherHoldingIndices.has(index) ? '' : 'readonly'} style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+                  <input type="number" class="other-holding-amount profile-editable-field ${editingOtherHoldingIndices.has(index) ? 'is-editing' : 'is-readonly'}" data-index="${index}" min="0" step="0.01" placeholder="₹0" value="${holding?.amount || ''}" ${editingOtherHoldingIndices.has(index) ? '' : 'readonly'} style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text); font-variant-numbers: tabular-nums;">
                 </td>
                 <td style="padding: 8px 16px;">
-                  <input type="number" class="other-holding-return profile-editable-field ${editingOtherHoldingIndices.has(index) ? 'is-editing' : 'is-readonly'}" data-index="${index}" min="0" max="100" step="0.1" placeholder="0" value="${holding?.annualReturn ?? ''}" ${editingOtherHoldingIndices.has(index) ? '' : 'readonly'} style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text);">
+                  <input type="number" class="other-holding-return profile-editable-field ${editingOtherHoldingIndices.has(index) ? 'is-editing' : 'is-readonly'}" data-index="${index}" min="0" max="100" step="0.1" placeholder="0" value="${holding?.annualReturn ?? ''}" ${editingOtherHoldingIndices.has(index) ? '' : 'readonly'} style="width: 100%; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text); font-variant-numbers: tabular-nums;">
                 </td>
                 <td style="padding: 8px 16px;">
                   <button type="button" class="btn-secondary edit-other-holding-btn" data-index="${index}" aria-label="${editingOtherHoldingIndices.has(index) ? 'Save' : 'Modify'} ${escapeHtml(holding?.name || 'holding')}" title="${editingOtherHoldingIndices.has(index) ? 'Save changes' : 'Modify holding'}">${editingOtherHoldingIndices.has(index) ? '✓' : '✎'}</button>

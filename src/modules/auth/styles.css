@@ -25,13 +25,13 @@
 
 /* Auth Container - Card */
 .auth-container {
-  background: #242424;
+  background: var(--card-bg);
   border-radius: 12px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
   padding: 2.5rem;
   width: 100%;
   max-width: 420px;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--border-primary);
 }
 
 /* Title and Subtitle */
@@ -55,7 +55,7 @@
   display: flex;
   gap: 0.5rem;
   margin-bottom: 2rem;
-  border-bottom: 1px solid #3a3a3a;
+  border-bottom: 1px solid var(--border-primary);
 }
 
 .auth-tabs button {
@@ -64,20 +64,20 @@
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
-  color: #707070;
+  color: var(--text-secondary);
   font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 200ms ease;
+  transition: color 200ms ease;
 }
 
 .auth-tabs button:hover {
-  color: #a0a0a0;
+  color: var(--color-primary);
 }
 
 .auth-tabs button.active {
-  color: #ffd700;
-  border-bottom-color: #ffd700;
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
 }
 
 /* Form Container */
@@ -101,24 +101,24 @@
 .form-group label {
   font-size: 0.9rem;
   font-weight: 500;
-  color: var(--card-border);
+  color: var(--text-primary);
   margin: 0;
 }
 
 .form-group input {
   padding: 0.875rem 1rem;
-  background: #2d2d2d;
-  border: 1px solid #3a3a3a;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
   font-size: 1rem;
-  color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
   transition: all 200ms ease;
   outline: none;
-  caret-color: #ffd700;
+  caret-color: var(--color-primary);
 }
 
 .form-group input:-webkit-autofill {
-  -webkit-box-shadow: 0 0 0 30px #2d2d2d inset !important;
+  -webkit-box-shadow: 0 0 0 30px var(--bg-primary) inset !important;
   -webkit-text-fill-color: var(--card-bg) !important;
 }
 
@@ -183,14 +183,14 @@
 /* Error Messages */
 .error-message {
   font-size: 0.8rem;
-  color: #ff6b6b;
+  color: var(--color-danger);
   min-height: 1.2rem;
   margin-top: -0.3rem;
 }
 
 .form-group input.error {
-  border-color: #ff6b6b;
-  background: rgba(255, 107, 107, 0.05);
+  border-color: var(--color-danger);
+  background: rgba(var(--color-danger-rgb), 0.05);
 }
 
 /* Primary Button */
@@ -198,7 +198,7 @@
   padding: 0.875rem 1rem;
   min-height: 44px;
   background: var(--card-bg);
-  color: #1a1a1a;
+  color: var(--text-primary);
   border: none;
   border-radius: 8px;
   font-size: 1rem;
@@ -208,16 +208,16 @@
   margin-top: 0.5rem;
 }
 
-.btn-primary:hover:not(:disabled) {
-  box-shadow: 0 8px 20px rgba(255, 215, 0, 0.3);
+/.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 8px 20px rgba(var(--color-primary-rgb), 0.3);
   transform: translateY(-2px);
 }
 
-.btn-primary:active:not(:disabled) {
+/.btn-primary:active:not(:disabled) {
   transform: translateY(0);
 }
 
-.btn-primary:disabled {
+/.btn-primary:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -225,9 +225,9 @@
 .btn-google {
   min-height: 44px;
   padding: 0.875rem 1rem;
-  background: #ffffff;
-  color: #202124;
-  border: 1px solid #dadce0;
+  background: var(--color-background);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
   border-radius: 8px;
   font-size: 1rem;
   font-weight: 600;
@@ -249,7 +249,7 @@
 .forgot-password {
   text-align: center;
   font-size: 0.9rem;
-  color: #a0a0a0;
+  color: var(--text-secondary);
   text-decoration: none;
   transition: color 200ms ease;
   margin-top: 0.5rem;
@@ -257,7 +257,7 @@
 }
 
 .forgot-password:hover {
-  color: #ffd700;
+  color: var(--color-primary);
   text-decoration: underline;
 }
 

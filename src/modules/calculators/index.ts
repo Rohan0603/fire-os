@@ -9,6 +9,8 @@ import './styles.css';
 import { initTaxModule } from './tax';
 import { executeMonthlyWithdrawal, DEFAULT_FUND_BUCKETS, calculateFIFORedemption } from './swp-scheduler';
 import { compareFIScenarios, type FIScenarioInput, type FIScenarioResult } from './scenario-modeler';
+import { PlayIcon, PauseIcon, BarChartIcon } from '@phosphor-icons/react';
+import { PlayIcon, PauseIcon, BarChartIcon } from '@phosphor-icons/react';
 
 let activeContext = createFeatureContext();
 let D = activeContext.state;
@@ -66,12 +68,12 @@ export function renderCalculators(container: HTMLElement, context: FeatureContex
   container.innerHTML = `
     <div class="calculators-container">
       <div class="calc-tabs">
-        <button class="calc-tab active" data-calc="crash">🔴 Crash Protocol</button>
-        <button class="calc-tab" data-calc="emergency">💧 Emergency Runway</button>
-        <button class="calc-tab" data-calc="sip-pause">⏸️ SIP Pause</button>
+<button class="calc-tab active" data-calc="crash">Crash Protocol</button>
+        <button class="calc-tab" data-calc="emergency">Emergency Runway</button>
+        <button class="calc-tab" data-calc="sip-pause">SIP Pause</button>
         <button class="calc-tab" data-calc="tax-planner">Tax Planner</button>
-        <button class="calc-tab" data-calc="swp-scheduler">⏸️ SWP Scheduler</button>
-        <button class="calc-tab" data-calc="scenario-compare">📊 Scenario Compare</button>
+        <button class="calc-tab" data-calc="swp-scheduler">SWP Scheduler</button>
+        <button class="calc-tab" data-calc="scenario-compare">Scenario Compare</button>
       </div>
 
       <div id="crash" class="calc-panel active">

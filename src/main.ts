@@ -278,19 +278,10 @@ function renderApp() {
       </div>
     </nav>
 
-    <div id="auth-screen"></div>
-
-    <div class="tabs-container" id="legacy-tabs">
-      <div id="profile" class="tab active"></div>
-      <div id="calculators" class="tab"></div>
-      <div id="insurance" class="tab"></div>
-      <div id="plan" class="tab"></div>
-      <div id="esop" class="tab"></div>
-      <div id="assistant" class="tab"></div>
-    </div>
+<div id="auth-screen"></div>
   `;
 
-  // Initialize and render auth screen
+// Initialize and render auth screen
   initAuthModule('auth-screen');
   renderAuthScreen();
 }
