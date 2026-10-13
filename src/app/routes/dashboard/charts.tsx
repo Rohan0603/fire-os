@@ -70,6 +70,10 @@ function resolveChartColors(): ChartColors {
   };
 }
 
+const reducedMotion = typeof window !== 'undefined'
+  ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  : false;
+
 function useChartColors(): ChartColors {
   const [colors, setColors] = useState(resolveChartColors);
   useEffect(() => {
@@ -189,7 +193,6 @@ export function CompositionCard({ state }: { state: FireOSState }) {
               nameKey="name"
               outerRadius="80%"
 stroke="none"
-// @ts-ignore
               isAnimationActive={!reducedMotion}
             >
               {data.map((entry, index) => (
@@ -277,7 +280,6 @@ export function NetWorthTrendCard({ state }: { state: FireOSState }) {
               stroke={colors.accent}
               strokeWidth={2}
               dot={false}
-// @ts-ignore
               isAnimationActive={!reducedMotion}
             />
           </LineChart>
@@ -392,7 +394,6 @@ export function BenchmarkCard({ history }: { history: HistoricalSeries | null })
 stroke={view === 'drawdown' ? colors.danger : colors.primary}
               strokeWidth={2}
               dot={false}
-// @ts-ignore
               isAnimationActive={!reducedMotion}
             />
           </LineChart>
