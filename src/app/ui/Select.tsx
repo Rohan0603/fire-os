@@ -20,6 +20,8 @@ export interface SelectProps {
   children?: ReactNode;
   className?: string;
   disabled?: boolean;
+  /** Id for the trigger, so a `<label htmlFor>` can name it. */
+  id?: string;
   /** Pre-computed option items. When provided, children is ignored and these
    *  options are rendered as SelectItems in order. Each option has `value` and `label`. */
   options?: { value: string; label: string }[];
@@ -31,11 +33,13 @@ export function Select({
   placeholder = 'Select…',
   disabled,
   options,
+  id,
   ...rest
 }: SelectProps) {
   return (
     <RadixSelect.Root {...rest} disabled={disabled}>
       <RadixSelect.Trigger
+        id={id}
         className={cn(
           'inline-flex w-full cursor-pointer items-center justify-between gap-2 rounded-md',
           'border border-(--color-border) bg-(--color-surface) px-3 py-2 text-sm',
