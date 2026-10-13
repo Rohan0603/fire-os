@@ -88,4 +88,32 @@ describe('persisted data migrations', () => {
   it('rejects the legacy coorg keys through the strict current schema', () => {
     expect(persistedPortfolioSchema.safeParse({ coorgTarget: 1 }).success).toBe(false);
   });
+
+  it('passes a current (non-legacy) envelope through untouched', () => {
+    const state = initializeState();
+    state.goals = [
+      {
+        id: 'goal-home',
+        name: 'Home',
+        kind: 'home',
+        targetToday: 1000000,
+        targetDate: '2030-01',
+        inflation: 'cpi',
+        linkedAssetIds: [],
+        currentAmount: 250000,
+        monthlyContribution: 5000,
+        priority: 1,
+        riskBucket: 'medium',
+      },
+    ];
+    const envelope = buildEnvelopeFromState(state, {}, '2026-01-01T00:00:00.000Z');
+    expect(envelope.schemaVersion).toBe('fireOS_v5');
+    expect(isPortfolioEnvelope(envelope)).toBe(true);
+
+    const migrated = migratePortfolioEnvelope(envelope) as { data: Record<string, unknown> };
+    // Current payload should pass through without coorg keys being introduced
+    expect('coorgCorpus' in migrated.data).toBe(false);
+    expect(migrated.data.goals).toEqual(state.goals);
+    expect(normalizePersistedState(migrated.data)?.goals).toEqual(state.goals);
+  });
 });

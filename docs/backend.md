@@ -61,10 +61,13 @@ times with exponential delays starting at 500ms, pauses offline, flushes on
 reconnect, and publishes status changes to `syncStatusStore`. Section
 clocks/entry timestamps
 support merge decisions. The state envelope uses schema `fireOS_v5` for writes;
-rules accept v2/v3/v4/v5. Reads migrate older payloads (legacy `coorg*` goal
-fields and `esopDetails.triggers`) into the current `goals`/`liquidationRules`
-shape before validation via `migratePortfolioEnvelope()` in
-`src/lib/portfolioMigrations.ts`.
+rules accept v2/v3/v4/v5. Reads migrate older payloads into the current
+`goals`/`liquidationRules` shape before validation via
+`migratePortfolioEnvelope()` in `src/lib/portfolioMigrations.ts`. Legacy
+payloads that contain the four-scalar `coorg*` goal fields and
+`esopDetails.triggers` booleans are rewritten into the current shape at read
+time; current payloads using the `fireOS_v5` schema pass through without
+migration.
 
 ## Firestore data contract
 

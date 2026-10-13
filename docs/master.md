@@ -126,10 +126,11 @@ numbers and selected limits; `normalizePersistedState()` fills omitted fields
 from defaults, discarding a malformed `marketHistory` without discarding the
 portfolio. Firestore rules independently validate their boundary.
 `migratePersistedData()` (in `src/lib/portfolioMigrations.ts`) rewrites older
-payloads — the four scalar `coorg*` goal fields and the `esopDetails.triggers`
-booleans — into the current `goals`/`liquidationRules` shape at every read
-boundary (local storage, JSON backup restore, Firestore envelopes); it is
-idempotent and liberal in, strict out. `mergeState()` deep-merges known object
+payloads that contain the legacy four-scalar `coorg*` goal fields (and the
+`esopDetails.triggers` booleans) into the current `goals`/`liquidationRules`
+shape at every read boundary (local storage, JSON backup restore, Firestore
+envelopes); it is idempotent and liberal in, strict out. Current payloads that
+already use the `goals`/`liquidationRules` shape pass through untouched. `mergeState()` deep-merges known object
 sections, unions milestones and `goals`/`liquidationRules` by id, deduplicates
 history dates, and keeps metadata explicit.
 

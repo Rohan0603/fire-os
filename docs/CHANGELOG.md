@@ -15,16 +15,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   persisted `goals: Goal[]` model (`src/types/state.ts`, `goalSchema`) with a
   dashboard progress card per goal and per-goal SIP-prep actions. The personal
   preset (`src/presets/personal-plan.ts`) keeps the original home-goal numbers as
-  a single goal.
+  a single goal. These `coorg*` fields are now handled through the read-side
+  migration in `src/lib/portfolioMigrations.ts`; they are not part of the current
+  type definition.
 - **General ESOP liquidation rules**: the four fixed `esopDetails.triggers`
   booleans are replaced by a persisted `liquidationRules: LiquidationRule[]`
   list — one toggle card per rule, plus `allocateAmount` goal allocations that
   deploy sequentially from the remaining corpus.
 - **Persisted-state migration** (`src/lib/portfolioMigrations.ts`): legacy
-  payloads (v2–v4) rewrite `coorg*`/`triggers` into the `goals`/`liquidationRules`
+  payloads (v2–v4) contain the four-scalar `coorg*` goal fields and the
+  `esopDetails.triggers` booleans, which are rewritten into the `goals`/`liquidationRules`
   shape at every read boundary (local storage, JSON backup restore, Firestore
   envelope load/snapshot); idempotent, liberal in / strict out. Writes now use
-  envelope schema `fireOS_v5`; reads still accept v2–v5.
+  envelope schema `fireOS_v5`; reads still accept v2–v5 but migration runs
+  automatically on read.
 - **Assistant Worker authentication**: `POST /api/assistant/query` now requires a
   verified Firebase ID token sent as `Authorization: Bearer`. The Worker checks
   RS256 signature against Google's JWKS, issuer/audience for
