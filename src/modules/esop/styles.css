@@ -330,9 +330,14 @@ input:checked + .slider:before {
   gap: var(--spacing-md);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse {
+    animation: none;
+  }
+}
+
 .animate-pulse {
   animation: flash-pulse 2s infinite ease-in-out;
-  motion-reduce: animation-none;
 }
 
 @keyframes flash-pulse {

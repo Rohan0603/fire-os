@@ -29,7 +29,7 @@ export function checkNewMilestones(state: FireOSState): Record<string, string> {
   });
   
   // Custom FI Target milestone
-  if (state.profile.fiTarget > 0 && currentNW >= state.profile.fiTarget && !state.achievedMilestones.includes('fi-target')) {
+  if ((state.profile.fiTarget ?? 0) > 0 && currentNW >= (state.profile.fiTarget ?? 0) && !state.achievedMilestones.includes('fi-target')) {
     newAchieved['fi-target'] = today;
   }
   
@@ -41,8 +41,9 @@ export function renderMilestones(state: FireOSState): string {
   const fiTarget = state.profile.fiTarget;
   
   const allMilestones = [...NET_WORTH_MILESTONES];
-  if (fiTarget > 0 && !allMilestones.find(m => m.threshold === fiTarget)) {
-    allMilestones.push({ id: 'fi-target', title: 'FI Target', threshold: fiTarget });
+  const effectiveFiTarget = state.profile.fiTarget ?? 0;
+  if (effectiveFiTarget > 0 && !allMilestones.find(m => m.threshold === effectiveFiTarget)) {
+    allMilestones.push({ id: 'fi-target', title: 'FI Target', threshold: effectiveFiTarget });
   }
   
   allMilestones.sort((a, b) => a.threshold - b.threshold);

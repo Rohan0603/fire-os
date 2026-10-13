@@ -241,35 +241,41 @@ export function calculatePeriodReturn(cashFlows: CashFlow[], start: Date, end: D
  * FI Progress KPI - financial independence goal tracking
  */
 export interface FIProgressKPI {
-  fiTarget: number;
+  fiTarget: number | null; // null = never entered, 0 = explicitly set to ₹0, positive = explicit target
   currentCorpus: number;
   progressPercent: number;
   yearsRemaining: number | null;
+  targetSet: boolean; // true when a FI target was explicitly set (even if 0)
 }
 
 export function fiProgress(state: FireOSState): FIProgressKPI {
   // FI target: user-entered value in profile
-  const fiTarget = state.profile.fiTarget;
+  // fiTarget is null when never entered, 0 when explicitly set to ₹0, positive when set to a value > 0
+  const fiTargetValue = state.profile.fiTarget;
+  const fiTarget: number | null = fiTargetValue !== undefined && fiTargetValue !== null ? fiTargetValue : null;
+  const targetSet: boolean = fiTargetValue !== null; // true when a target was explicitly set (even if 0)
 
   // Current corpus from totalNetWorth
   const netWorthData = totalNetWorth(state);
   const currentCorpus = netWorthData.netWorth;
 
   // Progress percentage
-  const progressPercent = fiTarget > 0 ? (currentCorpus / fiTarget) * 100 : 0;
+  const effectiveFiTarget = fiTarget ?? 0;
+  const progressPercent = effectiveFiTarget > 0 ? (currentCorpus / effectiveFiTarget) * 100 : 0;
 
   // Years remaining: null while not achieved. With no positive target set,
   // nothing has been achieved, so report null rather than a false zero.
   let yearsRemaining: number | null = null;
-  if (fiTarget > 0 && currentCorpus >= fiTarget) {
+  if (effectiveFiTarget > 0 && currentCorpus >= effectiveFiTarget) {
     yearsRemaining = 0;
   }
 
   return {
-    fiTarget: isFinite(fiTarget) ? Math.max(0, fiTarget) : 0,
+    fiTarget,
     currentCorpus: isFinite(currentCorpus) ? currentCorpus : 0,
     progressPercent: isFinite(progressPercent) ? Math.max(0, progressPercent) : 0,
     yearsRemaining,
+    targetSet,
   };
 }
 

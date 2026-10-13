@@ -123,7 +123,7 @@
 }
 
 .form-group input:focus {
-  background: var(--text-primary);
+  background: var(--bg-primary);
   border-color: #ffd700;
   box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.1);
 }
@@ -190,7 +190,7 @@
 
 .form-group input.error {
   border-color: var(--color-danger);
-  background: rgba(var(--color-danger-rgb), 0.05);
+  background: var(--color-danger-light);
 }
 
 /* Primary Button */
@@ -209,7 +209,7 @@
 }
 
 /.btn-primary:hover:not(:disabled) {
-  box-shadow: 0 8px 20px rgba(var(--color-primary-rgb), 0.3);
+  box-shadow: 0 8px 20px rgba(245, 158, 11, 0.3);
   transform: translateY(-2px);
 }
 
@@ -225,7 +225,7 @@
 .btn-google {
   min-height: 44px;
   padding: 0.875rem 1rem;
-  background: var(--color-background);
+  background: var(--bg-secondary);
   color: var(--text-primary);
   border: 1px solid var(--border-primary);
   border-radius: 8px;

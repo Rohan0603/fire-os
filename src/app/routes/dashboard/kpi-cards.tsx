@@ -60,7 +60,7 @@ export function KpiRow({ state }: { state: FireOSState }) {
   value={`${fi.progressPercent.toFixed(0)}%`}
   detail={
     fi.targetSet
-      ? fi.fiTarget > 0
+      ? (fi.fiTarget ?? 0) > 0
         ? fi.yearsRemaining === null
           ? 'Years remaining: not yet achieved'
           : 'Financial independence achieved'
@@ -200,7 +200,7 @@ export function PortfolioSummary({ state }: { state: FireOSState }) {
             {formatCurrency(fi.currentCorpus, 0)}
           </p>
         </Card>
-        <SummaryStat label="FI Target" value={fi.targetSet ? formatCurrency(fi.fiTarget, 0) : 'Not set'} />
+        <SummaryStat label="FI Target" value={fi.targetSet ? formatCurrency(fi.fiTarget ?? 0, 0) : 'Not set'} />
         <SummaryStat label="Annual Expenses" value={formatCurrency((state.profile.annualExpenses || 0) * 12, 0)} />
         <SummaryStat label="Monthly Buffer" value={formatCurrency(state.profile.annualExpenses || 0, 0)} />
         {ASSET_CLASSES.map(([key, label]) => (

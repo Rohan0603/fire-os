@@ -191,8 +191,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   unconfigured deployment as a guest.
 
 ### Fixed
-- **Backup Restore Hardening**: restored backups are runtime-validated with Valibot before being applied
-- **Date and Duration Fixes**: age from date of birth (anniversary and leap-day handling), strict `YYYY-MM`/`YYYY-MM-DD` parsing, and long-term holding duration thresholds
+- **FIProgressKPI targetSet and fiTarget nullability**: `FIProgressKPI.fiTarget` changed from `number` to `number | null`, with `FIProgressKPI.targetSet: boolean` added. `fiTarget` is `null` when never entered, `0` when explicitly set to ₹0, and positive when a positive target was set. `targetSet` is `true` when a target was explicitly set. This enables the UI to distinguish "no FI target set" from "FI target set to ₹0".
+- **Insurance accessor fix**: Insurance fields (`termLife`, `health`, `vehicle`) read from `D.insurance` at the top level of `FireOSState` instead of the incorrect `D.profile.insurance` path. Fixed accessors in `src/modules/profile/index.ts` insurance form section.
+- **motion-reduce inline style fix**: Removed invalid `motion-reduce:transition-none` from inline `style` attribute in `src/modules/profile/index.ts` (325). The UI kit carries `motion-reduce:` transitions structurally.
+- **motion-reduce CSS fix**: Replaced invalid `motion-reduce: animation-none` in `src/modules/esop/styles.css` with proper `@media (prefers-reduced-motion: reduce) { .animate-pulse { animation: none; } }` rule.
+- **CSS token fixes in auth styles**: Fixed `.form-group input:focus { background: var(--text-primary) }` which made text unreadable by setting background to `var(--bg-primary)`. Replaced undefined `--color-danger-rgb` with `var(--color-danger-light)`, undefined `--color-primary-rgb` with literal `rgba(245, 158, 11, 0.3)`, and undefined `--color-background` with `var(--bg-secondary)` for Google button.
+- **Duplicate Phosphor imports removed**: Removed duplicate `import { PlayIcon, PauseIcon, BarChartIcon } from '@phosphor-icons/react';` lines from `src/modules/calculators/index.ts` (lines 12-13). `BarChartIcon` does not exist in the package; tab buttons now use plain text labels.
 
 ## [3.0.0] - 2026-10-03
 
