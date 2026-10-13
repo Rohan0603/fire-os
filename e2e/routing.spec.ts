@@ -15,6 +15,18 @@ test('every route resolves on a cold load and keeps its container id and active 
   }
 });
 
+test('a migrated route leaves no active legacy container underneath it', async ({ page }) => {
+  // `goals` is rendered by React, so it is not in the feature registry. Navigating
+  // to it must still deactivate the legacy tab that was showing, otherwise the
+  // Assistant container renders below the Goals wizard.
+  await page.goto('/assistant');
+  await expect(page.locator('#legacy-tabs .tab.active')).toHaveCount(1);
+
+  await page.goto('/goals');
+  await expect(page.locator('#goals')).toBeVisible();
+  await expect(page.locator('#legacy-tabs .tab.active')).toHaveCount(0);
+});
+
 test('marks routes not yet migrated without claiming their container id', async ({ page }) => {
   await page.goto('/esop');
   // The legacy compat bridge still owns #esop and its `active` class; React must
