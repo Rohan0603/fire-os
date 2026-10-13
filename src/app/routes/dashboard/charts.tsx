@@ -281,19 +281,20 @@ export function NetWorthTrendCard({ state }: { state: FireOSState }) {
 /** FI goal progress as a headline figure (no fabricated projection). */
 export function FiGoalCard({ state }: { state: FireOSState }) {
   const fi = fiProgress(state);
-  const achieved = fi.fiTarget > 0 && fi.currentCorpus >= fi.fiTarget;
-  const remaining = Math.max(0, fi.fiTarget - fi.currentCorpus);
+  const safeFiTarget = fi.fiTarget ?? 0;
+  const achieved = safeFiTarget > 0 && fi.currentCorpus >= safeFiTarget;
+  const remaining = Math.max(0, safeFiTarget - fi.currentCorpus);
   return (
     <ChartCard title="FI Goal Progress">
       <div className="flex flex-col items-center gap-2 py-6 text-center">
         <p className="text-4xl font-bold text-(--color-accent)">{`${fi.progressPercent.toFixed(0)}%`}</p>
         <p className="text-sm text-(--color-foreground)">
-          {`${formatCurrency(fi.currentCorpus, 0)} / ${formatCurrency(fi.fiTarget, 0)}`}
+          {`${formatCurrency(fi.currentCorpus, 0)} / ${formatCurrency(safeFiTarget, 0)}`}
         </p>
         <p className="text-xs text-(--color-muted-foreground)">
           {achieved
             ? 'FI achieved'
-            : fi.fiTarget > 0
+            : safeFiTarget > 0
               ? `${formatCurrency(remaining, 0)} remaining`
               : 'Set an FI target to track progress'}
         </p>

@@ -79,7 +79,7 @@ export interface PortfolioProfile {
   age: number;
   taxSlabRate: number;
   annualExpenses: number; // monthly ₹ — legacy key name says annual; consumers multiply by 12
-  fiTarget: number; // FI corpus target
+  fiTarget: number | null; // FI corpus target; null means never entered, 0 means explicitly set to ₹0
   monthlyIncome: number;
 }
 

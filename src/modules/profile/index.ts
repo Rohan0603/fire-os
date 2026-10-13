@@ -129,20 +129,20 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
             <div class="row">
               <div class="form-field">
                 <label>Current Cover (₹)</label>
-                <input type="number" id="term-life-cover" value="${D.profile.insurance?.termLife?.currentCover || ''}">
+                <input type="number" id="term-life-cover" value="${D.insurance?.termLife?.currentCover || ''}">
               </div>
               <div class="form-field">
                 <label>Annual Premium (₹)</label>
-                <input type="number" id="term-life-premium" value="${D.profile.insurance?.termLife?.annualPremium || ''}">
+                <input type="number" id="term-life-premium" value="${D.insurance?.termLife?.annualPremium || ''}">
               </div>
             </div>
             <div class="form-group">
               <label>Expiry Date</label>
-              <input type="date" id="term-life-expiry" value="${D.profile.insurance?.termLife?.expiryDate || ''}">
+              <input type="date" id="term-life-expiry" value="${D.insurance?.termLife?.expiryDate || ''}">
             </div>
             <div class="form-field">
               <label>Provider</label>
-              <input type="text" id="term-life-provider" value="${D.profile.insurance?.termLife?.provider || ''}">
+              <input type="text" id="term-life-provider" value="${D.insurance?.termLife?.provider || ''}">
             </div>
           </div>
           <div class="form-group">
@@ -150,20 +150,20 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
             <div class="row">
               <div class="form-field">
                 <label>Current Cover (₹)</label>
-                <input type="number" id="health-cover" value="${D.profile.insurance?.health?.currentCover || ''}">
+                <input type="number" id="health-cover" value="${D.insurance?.health?.currentCover || ''}">
               </div>
               <div class="form-field">
                 <label>Annual Premium (₹)</label>
-                <input type="number" id="health-premium" value="${D.profile.insurance?.health?.annualPremium || ''}">
+                <input type="number" id="health-premium" value="${D.insurance?.health?.annualPremium || ''}">
               </div>
             </div>
             <div class="form-group">
               <label>Family Size</label>
-              <input type="number" id="family-size" value="${D.profile.insurance?.health?.familySize || ''}">
+              <input type="number" id="family-size" value="${D.insurance?.health?.familySize || ''}">
             </div>
             <div class="form-field">
               <label>Provider</label>
-              <input type="text" id="health-provider" value="${D.profile.insurance?.health?.provider || ''}">
+              <input type="text" id="health-provider" value="${D.insurance?.health?.provider || ''}">
             </div>
           </div>
           <div class="form-group">
@@ -171,11 +171,11 @@ export function renderProfile(container: HTMLElement, context: FeatureContext = 
             <div class="row">
               <div class="form-field">
                 <label>Covered</label>
-                <input type="checkbox" id="vehicle-covered" ${D.profile.insurance?.vehicle?.covered ? 'checked' : ''}>
+                <input type="checkbox" id="vehicle-covered" ${D.insurance?.vehicle?.covered ? 'checked' : ''}>
               </div>
               <div class="form-field">
                 <label>Annual Premium (₹)</label>
-                <input type="number" id="vehicle-premium" value="${D.profile.insurance?.vehicle?.annualPremium || ''}">
+                <input type="number" id="vehicle-premium" value="${D.insurance?.vehicle?.annualPremium || ''}">
               </div>
             </div>
           </div>
@@ -322,7 +322,7 @@ function renderSIPFields(): string {
   for (const i of existingIndices) {
     const sip = D.sip[`sip${i}`];
     html += `
-          <tr style="border-bottom: 1px solid var(--border-primary); transition: background-color 0.2s; motion-reduce:transition-none">
+          <tr style="border-bottom: 1px solid var(--border-primary); transition: background-color 0.2s;">
             <td style="padding: 8px 16px;">
               <input type="text" class="sip-name" data-index="${i}" placeholder="Fund name" value="${sip?.name || ''}" style="width: 100%; flex: 1; padding: 8px; border: 1px solid var(--border-primary); border-radius: 4px; background: var(--input-bg); color: var(--input-text); font-variant-numbers: tabular-nums;">
             </td>

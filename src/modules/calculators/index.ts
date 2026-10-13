@@ -9,8 +9,6 @@ import './styles.css';
 import { initTaxModule } from './tax';
 import { executeMonthlyWithdrawal, DEFAULT_FUND_BUCKETS, calculateFIFORedemption } from './swp-scheduler';
 import { compareFIScenarios, type FIScenarioInput, type FIScenarioResult } from './scenario-modeler';
-import { PlayIcon, PauseIcon, BarChartIcon } from '@phosphor-icons/react';
-import { PlayIcon, PauseIcon, BarChartIcon } from '@phosphor-icons/react';
 
 let activeContext = createFeatureContext();
 let D = activeContext.state;

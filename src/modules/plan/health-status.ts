@@ -21,7 +21,7 @@ export function assessHealth(state: FireOSState): HealthAssessment {
   // Dimensions
   let fiStatus: 'green' | 'yellow' | 'red' = 'green';
   let fiDetail = 'FI target is on track.';
-  if (fi.fiTarget > 0 && fi.currentCorpus > 0) {
+  if ((fi.fiTarget ?? 0) > 0 && fi.currentCorpus > 0) {
     if (fi.progressPercent < 10) {
        fiStatus = 'yellow';
        fiDetail = 'FI progress is low, consider reviewing growth rate.';
