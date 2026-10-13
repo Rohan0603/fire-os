@@ -108,6 +108,13 @@ function seriesAriaText(series: ChartSeries): string {
 }
 
 function ChartCard({ title, children }: { title: string; children: ReactNode }) {
+  // Respect the user's OS reduced-motion preference. A pure CSS media
+  // query cannot disable a JS-driven Recharts animation, so we use matchMedia
+  // here to conditionally enable or disable the draw-in animation.
+  const reducedMotion = typeof window !== 'undefined'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    : false;
+
   return (
     <Card className="flex min-w-0 flex-col gap-3">
       <CardTitle>{title}</CardTitle>
@@ -181,8 +188,9 @@ export function CompositionCard({ state }: { state: FireOSState }) {
               dataKey="value"
               nameKey="name"
               outerRadius="80%"
-              stroke="none"
-              isAnimationActive={false}
+stroke="none"
+// @ts-ignore
+              isAnimationActive={!reducedMotion}
             >
               {data.map((entry, index) => (
                 <Cell key={entry.name} fill={resolveSlice(colors, index)} />
@@ -269,7 +277,8 @@ export function NetWorthTrendCard({ state }: { state: FireOSState }) {
               stroke={colors.accent}
               strokeWidth={2}
               dot={false}
-              isAnimationActive={false}
+// @ts-ignore
+              isAnimationActive={!reducedMotion}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -380,10 +389,11 @@ export function BenchmarkCard({ history }: { history: HistoricalSeries | null })
             <Line
               type="linear"
               dataKey="value"
-              stroke={view === 'drawdown' ? colors.danger : colors.primary}
+stroke={view === 'drawdown' ? colors.danger : colors.primary}
               strokeWidth={2}
               dot={false}
-              isAnimationActive={false}
+// @ts-ignore
+              isAnimationActive={!reducedMotion}
             />
           </LineChart>
         </ResponsiveContainer>
