@@ -55,6 +55,27 @@
 - Preserve unrelated user changes; modify only files needed for the task.
 - In the final response, summarize the implementation, documentation updated, and validation performed.
 
+## DECISION ESCALATION POLICY - MANDATORY
+
+Ask the maintainer only for major and critical decisions. These include:
+
+- Anything that changes architecture, data contracts or persisted state
+- Anything that removes or replaces a public capability
+- Anything touching security, privacy, authentication or secret handling
+- Anything destructive or irreversible
+- Anything that spends money or changes external accounts
+- Anything that contradicts an explicit earlier maintainer instruction
+- Anything genuinely ambiguous where the wrong choice would be expensive to undo
+
+For everything else - small implementation choices, naming, file layout, formatting, which of two reasonable approaches to take, test ordering, minor refactors, routine dependency and tooling questions - decide yourself, pick the best option, apply it, and state briefly in your final response what you chose and why.
+
+- Do not ask the maintainer to make small decisions
+- Do not ask for confirmation of something you can verify yourself
+- If a small decision turns out to be load-bearing later, say so and change it; that is expected and needs no permission
+- When you are blocked on a small decision, choose, document it in the code or docs, and move on - do not stop and wait
+
+Put this section near the other workflow policy sections in AGENTS.md. Do not duplicate the existing PR/MR workflow or documentation sections.
+
 ### Quick script reference (keep in chat)
 
 | Goal | Command |
