@@ -37,11 +37,10 @@ export function setupTabNavigation(registry: FeatureRegistry, session: TabSessio
   }
 
   const activateTab = (target: string): void => {
-    if (!registry.get(target)) return;
-
-    // Drop the active class from every legacy tab/marker first so a migrated
-    // route (whose React section owns the id) can take over without a stale
-    // container still showing underneath.
+    // Drop the active class from every legacy tab/marker first, and unmount the
+    // one that was showing, before the registry check. A migrated route (e.g.
+    // `goals`) is not in the registry, and returning early left the previously
+    // activated legacy container visible underneath the React section.
     const currentTab = document.querySelector<HTMLElement>('.tab.active');
     if (currentTab && currentTab.id !== target) {
       void registry.unmount(currentTab.id, currentTab).catch((error) => {
@@ -53,6 +52,8 @@ export function setupTabNavigation(registry: FeatureRegistry, session: TabSessio
       tab.classList.toggle('active', tab.getAttribute('data-tab') === target);
     });
     document.querySelectorAll('.tab').forEach((tab) => tab.classList.remove('active'));
+
+    if (!registry.get(target)) return;
 
     // A migrated route renders its own React <section id> with `active`; there is
     // no legacy container to mount into, so leave it as React rendered it.
