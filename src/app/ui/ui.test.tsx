@@ -17,7 +17,7 @@ import { cn } from './cn';
  */
 
 const globalCssPath = path.resolve(
-  'C:\\Users\\ponna\\.ao\\data\\worktrees\\fire-os\\fire-os-41\\src\\styles\\global.css',
+  new URL('../../styles/global.css', import.meta.url).pathname.slice(1),
 );
 const globalCssContent = fs.readFileSync(globalCssPath, 'utf-8');
 
