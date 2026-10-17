@@ -61,7 +61,33 @@ both track the system preference.
 Legacy layout/global styles remain in `src/styles/` with feature CSS under each
 module; they shrink as routes are ported.
 
-The `portfolioSavedStore` save signal (Nanostores, `src/core/stores.ts`) is
+## Reduced‑motion preference
+
+The page respects the user's OS reduced‑motion preference through a single global
+media‑query block in `src/styles/global.css` (`@media (prefers-reduced-motion: reduce)`).
+
+- **Body transitions** are neutralized (`transition: none`) so the page updates
+  instantaneously while keeping focus‑ring outlines visible.
+- **Spinner keyframes** (`spin`) in `src/styles/global.css`,
+  `src/modules/auth/styles.css` and `src/modules/esop/styles.css` are made
+  no‑ops, stopping all rotation animations.
+- **Pulse keyframes** (`flash-pulse`) in `src/modules/esop/styles.css` are
+  neutralized via the same media query (the previously‑broken `@media`
+  block has been fixed so `animation: none` now correctly takes effect).
+- **Layout-level transitions** (`.nav`, `.hamburger-btn`, `.nav-tab`,
+  `.slider`, `.slider::before`) are made instant rather than removed, preserving
+  state‑conveying colour/role changes without animation.
+- **Chart draw‑in animation** is driven by the Recharts `isAnimationActive`
+  prop. A `window.matchMedia('(prefers-reduced-motion: reduce)')` guard in
+  `ChartCard` (`src/app/routes/dashboard/charts.tsx`) conditionally enables or
+  disables the animation, since a pure CSS media query cannot disable a JS‑driven
+  Recharts prop.
+
+The Tailwind v4 `motion-reduce:` variants already used throughout the UI kit
+(`Button`, `Input`, `Card`, `Select`, `Table`, `Toast`) complement this global
+block by neutralising transitions and animations at the component level. Together,
+they ensure that users who have set reduced‑motion in their OS preferences see
+no unintended motion, while focus rings remain functional and instant.
 subscribed through `usePortfolioSaved()` in `src/app/providers.tsx`, so a
 migrated route re-renders when a save invalidates its data. The app root
 and each React route sit inside an `ErrorBoundary`, so a failure in one route

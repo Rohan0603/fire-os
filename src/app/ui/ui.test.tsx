@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
+import fs from 'fs';
+import path from 'path';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card, CardTitle } from './Card';
@@ -10,7 +12,15 @@ import { cn } from './cn';
  * than computed style. That is enough to pin the two things that silently broke
  * during the migration: a variant dropping its token class, and a focus ring
  * disappearing. Actual cascade behaviour is covered by e2e/design-system.spec.ts.
+ * The CSS file check below verifies the global prefers-reduced-motion block
+ * exists in src/styles/global.css.
  */
+
+const globalCssPath = path.resolve(
+  'C:\\Users\\ponna\\.ao\\data\\worktrees\\fire-os\\fire-os-41\\src\\styles\\global.css',
+);
+const globalCssContent = fs.readFileSync(globalCssPath, 'utf-8');
+
 describe('cn', () => {
   it('joins truthy parts and drops falsy ones', () => {
     expect(cn('a', false, null, undefined, 'b')).toBe('a b');
@@ -50,13 +60,33 @@ describe('Button', () => {
 
   it('forwards native button attributes', () => {
     const html = renderToStaticMarkup(
-      <Button id="save" data-testid="save-btn" disabled>
+      <Button id="save" data-testid="save-btn" disabled>,
         Save
       </Button>,
     );
     expect(html).toContain('id="save"');
     expect(html).toContain('data-testid="save-btn"');
     expect(html).toContain('disabled');
+  });
+});
+
+describe('reduced-motion', () => {
+  it('global CSS contains the prefers-reduced-motion media query block', () => {
+    expect(globalCssContent).toContain('@media (prefers-reduced-motion: reduce)');
+  });
+
+  it('media query includes body transition neutralization', () => {
+    // The reduced-motion block sets body transition to none
+    expect(globalCssContent).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?body\s*\{[\s\S]*?transition\s*:\s*none[\s\S]*?\}/);
+  });
+
+  it('media query includes spinner animation neutralization', () => {
+    expect(globalCssContent).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.loading-spinner[\s\S]*?animation\s*:\s*none[\s\S]*?}/);
+    expect(globalCssContent).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.loader-circle[\s\S]*?animation\s*:\s*none[\s\S]*?}/);
+  });
+
+  it('media query includes pulse animation neutralization', () => {
+    expect(globalCssContent).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.animate-pulse[\s\S]*?animation\s*:\s*none[\s\S]*?}/);
   });
 });
 

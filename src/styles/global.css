@@ -47,3 +47,53 @@ html, body, #app {
 .flex-align-center { display: flex; align-items: center; }
 .flex-justify-center { display: flex; justify-content: center; }
 
+/* Global prefers-reduced-motion: stop infinite/long-running animations and
+   make transitions instant so focus rings remain visible but not animated. */
+@media (prefers-reduced-motion: reduce) {
+  body {
+    transition: none;
+  }
+
+  /* Neutralise layout-level transitions (made instant, not removed, so state
+     meaning is preserved but without animation). */
+  .nav,
+  .hamburger-btn,
+  .nav-tab,
+  .slider,
+  .slider::before {
+    transition: none;
+  }
+
+  /* Stop spinner animations */
+  .loading-spinner,
+  .loader-circle {
+    animation: none;
+  }
+
+  /* Stop pulse animation */
+  .animate-pulse {
+    animation: none;
+  }
+
+  /* Neutralise keyframes so they are no-ops if somehow referenced */
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(0deg); }
+  }
+
+  @keyframes flash-pulse {
+    from {
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3);
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+  }
+}
+
