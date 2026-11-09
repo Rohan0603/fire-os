@@ -33,12 +33,6 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Temporary Prettier diagnostic for governance issue form
-        run: |
-          echo 'START_GOVERNANCE_FORMAT'
-          npx prettier .github/ISSUE_TEMPLATE/agent_task.yml
-          echo 'END_GOVERNANCE_FORMAT'
-
       - name: Format check
         run: npm run format:check
 
