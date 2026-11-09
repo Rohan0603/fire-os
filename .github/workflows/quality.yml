@@ -51,12 +51,16 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
-      # e2e/auth.spec.ts asserts the *configured* auth path, so it needs the
-      # Firebase keys. Without them the app falls back to the unconfigured
-      # screen and both auth tests fail. Provide them from the same repository
-      # variables deploy.yml already uses. The unconfigured path stays covered by
-      # the unit test in src/modules/auth/firebaseAuth.test.ts.
-      - name: Browser E2E tests
+      # Most E2E specs assert the supported local-only guest mode. Do not
+      # inject Firebase configuration into those runs: that forces the
+      # signed-out auth gate and hides the routes the specs verify.
+      - name: Browser E2E tests (guest mode)
+        run: npx playwright test --grep-invert "auth screen with Firebase configured"
+
+      # Auth specs separately verify the configured Firebase sign-in controls.
+      # Starting a fresh Playwright server ensures this mode cannot leak into
+      # the guest-mode tests. Both suites must pass.
+      - name: Browser E2E tests (configured Firebase auth)
         env:
           VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
@@ -64,4 +68,4 @@ jobs:
           VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
-        run: npm run test:e2e
+        run: npx playwright test e2e/auth.spec.ts
