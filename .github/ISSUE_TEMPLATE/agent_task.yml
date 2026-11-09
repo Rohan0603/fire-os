@@ -2,7 +2,7 @@ name: Agent work item
 # Install labels chief, worker, human and metadata-bootstrap before enabling this form.
 # Do not specify Projects in frontmatter: auto-add and verified metadata-bootstrap are supported.
 description: Create a tracked Chief-owned task that can later be certified for Worker.
-title: "[TASK] "
+title: '[TASK] '
 labels:
   - chief
 body:
