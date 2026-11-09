@@ -16,9 +16,7 @@ import { cn } from './cn';
  * exists in src/styles/global.css.
  */
 
-const globalCssPath = path.resolve(
-  'C:\\Users\\ponna\\.ao\\data\\worktrees\\fire-os\\fire-os-41\\src\\styles\\global.css',
-);
+const globalCssPath = path.resolve(process.cwd(), 'src/styles/global.css');
 const globalCssContent = fs.readFileSync(globalCssPath, 'utf-8');
 
 describe('cn', () => {
