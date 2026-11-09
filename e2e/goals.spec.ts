@@ -1,3 +1,5 @@
+import { expect, test } from '@playwright/test';
+
 /** Goals is the first fully-migrated route, so these specs double as the
  * contract for how a migrated route should behave: kit components, labelled
  * fields, and inline validation rather than native bubbles.
